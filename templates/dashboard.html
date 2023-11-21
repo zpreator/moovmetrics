@@ -25,18 +25,19 @@
 <nav class="navbar navbar-default">
     <div class="container-fluid">
         <div class="navbar-header">
-            <a class="navbar-brand" href="#">Strava Dashboard</a>
+            <a class="navbar-brand" href="#">Stravapp</a>
         </div>
         <ul class="nav navbar-nav navbar-right">
             {% if athlete %}
                 <li><p class="navbar-text">Logged in as: {{ athlete.firstname }}</p></li>
+                <li><a class="navbar-brand" href="/logout">Logout</a></li>
             {% endif %}
         </ul>
     </div>
 </nav>
 
 <div class="jumbotron">
-    <h1>Welcome to Your Strava Dashboard</h1>
+    <h1>Welcome to Your Strava App</h1>
     <p class="lead">Track your progress and performance.</p>
     {% if athlete %}
         <div class="stats">

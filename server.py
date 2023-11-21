@@ -11,6 +11,10 @@ if os.getenv("STRAVA_CLIENT_ID") is None:
 # Initialize Strava client
 client = Client()
 
+if 'STRAVA_CLIENT_ID' in os.environ:
+    print('Found client id')
+if 'STRAVA_CLIENT_SECRET' in os.environ:
+    print('Found client secret')
 
 @app.route("/")
 def index():
@@ -31,7 +35,14 @@ def strava_login():
         state=session['state'],
         approval_prompt='auto'
     )
+    print(f'Here is the url: {url}')
     return redirect(url)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("index"))
 
 
 @app.route("/strava-callback")
@@ -67,10 +78,10 @@ def dashboard():
 
 if __name__ == "__main__":
     # Use the PORT environment variable provided by Heroku
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 5001))
 
     # Run the app
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=True)
 
 #
 # app = Flask(__name__)
