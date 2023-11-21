@@ -1,3 +1,6 @@
 Flask
+flask-caching
 stravalib
 python-dotenv
+polyline
+folium
