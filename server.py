@@ -1,5 +1,7 @@
+import time
+
 import stravalib.exc
-from flask import Flask, render_template, request, url_for, jsonify, session, redirect
+from flask import Flask, render_template, request, url_for, session, redirect
 from stravalib import Client
 from dotenv import load_dotenv
 from uuid import uuid4
@@ -7,8 +9,9 @@ import os
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'  # Change this to a secure secret key
-if os.getenv("STRAVA_CLIENT_ID") is None:
+if os.path.exists("settings.env"):
     load_dotenv("settings.env")
+
 # Initialize Strava client
 client = Client()
 
@@ -16,6 +19,7 @@ if 'STRAVA_CLIENT_ID' in os.environ:
     print('Found client id')
 if 'STRAVA_CLIENT_SECRET' in os.environ:
     print('Found client secret')
+
 
 @app.route("/")
 def index():
@@ -42,9 +46,31 @@ def strava_login():
     return redirect(url)
 
 
+@app.route("/refresh")
+def refresh():
+    if 'state' not in session:
+        return redirect(url_for('index'))
+
+    try:
+        response = client.exchange_code_for_token(
+            client_id=os.getenv("STRAVA_CLIENT_ID"),  # Replace with your Strava client ID
+            client_secret=os.getenv("STRAVA_CLIENT_SECRET"),  # Replace with your Strava client secret
+            code=session['refresh_token']
+        )
+    except stravalib.exc.AccessUnauthorized:
+        print('Could not refresh, not authenticated')
+        return redirect(url_for("index"))
+
+    # Store access token in the session for the user
+    session['access_token'] = response['access_token']
+    session['refresh_token'] = response['refresh_token']
+    session['token_expires_at'] = response['expires_at']
+    return redirect(url_for("dashboard"))
+
 @app.route("/logout")
 def logout():
     session.clear()
+    client.deauthorize()
     return redirect(url_for("index"))
 
 
@@ -55,18 +81,16 @@ def strava_callback():
         return "Invalid state. Possible CSRF attack."
 
     code = request.args.get('code')
-    print(f"Here is the code: {code}")
-    print(f"Here is the client id: {os.getenv('STRAVA_CLIENT_ID')}")
-    print(f"Here is the client secret: {os.getenv('STRAVA_CLIENT_SECRET')}")
-    access_token = client.exchange_code_for_token(
+    response = client.exchange_code_for_token(
         client_id=os.getenv("STRAVA_CLIENT_ID"),  # Replace with your Strava client ID
         client_secret=os.getenv("STRAVA_CLIENT_SECRET"),  # Replace with your Strava client secret
         code=code
     )
 
     # Store access token in the session for the user
-    session['access_token'] = access_token['access_token']
-
+    session['access_token'] = response['access_token']
+    session['refresh_token'] = response['refresh_token']
+    session['token_expires_at'] = response['expires_at']
     return redirect(url_for('dashboard'))
 
 
@@ -76,6 +100,9 @@ def dashboard():
         # Use the access token to fetch user data from Strava
         client.access_token = session['access_token']
         strava_athlete = client.get_athlete()
+        if 'token_expires_at' in session and time.time() > session['token_expires_at']:
+            print('Refreshing session')
+            redirect(url_for("refresh"))
     except stravalib.exc.AccessUnauthorized:
         return redirect(url_for('logout'))
     return render_template('dashboard.html', athlete=strava_athlete)
