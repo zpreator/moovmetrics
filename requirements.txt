@@ -1,0 +1,3 @@
+Flask
+stravalib
+python-dotenv

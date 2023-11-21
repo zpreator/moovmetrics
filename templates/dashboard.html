@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Strava Dashboard</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <style>
+        .jumbotron {
+            background-image: url('background_image.jpg'); /* Replace with your image */
+            background-size: cover;
+            color: #fff;
+            text-align: center;
+            padding: 100px 0;
+        }
+        .stats {
+            margin-top: 30px;
+        }
+        .stats h2 {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-default">
+    <div class="container-fluid">
+        <div class="navbar-header">
+            <a class="navbar-brand" href="#">Strava Dashboard</a>
+        </div>
+        <ul class="nav navbar-nav navbar-right">
+            {% if athlete %}
+                <li><p class="navbar-text">Logged in as: {{ athlete.firstname }}</p></li>
+            {% endif %}
+        </ul>
+    </div>
+</nav>
+
+<div class="jumbotron">
+    <h1>Welcome to Your Strava Dashboard</h1>
+    <p class="lead">Track your progress and performance.</p>
+    {% if athlete %}
+        <div class="stats">
+            <h2>Your Statistics</h2>
+            <p><strong>Total Activities:</strong> {{ athlete.stats.all_ride_totals.count }}</p>
+            <p><strong>Total Distance:</strong> {{ athlete.stats.all_ride_totals.distance }} meters</p>
+            <p><strong>Total Elevation Gain:</strong> {{ athlete.stats.all_ride_totals.elevation_gain }} meters</p>
+            <!-- Add more statistics as needed -->
+        </div>
+    {% endif %}
+</div>
+
+</body>
+</html>
