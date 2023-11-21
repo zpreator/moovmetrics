@@ -1,6 +1,6 @@
 import time
 import folium
-from folium.plugins import HeatMap, Fullscreen
+from folium.plugins import HeatMap, Fullscreen, TagFilterButton
 import polyline
 import stravalib.exc
 from flask import Flask, render_template, request, url_for, session, redirect
@@ -102,20 +102,20 @@ def strava_callback():
     return redirect(url_for('dashboard'))
 
 
-def generate_heatmap():
+def generate_map():
     print('Generating map')
+
+    # Loop through activities and collect map data
     activities = client.get_activities()
-    # Collect latitude and longitude coordinates
-    coordinates = []
-    lines = []
+    routes = []
     activity_types = ['Run', 'Hike', 'Ride']
+    decoded_coords = [(40, -112),]  # Define initial map position (this will get overwritten)
     for activity in activities:
         if activity.type in activity_types and activity.map:
             coords = activity.map.summary_polyline
             if coords:
                 # Decode the polyline data to retrieve latitude and longitude
                 decoded_coords = polyline.decode(coords)
-                coordinates.extend(decoded_coords)
                 p = folium.PolyLine(
                     smooth_factor=1,
                     opacity=0.5,
@@ -123,16 +123,17 @@ def generate_heatmap():
                     color="#FC4C02",
                     tooltip=activity.name,
                     weight=5,
+                    tags=[activity.type]
                 )
-                lines.append(p)
+                routes.append(p)
 
     # Create a base map centered on a location
-    m = folium.Map(location=coordinates[0], zoom_start=2)
+    m = folium.Map(location=decoded_coords[0], zoom_start=2)
 
-    [m.add_child(p) for p in lines]
-    # Add heat map layer based on coordinates
-    # heat_map = HeatMap(coordinates)
-    # m.add_child(heat_map)
+    for route in routes:
+        m.add_child(route)
+
+    TagFilterButton(activity_types).add_to(m)
 
     Fullscreen(
         position="topright",
@@ -181,7 +182,7 @@ def dashboard():
             'distance': hike_distance
         }
     }
-    generate_heatmap()
+    generate_map()
     return render_template('dashboard.html', athlete=strava_athlete, stats=stats, state=session['state'])
 
 
