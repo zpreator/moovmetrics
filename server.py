@@ -1,19 +1,24 @@
 import time
-
+import folium
+from folium.plugins import HeatMap, Fullscreen
+import polyline
 import stravalib.exc
 from flask import Flask, render_template, request, url_for, session, redirect
-from stravalib import Client
+from flask_caching import Cache
+from stravalib import unithelper, Client
 from dotenv import load_dotenv
 from uuid import uuid4
 import os
 
 app = Flask(__name__)
+cache = Cache(app, config={'CACHE_TYPE': 'simple'})
 app.secret_key = 'your_secret_key_here'  # Change this to a secure secret key
 if os.path.exists("settings.env"):
     load_dotenv("settings.env")
 
 # Initialize Strava client
 client = Client()
+
 
 if 'STRAVA_CLIENT_ID' in os.environ:
     print('Found client id')
@@ -97,7 +102,37 @@ def strava_callback():
     return redirect(url_for('dashboard'))
 
 
+def generate_heatmap():
+    print('Generating heatmap')
+    activities = client.get_activities()
+    # Collect latitude and longitude coordinates
+    coordinates = []
+    for activity in activities:
+        if activity.type == 'Run' and activity.map:
+            coords = activity.map.summary_polyline
+            if coords:
+                # Decode the polyline data to retrieve latitude and longitude
+                decoded_coords = polyline.decode(coords)
+                coordinates.extend(decoded_coords)
+    # Create a base map centered on a location
+    m = folium.Map(location=coordinates[0], zoom_start=2)
+
+    # Add heat map layer based on coordinates
+    heat_map = HeatMap(coordinates)
+    m.add_child(heat_map)
+    Fullscreen(
+        position="topright",
+        title="Expand me",
+        title_cancel="Exit me",
+        force_separate_button=True,
+    ).add_to(m)
+
+    # Save map to an HTML file or render it in the template
+    m.save(f'static/{session["state"]}/heatmap.html')
+
+
 @app.route("/dashboard")
+@cache.cached(timeout=60)  # Cache the heatmap for 60 seconds
 def dashboard():
     if 'access_token' not in session:
         return redirect(url_for('index'))
@@ -110,7 +145,9 @@ def dashboard():
             redirect(url_for("refresh"))
     except stravalib.exc.AccessUnauthorized:
         return redirect(url_for('logout'))
-    return render_template('dashboard.html', athlete=strava_athlete)
+    os.makedirs(os.path.join("static", str(session['state'])), exist_ok=True)
+    generate_heatmap()
+    return render_template('dashboard.html', athlete=strava_athlete, units=unithelper, state=session['state'])
 
 
 if __name__ == "__main__":
@@ -119,70 +156,3 @@ if __name__ == "__main__":
 
     # Run the app
     app.run(host='0.0.0.0', port=port, debug=True)
-
-#
-# app = Flask(__name__)
-# # app.config.from_envvar("APP_SETTINGS")
-# # app.config.from_envvar("settings.cfg")
-# app.config['SECRET_KEY'] = 'the random string'
-# load_dotenv('settings.env')
-#
-# # Initialize Strava client
-# client = Client()
-#
-# @app.route("/")
-# def login():
-#     url = client.authorization_url(
-#         client_id=os.getenv("STRAVA_CLIENT_ID"),
-#         redirect_uri=url_for(".logged_in", _external=True),
-#         approval_prompt="auto",
-#     )
-#     return render_template("index.html", authorize_url=url)
-#
-#
-# @app.route("/strava-oauth")
-# def logged_in():
-#     error = request.args.get("error")
-#     state = request.args.get("state")
-#     if error:
-#         return render_template("login_error.html", error=error)
-#     else:
-#         code = request.args.get("code")
-#         access_token = client.exchange_code_for_token(
-#             client_id=os.getenv("STRAVA_CLIENT_ID"),
-#             client_secret=os.getenv("STRAVA_CLIENT_SECRET"),
-#             code=code,
-#         )
-#         session['access_token'] = access_token['access_token']
-#         strava_athlete = client.get_athlete()
-#         return render_template(
-#             "heatmap.html",
-#             athlete_name=strava_athlete.firstname
-#         )
-#
-#
-# def get_heatmap_data(activity_count):
-#     activities = client.get_activities(limit=activity_count)
-#     coordinates = []
-#     for activity in activities:
-#         if activity.type == 'Run' and activity.map:
-#             coords = activity.map.summary_polyline
-#             if coords:
-#                 decoded_coords = polyline.decode(coords)
-#                 coordinates.extend(decoded_coords)
-#     return coordinates
-#
-#
-# @app.route('/heatmap/')
-# def heatmap():
-#     return render_template('heatmap.html')
-#
-#
-# @app.route('/update_heatmap/<int:activity_count>')
-# def update_heatmap(activity_count):
-#     heatmap_data = get_heatmap_data(activity_count)
-#     return jsonify({'coordinates': heatmap_data})
-#
-#
-# if __name__ == "__main__":
-#     app.run(debug=True)

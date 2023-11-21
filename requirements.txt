@@ -1,3 +1,5 @@
 Flask
 stravalib
 python-dotenv
+polyline
+folium
