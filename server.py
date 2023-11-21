@@ -29,13 +29,15 @@ def strava_login():
     session['state'] = str(uuid4())
 
     # Redirect user to Strava authorization URL
+    redirect_uri = url_for('strava_callback', _external=True)
+    print(f'Here is the redirect: {redirect_uri}')
     url = client.authorization_url(
         client_id=os.getenv("STRAVA_CLIENT_ID"),  # Replace with your Strava client ID
-        redirect_uri=url_for('strava_callback', _external=True),
+        redirect_uri=redirect_uri,
         state=session['state'],
         approval_prompt='auto'
     )
-    print(f'Here is the url: {url}')
+
     return redirect(url)
 
 
