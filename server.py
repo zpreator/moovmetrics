@@ -70,7 +70,10 @@ def refresh():
 @app.route("/logout")
 def logout():
     session.clear()
-    client.deauthorize()
+    try:
+        client.deauthorize()
+    except stravalib.exc.AccessUnauthorized:
+        pass
     return redirect(url_for("index"))
 
 
