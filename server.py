@@ -66,7 +66,11 @@ def dashboard():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Use the PORT environment variable provided by Heroku
+    port = int(os.environ.get('PORT', 5000))
+
+    # Run the app
+    app.run(host='0.0.0.0', port=port)
 
 #
 # app = Flask(__name__)
