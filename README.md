@@ -6,7 +6,8 @@ Strava companion app to explore deeper analysis including:
 - Targeted trends
 - more to come
 
-[Demo](http://stravapp-dev-99f4f17c9e2f.herokuapp.com/dashboard)
+[Dev](http://stravapp-dev-99f4f17c9e2f.herokuapp.com/dashboard)
+[Prod](http://stravapp-prod-f3bda259aecb.herokuapp.com/dashboard)
 
 # Installation
 
