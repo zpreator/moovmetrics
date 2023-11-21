@@ -1,3 +1,4 @@
+import stravalib.exc
 from flask import Flask, render_template, request, url_for, jsonify, session, redirect
 from stravalib import Client
 from dotenv import load_dotenv
@@ -37,7 +38,7 @@ def strava_login():
         state=session['state'],
         approval_prompt='auto'
     )
-
+    print(f"Here is the url: {url}")
     return redirect(url)
 
 
@@ -54,6 +55,9 @@ def strava_callback():
         return "Invalid state. Possible CSRF attack."
 
     code = request.args.get('code')
+    print(f"Here is the code: {code}")
+    print(f"Here is the client id: {os.getenv('STRAVA_CLIENT_ID')}")
+    print(f"Here is the client secret: {os.getenv('STRAVA_CLIENT_SECRET')}")
     access_token = client.exchange_code_for_token(
         client_id=os.getenv("STRAVA_CLIENT_ID"),  # Replace with your Strava client ID
         client_secret=os.getenv("STRAVA_CLIENT_SECRET"),  # Replace with your Strava client secret
@@ -68,13 +72,12 @@ def strava_callback():
 
 @app.route("/dashboard")
 def dashboard():
-    if 'access_token' not in session:
-        return redirect(url_for('index'))
-
-    # Use the access token to fetch user data from Strava
-    client.access_token = session['access_token']
-    strava_athlete = client.get_athlete()
-
+    try:
+        # Use the access token to fetch user data from Strava
+        client.access_token = session['access_token']
+        strava_athlete = client.get_athlete()
+    except stravalib.exc.AccessUnauthorized:
+        return redirect(url_for('logout'))
     return render_template('dashboard.html', athlete=strava_athlete)
 
 
