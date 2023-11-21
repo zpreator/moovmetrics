@@ -99,6 +99,8 @@ def strava_callback():
 
 @app.route("/dashboard")
 def dashboard():
+    if 'access_token' not in session:
+        return redirect(url_for('index'))
     try:
         # Use the access token to fetch user data from Strava
         client.access_token = session['access_token']
