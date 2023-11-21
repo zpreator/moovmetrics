@@ -45,24 +45,18 @@
         <div class="section-container">
             <div class="section">
                 <h2>Running</h2>
-                <p><strong>Total Activities:</strong> {{ athlete.stats.all_run_totals.count }}</p>
-                <p><strong>Total Distance:</strong> {{ units.miles(athlete.stats.all_run_totals.distance) | round(2) }}s</p>
-                <p><strong>Total Elevation Gain:</strong> {{ units.feet(athlete.stats.all_run_totals.elevation_gain) | round(2)}}s</p>
-                <!-- Add more running statistics as needed -->
+                <p><strong>Total Activities:</strong> {{ stats['run']['count'] }}</p>
+                <p><strong>Total Distance:</strong> {{ stats['run']['distance'] | round(2) }}s</p>
             </div>
             <div class="section">
                 <h2>Biking</h2>
-                <p><strong>Total Activities:</strong> {{ athlete.stats.all_ride_totals.count }}</p>
-                <p><strong>Total Distance:</strong> {{ units.miles(athlete.stats.all_ride_totals.distance) | round(2) }}s</p>
-                <p><strong>Total Elevation Gain:</strong> {{ units.feet(athlete.stats.all_ride_totals.elevation_gain) | round(2) }}s</p>
-                <!-- Add more biking statistics as needed -->
+                <p><strong>Total Activities:</strong> {{ stats['bike']['count'] }}</p>
+                <p><strong>Total Distance:</strong> {{ stats['bike']['distance'] | round(2) }}s</p>
             </div>
             <div class="section">
-                <h2>Swimming</h2>
-                <p><strong>Total Activities:</strong> {{ athlete.stats.all_swim_totals.count }}</p>
-                <p><strong>Total Distance:</strong> {{ athlete.stats.all_swim_totals.distance }}s</p>
-                <p><strong>Total Elevation Gain:</strong> {{ athlete.stats.all_swim_totals.elevation_gain }}s</p>
-                <!-- Add more swimming statistics as needed -->
+                <h2>Hiking</h2>
+                <p><strong>Total Activities:</strong> {{ stats['hike']['count'] }}</p>
+                <p><strong>Total Distance:</strong> {{ stats['hike']['distance'] | round(2)}} miles</p>
             </div>
         </div>
     {% endif %}

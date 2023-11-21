@@ -103,23 +103,37 @@ def strava_callback():
 
 
 def generate_heatmap():
-    print('Generating heatmap')
+    print('Generating map')
     activities = client.get_activities()
     # Collect latitude and longitude coordinates
     coordinates = []
+    lines = []
+    activity_types = ['Run', 'Hike', 'Ride']
     for activity in activities:
-        if activity.type == 'Run' and activity.map:
+        if activity.type in activity_types and activity.map:
             coords = activity.map.summary_polyline
             if coords:
                 # Decode the polyline data to retrieve latitude and longitude
                 decoded_coords = polyline.decode(coords)
                 coordinates.extend(decoded_coords)
+                p = folium.PolyLine(
+                    smooth_factor=1,
+                    opacity=0.5,
+                    locations=decoded_coords,
+                    color="#FC4C02",
+                    tooltip=activity.name,
+                    weight=5,
+                )
+                lines.append(p)
+
     # Create a base map centered on a location
     m = folium.Map(location=coordinates[0], zoom_start=2)
 
+    [m.add_child(p) for p in lines]
     # Add heat map layer based on coordinates
-    heat_map = HeatMap(coordinates)
-    m.add_child(heat_map)
+    # heat_map = HeatMap(coordinates)
+    # m.add_child(heat_map)
+
     Fullscreen(
         position="topright",
         title="Expand me",
@@ -132,7 +146,7 @@ def generate_heatmap():
 
 
 @app.route("/dashboard")
-@cache.cached(timeout=60)  # Cache the heatmap for 60 seconds
+# @cache.cached(timeout=60)  # Cache the heatmap for 60 seconds
 def dashboard():
     if 'access_token' not in session:
         return redirect(url_for('index'))
@@ -146,8 +160,29 @@ def dashboard():
     except stravalib.exc.AccessUnauthorized:
         return redirect(url_for('logout'))
     os.makedirs(os.path.join("static", str(session['state'])), exist_ok=True)
+    activities = client.get_activities()
+    hike_count = 0
+    hike_distance = 0.0
+    for activity in activities:
+        if activity.type == 'Hike':
+            hike_count += 1
+            hike_distance += float(unithelper.miles(activity.distance))
+    stats = {
+        'run': {
+            'count': strava_athlete.stats.all_run_totals.count,
+            'distance': unithelper.miles(strava_athlete.stats.all_run_totals.distance)
+        },
+        'bike': {
+            'count': strava_athlete.stats.all_ride_totals.count,
+            'distance': unithelper.miles(strava_athlete.stats.all_ride_totals.distance)
+        },
+        'hike': {
+            'count': hike_count,
+            'distance': hike_distance
+        }
+    }
     generate_heatmap()
-    return render_template('dashboard.html', athlete=strava_athlete, units=unithelper, state=session['state'])
+    return render_template('dashboard.html', athlete=strava_athlete, stats=stats, state=session['state'])
 
 
 if __name__ == "__main__":
