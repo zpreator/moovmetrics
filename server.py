@@ -16,6 +16,8 @@ app.secret_key = 'your_secret_key_here'  # Change this to a secure secret key
 if os.path.exists("settings.env"):
     load_dotenv("settings.env")
 
+FLASK_ENV = os.environ.get("FLASK_ENV", "dev")
+
 # Initialize Strava client
 client = Client()
 
@@ -167,7 +169,7 @@ def generate_map():
 
 
 @app.route("/dashboard")
-# @cache.cached(timeout=60)  # Cache the heatmap for 60 seconds
+@cache.cached(timeout=60)  # Cache the heatmap for 60 seconds
 def dashboard():
     if 'access_token' not in session:
         return redirect(url_for('index'))
@@ -203,7 +205,7 @@ def dashboard():
         }
     }
     generate_map()
-    return render_template('dashboard.html', athlete=strava_athlete, stats=stats, state=session['state'])
+    return render_template('dashboard.html', athlete=strava_athlete, stats=stats, state=session['state'], flask_env=FLASK_ENV)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.5">
     <title>Fitness Dashboard</title>
     <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/site.css') }}">
@@ -26,49 +27,6 @@
 </head>
 <body>
 
-<!--<nav class="navbar navbar-default">-->
-<!--    <div class="container-fluid">-->
-<!--        <div class="navbar-header">-->
-<!--            <a class="navbar-brand" href="#">I ❤️ Running</a>-->
-<!--        </div>-->
-<!--        <ul class="nav navbar-nav navbar-right">-->
-<!--            {% if athlete %}-->
-<!--                <li><p class="navbar-text">Logged in as: {{ athlete.firstname }}</p></li>-->
-<!--                <li><a class="navbar-brand" href="/logout">Logout</a></li>-->
-<!--            {% endif %}-->
-<!--        </ul>-->
-<!--    </div>-->
-<!--</nav>-->
-
-<!-- Navigation bar -->
-<!--<div class="navbar">-->
-<!--  <div class="container-fluid">-->
-<!--    <div class="navbar-header">-->
-<!--      <a href="#" class="icon">-->
-<!--        <i class="fa fa-bars"></i>-->
-<!--      </a>-->
-<!--    </div>-->
-<!--    <ul class="nav navbar-nav">-->
-<!--      <li><a href="#">I ❤️ Running</a></li>-->
-<!--      <li><a href="#">Personal Bests</a></li>-->
-<!--      <li><a href="#">Contact</a></li>-->
-<!--        {% if athlete %}-->
-<!--            <li><p class="navbar-text">Logged in as: {{ athlete.firstname }}</p></li>-->
-<!--            <li><a class="navbar-right" href="/logout">Logout</a></li>-->
-<!--        {% endif %}-->
-<!--  </div>-->
-<!--</div>-->
-<!--<nav class="navbar">-->
-<!--    <div class="left-buttons">-->
-<!--        <a href="#" class="home-button">Home</a>-->
-<!--        <a href="#" class="more-button">More</a>-->
-<!--    </div>-->
-<!--    <div class="right-buttons">-->
-<!--        <a href="#" class="logout-button">Logout</a>-->
-<!--    </div>-->
-<!--    <button class="hamburger">&#9776;</button>-->
-<!--</nav>-->
-
 <!-- Navbar -->
 <div class="w3-top">
   <div class="w3-bar w3-black w3-card">
@@ -92,12 +50,19 @@
   <a href="#" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Personal Bests</a>
   <a href="#" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Merchandise</a>
   <a href="#" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Extras</a>
-  <a href="#" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Media</a>
+    {% if flask_env == 'dev' %}
+  <a href="http://stravapp-prod-f3bda259aecb.herokuapp.com/dashboard" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Live Site</a>
+    {% else %}
+    <a href="http://stravapp-dev-99f4f17c9e2f.herokuapp.com/dashboard" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Test Site</a>
+    {% endif %}
   <a href="/logout" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Logout</a>
 </div>
 
 <div class="jumbotron">
     <h1>Welcome to Fitness-pizza-in-my-mouth</h1>
+    {% if flask_env == 'dev' %}
+    <p style="color: red;">You are viewing the test website, <a href="http://stravapp-prod-f3bda259aecb.herokuapp.com/dashboard">Click here</a> for the real one</p>
+    {% endif %}
     <p class="lead">Track your progress and performance.</p>
     {% if athlete %}
         <div class="section-container">
