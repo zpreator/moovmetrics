@@ -1,5 +1,6 @@
 .section-container {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-around;
     align-items: flex-start;
 }
@@ -10,4 +11,65 @@
     border: 1px solid #ccc;
     border-radius: 5px;
     margin: 10px;
+}
+
+/* Media query for mobile devices */
+@media (max-width: 768px) {
+    .section {
+        width: 100%; /* Set width to 100% for vertical stacking */
+    }
+}
+
+/* Navbar styles */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #333;
+    color: white;
+    padding: 10px;
+}
+
+.left-buttons {
+    display: flex;
+}
+
+.right-buttons {
+    display: flex;
+}
+
+/* Button styles */
+a, button {
+    text-decoration: none;
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    cursor: pointer;
+}
+
+/* Hamburger menu styles */
+.hamburger {
+    display: none; /* Hide by default on larger screens */
+}
+
+/* Media query for mobile view */
+@media (max-width: 768px) {
+    .left-buttons, .right-buttons {
+        display: none; /* Hide buttons on mobile */
+    }
+
+    .hamburger {
+        display: block; /* Display hamburger menu */
+    }
+
+    /* Show buttons in dropdown when hamburger is clicked */
+    .left-buttons.show, .right-buttons.show {
+        display: flex;
+        flex-direction: column;
+        position: absolute;
+        top: 50px; /* Adjust as needed based on your design */
+        background-color: #444;
+        z-index: 1;
+    }
+}
 }

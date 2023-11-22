@@ -128,7 +128,27 @@ def generate_map():
                 routes.append(p)
 
     # Create a base map centered on a location
-    m = folium.Map(location=decoded_coords[0], zoom_start=2)
+    m = folium.Map(location=decoded_coords[0], zoom_start=12)
+
+    # Customize the map controls for mobile devices
+    mobile_styles = """
+        @media (max-width: 768px) { /* Adjust this breakpoint according to your needs */
+            /* Increase the size of map controls for mobile */
+            .leaflet-control {
+                font-size: 20px;
+            }
+
+            /* Make the map expand button more accessible on mobile */
+            .leaflet-control-expand-full {
+                width: 40px;
+                height: 40px;
+                line-height: 40px;
+                font-size: 24px;
+            }
+        }
+    """
+
+    m.get_root().html.add_child(folium.Element(f"<style>{mobile_styles}</style>"))
 
     for route in routes:
         m.add_child(route)

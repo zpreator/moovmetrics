@@ -2,8 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Strava Dashboard</title>
+    <title>Fitness Dashboard</title>
+    <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/site.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
     <style>
         .jumbotron {
@@ -24,22 +26,78 @@
 </head>
 <body>
 
-<nav class="navbar navbar-default">
-    <div class="container-fluid">
-        <div class="navbar-header">
-            <a class="navbar-brand" href="#">Stravapp</a>
-        </div>
-        <ul class="nav navbar-nav navbar-right">
-            {% if athlete %}
-                <li><p class="navbar-text">Logged in as: {{ athlete.firstname }}</p></li>
-                <li><a class="navbar-brand" href="/logout">Logout</a></li>
-            {% endif %}
-        </ul>
+<!--<nav class="navbar navbar-default">-->
+<!--    <div class="container-fluid">-->
+<!--        <div class="navbar-header">-->
+<!--            <a class="navbar-brand" href="#">I ❤️ Running</a>-->
+<!--        </div>-->
+<!--        <ul class="nav navbar-nav navbar-right">-->
+<!--            {% if athlete %}-->
+<!--                <li><p class="navbar-text">Logged in as: {{ athlete.firstname }}</p></li>-->
+<!--                <li><a class="navbar-brand" href="/logout">Logout</a></li>-->
+<!--            {% endif %}-->
+<!--        </ul>-->
+<!--    </div>-->
+<!--</nav>-->
+
+<!-- Navigation bar -->
+<!--<div class="navbar">-->
+<!--  <div class="container-fluid">-->
+<!--    <div class="navbar-header">-->
+<!--      <a href="#" class="icon">-->
+<!--        <i class="fa fa-bars"></i>-->
+<!--      </a>-->
+<!--    </div>-->
+<!--    <ul class="nav navbar-nav">-->
+<!--      <li><a href="#">I ❤️ Running</a></li>-->
+<!--      <li><a href="#">Personal Bests</a></li>-->
+<!--      <li><a href="#">Contact</a></li>-->
+<!--        {% if athlete %}-->
+<!--            <li><p class="navbar-text">Logged in as: {{ athlete.firstname }}</p></li>-->
+<!--            <li><a class="navbar-right" href="/logout">Logout</a></li>-->
+<!--        {% endif %}-->
+<!--  </div>-->
+<!--</div>-->
+<!--<nav class="navbar">-->
+<!--    <div class="left-buttons">-->
+<!--        <a href="#" class="home-button">Home</a>-->
+<!--        <a href="#" class="more-button">More</a>-->
+<!--    </div>-->
+<!--    <div class="right-buttons">-->
+<!--        <a href="#" class="logout-button">Logout</a>-->
+<!--    </div>-->
+<!--    <button class="hamburger">&#9776;</button>-->
+<!--</nav>-->
+
+<!-- Navbar -->
+<div class="w3-top">
+  <div class="w3-bar w3-black w3-card">
+    <a class="w3-bar-item w3-button w3-padding-large w3-hide-medium w3-hide-large w3-right" href="javascript:void(0)" onclick="myFunction()" title="Toggle Navigation Menu"><i class="fa fa-bars"></i></a>
+    <a href="/" class="w3-bar-item w3-button w3-padding-large">Welcome {{ athlete.firstname }}</a>
+    <a href="#contact" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Personal Bests</a>
+    <div class="w3-dropdown-hover w3-hide-small">
+      <button class="w3-padding-large w3-button" title="More">More <i class="fa fa-caret-down"></i></button>
+      <div class="w3-dropdown-content w3-bar-block w3-card-4">
+        <a href="#" class="w3-bar-item w3-button">Merchandise</a>
+        <a href="#" class="w3-bar-item w3-button">Extras</a>
+        <a href="#" class="w3-bar-item w3-button">Media</a>
+      </div>
     </div>
-</nav>
+      <a href="/logout" class="w3-bar-item w3-button w3-padding-large w3-hide-small w3-right">Logout</a>
+  </div>
+</div>
+
+<!-- Navbar on small screens (remove the onclick attribute if you want the navbar to always show on top of the content when clicking on the links) -->
+<div id="navDemo" class="w3-bar-block w3-black w3-hide w3-hide-large w3-hide-medium w3-top" style="margin-top:46px">
+  <a href="#" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Personal Bests</a>
+  <a href="#" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Merchandise</a>
+  <a href="#" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Extras</a>
+  <a href="#" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Media</a>
+  <a href="/logout" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Logout</a>
+</div>
 
 <div class="jumbotron">
-    <h1>Welcome to Your Strava App</h1>
+    <h1>Welcome to Fitness-pizza-in-my-mouth</h1>
     <p class="lead">Track your progress and performance.</p>
     {% if athlete %}
         <div class="section-container">
@@ -62,12 +120,52 @@
     {% endif %}
 </div>
 
-<div>
-    <h2>Activity Heat Map</h2>
+<div style="padding: 5%">
+    <h2>Activity Map</h2>
     <iframe id="heatmapFrame" src="/static/{{ state }}/heatmap.html" width="100%" height="800px">Loading...</iframe>
 </div>
 
+<!-- Footer -->
+<footer class="w3-container w3-padding-64 w3-center w3-opacity w3-light-grey w3-xlarge">
+  <i class="fa fa-facebook-official w3-hover-opacity"></i>
+  <i class="fa fa-instagram w3-hover-opacity"></i>
+  <i class="fa fa-snapchat w3-hover-opacity"></i>
+  <i class="fa fa-pinterest-p w3-hover-opacity"></i>
+  <i class="fa fa-twitter w3-hover-opacity"></i>
+  <i class="fa fa-linkedin w3-hover-opacity"></i>
+  <p class="w3-medium">Powered by my Butt</p>
+</footer>
 
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+    const hamburger = document.querySelector(".hamburger");
+    const dropdownContent = document.querySelector(".dropdown-content");
 
+    // Toggle dropdown on hamburger click
+    hamburger.addEventListener("click", function() {
+        dropdownContent.classList.toggle("show");
+    });
+
+    // Close dropdown when clicking outside of it
+    window.addEventListener("click", function(event) {
+        if (!event.target.matches('.hamburger')) {
+            if (dropdownContent.classList.contains('show')) {
+                dropdownContent.classList.remove('show');
+            }
+        }
+    });
+});
+
+// Used to toggle the menu on small screens when clicking on the menu button
+function myFunction() {
+  var x = document.getElementById("navDemo");
+  if (x.className.indexOf("w3-show") == -1) {
+    x.className += " w3-show";
+  } else {
+    x.className = x.className.replace(" w3-show", "");
+  }
+}
+
+</script>
 </body>
 </html>
