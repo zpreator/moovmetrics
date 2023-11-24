@@ -32,10 +32,13 @@ if 'STRAVA_CLIENT_SECRET' in os.environ:
 
 @app.route("/")
 def index():
-    authenticated = refresh()
-    if authenticated:
-        return redirect(url_for('personal_bests'))
-    return render_template('index.html')
+    try:
+        authenticated = refresh()
+        if authenticated:
+            return redirect(url_for('personal_bests'))
+        return render_template('index.html')
+    except:
+        return redirect(url_for('logout'))
 
 
 @app.route("/strava-login")
