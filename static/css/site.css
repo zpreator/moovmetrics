@@ -1,3 +1,18 @@
+.jumbotron {
+            background-image: url("/static/background.jpg"); /* Replace with your image */
+            background-size: cover;
+            color: #fff;
+            min-height: 800;
+            text-align: center;
+            padding: 100px 0;
+        }
+        .stats {
+            margin-top: 30px;
+        }
+        .stats h2 {
+            margin-bottom: 20px;
+        }
+
 .section-container {
     display: flex;
     flex-wrap: wrap;
