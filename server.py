@@ -246,6 +246,24 @@ def calculate_personal_bests(activities, limit=10):
     return list_of_dicts
 
 
+def get_activities():
+    # Set a higher per_page limit to fetch more activities per request
+    per_page = 100
+
+    # Get the initial set of activities
+    activities = list(client.get_activities(limit=per_page))
+
+    # Store activities in a list
+    all_activities = list(activities)
+
+    # Retrieve remaining activities using pagination
+    while len(activities) == per_page:
+        # Fetch the next set of activities
+        activities = list(client.get_activities(limit=per_page, before=activities[-1].start_date))
+        all_activities.extend(list(activities))
+    return all_activities
+
+
 def get_gear(activities):
     gear_ids = set()
     for activity in activities:
@@ -326,7 +344,7 @@ def personal_bests():
         return redirect(url_for('index'))
     client.access_token = session['access_token']
     strava_athlete = client.get_athlete()
-    activities = client.get_activities()
+    activities = get_activities()
     best_efforts = calculate_personal_bests(activities)
     clubs = client.get_athlete_clubs()
     gear = get_gear(activities)
