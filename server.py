@@ -23,6 +23,13 @@ FLASK_ENV = os.environ.get("FLASK_ENV", "dev")
 # Initialize Strava client
 client = Client()
 
+RACES = [
+    {'name': '1/2 mile', 'distance': 804.67},
+    {'name': '1 mile', 'distance': 1609.34},
+    {'name': '2 mile', 'distance': 3218.68},
+    {'name': '5k', 'distance': 5000},
+    {'name': '10k', 'distance': 10000}
+]
 
 if 'STRAVA_CLIENT_ID' in os.environ:
     print('Found client id')
@@ -213,14 +220,8 @@ def calculate_personal_bests(activities, limit=10):
         "temp",
     ]
 
-    races = [
-        {'name': '1/2 mile', 'distance': 804.67},
-        {'name': '1 mile', 'distance': 1609.34},
-        {'name': '2 mile', 'distance': 3218.68},
-        {'name': '5k', 'distance': 5000},
-        {'name': '10k', 'distance': 10000}
-    ]
     all_efforts = []
+    races = RACES.copy()
 
     count = 0
     for activity in tqdm(activities, total=limit):
@@ -244,6 +245,22 @@ def calculate_personal_bests(activities, limit=10):
     best_efforts_df = pd.DataFrame(all_efforts).min()
     list_of_dicts = [{'name': index, 'time': seconds_to_time(value)} for index, value in best_efforts_df.items()]
     return list_of_dicts
+
+
+def get_race_efforts(activities):
+    races = RACES.copy()
+    for i, activity in enumerate(activities):
+        for race in races:
+            if 'activities' not in races:
+                race['activities'] = []
+            if float(activity.distance) - race['distance'] < 200:
+                race['activities'].append(activity)
+    for race in races:
+        if len(race['activities']) > 0:
+            race['activity_best'] = min(race['activities'], key=lambda x: x.elapsed_time)
+        else:
+            race['activity_best'] = None
+    return races
 
 
 def get_activities():
@@ -345,7 +362,8 @@ def personal_bests():
     client.access_token = session['access_token']
     strava_athlete = client.get_athlete()
     activities = get_activities()
-    best_efforts = calculate_personal_bests(activities)
+    # best_efforts = calculate_personal_bests(activities)
+    best_efforts = get_race_efforts(activities)
     clubs = client.get_athlete_clubs()
     gear = get_gear(activities)
     os.makedirs(os.path.join("static", str(session['state'])), exist_ok=True)

@@ -102,12 +102,12 @@
     <div class="w3-twothird">
 
       <div class="w3-container w3-card w3-white w3-margin-bottom">
-        <h2 class="w3-text-grey w3-padding-16"><i class="fa fa-trophy fa-fw w3-margin-right w3-xxlarge w3-text-teal"></i>Best Efforts</h2>
+        <h2 class="w3-text-grey w3-padding-16"><i class="fa fa-trophy fa-fw w3-margin-right w3-xxlarge w3-text-teal"></i>Race Efforts</h2>
         {% for best_effort in best_efforts %}
-        {% if best_effort['time'] != None %}
+        {% if best_effort['activity_best'] != None %}
         <div class="w3-container">
-          <h5 class="w3-opacity"><b>{{ best_effort['name'] }}</b></h5>
-          <p>{{ best_effort['time'] }}</p>
+          <h5 class="w3-opacity"><b>{{ best_effort['name'] }} | {{ best_effort['activity_best'].name }} | {{ best_effort['activity_best'].start_date_local }}</b></h5>
+          <p>{{ best_effort['activity_best'].elapsed_time }}</p>
           <hr>
         </div>
         {% endif %}
