@@ -106,8 +106,10 @@
         {% for best_effort in best_efforts %}
         {% if best_effort['activity_best'] != None %}
         <div class="w3-container">
-          <h5 class="w3-opacity"><b>{{ best_effort['name'] }} | {{ best_effort['activity_best'].name }} | {{ best_effort['activity_best'].start_date_local }}</b></h5>
-          <p>{{ best_effort['activity_best'].elapsed_time }}</p>
+          <h5 class="w3-opacity"><b>{{ best_effort['name'] | title() }} | {{ best_effort['activity_best'].name }} | {{ best_effort['activity_best'].start_date_local.strftime('%d/%m/%Y') }}</b></h5>
+          <p><i class="fa fa-clock-o fa-fw w3-margin-right w3-text-teal"></i>{{ best_effort['activity_best'].moving_time }}
+             <i class="fa fa-arrows-h fa-fw w3-margin-left w3-text-teal"></i>{{ units.miles(best_effort['activity_best'].distance) | round(2)}}s
+             <i class="fa fa-fast-forward fa-fw w3-margin-left w3-text-teal"></i>{{ units.miles_per_hour(best_effort['activity_best'].average_speed) | round(2)}}</p>
           <hr>
         </div>
         {% endif %}

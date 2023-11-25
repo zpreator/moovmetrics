@@ -26,9 +26,13 @@ client = Client()
 RACES = [
     {'name': '1/2 mile', 'distance': 804.67},
     {'name': '1 mile', 'distance': 1609.34},
-    {'name': '2 mile', 'distance': 3218.68},
+    {'name': '2 mile', 'distance': 1609.34*2},
     {'name': '5k', 'distance': 5000},
-    {'name': '10k', 'distance': 10000}
+    {'name': '10k', 'distance': 10000},
+    {'name': '15k', 'distance': 15000},
+    {'name': '10 mile', 'distance': 1609.34*10},
+    {'name': 'half marathon', 'distance': 21097.5},
+    {'name': 'marathon', 'distance': 21097.5*2}
 ]
 
 if 'STRAVA_CLIENT_ID' in os.environ:
@@ -250,10 +254,10 @@ def calculate_personal_bests(activities, limit=10):
 def get_race_efforts(activities):
     races = RACES.copy()
     for i, activity in enumerate(activities):
-        for race in races:
-            if 'activities' not in races:
+        for j, race in enumerate(races):
+            if 'activities' not in race:
                 race['activities'] = []
-            if float(activity.distance) - race['distance'] < 200:
+            if -10 < (float(activity.distance) - race['distance']) < 250:
                 race['activities'].append(activity)
     for race in races:
         if len(race['activities']) > 0:
@@ -369,7 +373,7 @@ def personal_bests():
     os.makedirs(os.path.join("static", str(session['state'])), exist_ok=True)
     if not os.path.exists(os.path.join("static", str(session['state']), 'heatmap.html')):
         generate_map(activities)
-    return render_template('personal_best.html', athlete=strava_athlete, best_efforts=best_efforts, clubs=clubs, gear=gear, state=session['state'])
+    return render_template('personal_best.html', athlete=strava_athlete, best_efforts=best_efforts, clubs=clubs, gear=gear, state=session['state'], units=unithelper)
 
 
 if __name__ == "__main__":
