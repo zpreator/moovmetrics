@@ -225,7 +225,7 @@ def calculate_personal_bests(activities, limit=10):
     ]
 
     all_efforts = []
-    races = RACES.copy()
+    races = list(RACES)
 
     count = 0
     for activity in tqdm(activities, total=limit):
@@ -252,7 +252,7 @@ def calculate_personal_bests(activities, limit=10):
 
 
 def get_race_efforts(activities):
-    races = RACES.copy()
+    races = list(RACES)
     for i, activity in enumerate(activities):
         for j, race in enumerate(races):
             if 'activities' not in race:
