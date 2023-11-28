@@ -300,6 +300,26 @@ def get_gear(activities):
     return gear
 
 
+def get_trends(activities):
+    average_hr = []
+    max_speed = []
+    kudos = []
+    activities.reverse()
+    for i, activity in enumerate(activities):
+        if activity.average_heartrate:
+            average_hr.append({'labels': i, 'values': activity.average_heartrate, 'tooltips': activity.name})
+            max_speed.append({'labels': i, 'values': round(float(unithelper.miles_per_hour(activity.max_speed)), 2), 'tooltips': activity.name})
+            kudos.append({'labels': i, 'values': activity.kudos_count, 'tooltips': activity.name})
+    average_hr_df = pd.DataFrame(average_hr)
+    max_speed_df = pd.DataFrame(max_speed)
+    kudos_df = pd.DataFrame(kudos)
+    return [
+        {'index': 0, 'data': average_hr_df, 'name': 'Average Heart Rate (BPM)', 'rgba': 'rgba(235, 77, 77, 0.8)'},
+        {'index': 1, 'data': max_speed_df, 'name': 'Max Speed (MPH)', 'rgba': 'rgba(99, 99, 255, 0.8)'},
+        {'index': 2, 'data': kudos_df, 'name': 'Kudos Received', 'rgba': 'rgba(249, 150, 59, 0.8)'},
+    ]
+
+
 def seconds_to_time(seconds):
     if seconds is None:
         return None
@@ -370,10 +390,11 @@ def personal_bests():
     best_efforts = get_race_efforts(activities)
     clubs = client.get_athlete_clubs()
     gear = get_gear(activities)
+    trends = get_trends(activities)
     os.makedirs(os.path.join("static", str(session['state'])), exist_ok=True)
     if not os.path.exists(os.path.join("static", str(session['state']), 'heatmap.html')):
         generate_map(activities)
-    return render_template('personal_best.html', athlete=strava_athlete, best_efforts=best_efforts, clubs=clubs, gear=gear, state=session['state'], units=unithelper)
+    return render_template('personal_best.html', athlete=strava_athlete, best_efforts=best_efforts, clubs=clubs, gear=gear, state=session['state'], trends=trends, units=unithelper)
 
 
 if __name__ == "__main__":

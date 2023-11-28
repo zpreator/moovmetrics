@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Fitness Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
     <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/site.css') }}">
     <link rel='stylesheet' href='https://fonts.googleapis.com/css?family=Roboto'>
@@ -20,7 +21,7 @@ html,body,h1,h2,h3,h4,h5,h6 {font-family: "Roboto", sans-serif}
 <div class="w3-top">
   <div class="w3-bar w3-black w3-card">
     <a class="w3-bar-item w3-button w3-padding-large w3-hide-medium w3-hide-large w3-right" href="javascript:void(0)" onclick="myFunction()" title="Toggle Navigation Menu"><i class="fa fa-bars"></i></a>
-    <a href="/" class="w3-bar-item w3-button w3-padding-large">Welcome {{ athlete.firstname }}</a>
+    <a href="/" class="w3-bar-item w3-button w3-padding-large"><img src="{{ url_for('static', filename='images/cow.png') }}" alt="Logo" height="40px"></a>
     <a href="/personal_bests" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Personal Bests</a>
     <div class="w3-dropdown-hover w3-hide-small">
       <button class="w3-padding-large w3-button" title="More">More <i class="fa fa-caret-down"></i></button>
@@ -31,7 +32,7 @@ html,body,h1,h2,h3,h4,h5,h6 {font-family: "Roboto", sans-serif}
           {% if flask_env == 'dev' %}
   <a href="http://stravapp-prod-f3bda259aecb.herokuapp.com/dashboard" class="w3-bar-item w3-button">Live Site</a>
     {% else %}
-    <a href="http://stravapp-dev-99f4f17c9e2f.herokuapp.com/dashboard" class="w3-bar-item w3-button">Test Site</a>
+    <a href="http://stravapp-dev-99f4f17c9e2f.herokuapp.com/dashboard" class="w3-bar-item w3-button">Beta Site</a>
     {% endif %}
       </div>
     </div>
@@ -47,7 +48,7 @@ html,body,h1,h2,h3,h4,h5,h6 {font-family: "Roboto", sans-serif}
     {% if flask_env == 'dev' %}
   <a href="http://stravapp-prod-f3bda259aecb.herokuapp.com/dashboard" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Live Site</a>
     {% else %}
-    <a href="http://stravapp-dev-99f4f17c9e2f.herokuapp.com/dashboard" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Test Site</a>
+    <a href="http://stravapp-dev-99f4f17c9e2f.herokuapp.com/dashboard" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Beta Site</a>
     {% endif %}
   <a href="/logout" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Logout</a>
 </div>

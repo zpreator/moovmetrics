@@ -116,6 +116,70 @@
         {% endfor %}
       </div>
 
+      <div class="w3-container w3-card w3-white w3-margin-bottom">
+        <h2 class="w3-text-grey w3-padding-16"><i class="fa fa-trophy fa-fw w3-margin-right w3-xxlarge w3-text-teal"></i>Trends</h2>
+        {% for trend in trends %}
+<!--        <h2 class="w3-text-grey w3-padding-12">{{ trend['name'] }}</h2>-->
+        <div class="w3-container" style="width: 100%; height: 400px">
+          <canvas id="myChart{{ trend['index'] }}" width="100%" height="400"></canvas>
+        </div>
+
+        <script>
+            var ctx{{ trend['index'] }} = document.getElementById('myChart{{ trend['index'] }}').getContext('2d');
+            var chartData{{ trend['index'] }} = {
+                labels: {{ trend['data']['labels'].tolist() | safe }},
+                values: {{ trend['data']['values'].tolist() | safe }},
+                tooltips: {{ trend['data']['tooltips'].tolist() | safe }}
+            };
+
+            var myChart{{ trend['index'] }} = new Chart(ctx{{ trend['index'] }}, {
+                type: 'line',
+                data: {
+                    labels: chartData{{ trend['index'] }}.labels,
+                    datasets: [{
+                        label: "{{ trend['name'] }}",
+                        data: chartData{{ trend['index'] }}.values,
+                        backgroundColor: '{{ trend['rgba'] }}',
+                        borderColor: '{{ trend['rgba'] }}',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  scales: {
+                    x: {
+                      display: true,
+                      title: {
+                          display: true,
+                          text: 'Workout Number',
+                      }
+                    }
+                  },
+                  plugins: {
+                    tooltip: {
+                      mode: 'index',
+                      intersect: false,
+                      callbacks: {
+                        label: function(context) {
+                          var label = chartData{{ trend['index'] }}.values[context.dataIndex];
+                          if (label) {
+                              label += '\n ';
+                          }
+
+                          // Use additionalData instead of context.parsed.y
+                          label += chartData{{ trend['index'] }}.tooltips[context.dataIndex];
+                          return label;
+                        }
+                      }
+                    }
+                  }
+                }
+            });
+        </script>
+    {% endfor %}
+      </div>
+
       <div class="w3-container w3-card w3-white">
         <h2>Activity Map</h2>
         <iframe id="heatmapFrame" src="/static/{{ state }}/heatmap.html" width="100%" height="800px">Loading...</iframe>
