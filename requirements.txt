@@ -4,3 +4,5 @@ stravalib
 python-dotenv
 polyline
 folium
+pandas
+tqdm

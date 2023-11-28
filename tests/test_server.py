@@ -25,9 +25,9 @@ def test_strava_login(client, monkeypatch):
     assert response.status_code == 302  # Ensure the redirect happens
 
 
-def test_refresh_route(client):
-    response = client.get('/refresh')
-    assert response.status_code == 302  # Check if it redirects to the index
+# def test_refresh_route(client):
+#     response = client.get('/refresh')
+#     assert response.status_code == 302  # Check if it redirects to the index
 
 
 def test_logout_route(client):

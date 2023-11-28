@@ -1,45 +1,11 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Strava Dashboard</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/site.css') }}">
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
-    <style>
-        .jumbotron {
-            background-image: url("/static/background.jpg"); /* Replace with your image */
-            background-size: cover;
-            color: #fff;
-            min-height: 800;
-            text-align: center;
-            padding: 100px 0;
-        }
-        .stats {
-            margin-top: 30px;
-        }
-        .stats h2 {
-            margin-bottom: 20px;
-        }
-    </style>
-</head>
-<body>
+{% extends 'layout.html' %}
 
-<nav class="navbar navbar-default">
-    <div class="container-fluid">
-        <div class="navbar-header">
-            <a class="navbar-brand" href="#">Stravapp</a>
-        </div>
-        <ul class="nav navbar-nav navbar-right">
-            {% if athlete %}
-                <li><p class="navbar-text">Logged in as: {{ athlete.firstname }}</p></li>
-                <li><a class="navbar-brand" href="/logout">Logout</a></li>
-            {% endif %}
-        </ul>
-    </div>
-</nav>
-
+{% block body %}
 <div class="jumbotron">
-    <h1>Welcome to Your Strava App</h1>
+    <h1>Welcome to Fitness-pizza-in-my-mouth</h1>
+    {% if flask_env == 'dev' %}
+    <p style="color: red;">You are viewing the test website, <a href="http://stravapp-prod-f3bda259aecb.herokuapp.com/dashboard">Click here</a> for the real one</p>
+    {% endif %}
     <p class="lead">Track your progress and performance.</p>
     {% if athlete %}
         <div class="section-container">
@@ -62,12 +28,41 @@
     {% endif %}
 </div>
 
-<div>
-    <h2>Activity Heat Map</h2>
+<div style="padding: 5%">
+    <h2>Activity Map</h2>
     <iframe id="heatmapFrame" src="/static/{{ state }}/heatmap.html" width="100%" height="800px">Loading...</iframe>
 </div>
 
 
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+    const hamburger = document.querySelector(".hamburger");
+    const dropdownContent = document.querySelector(".dropdown-content");
 
-</body>
-</html>
+    // Toggle dropdown on hamburger click
+    hamburger.addEventListener("click", function() {
+        dropdownContent.classList.toggle("show");
+    });
+
+    // Close dropdown when clicking outside of it
+    window.addEventListener("click", function(event) {
+        if (!event.target.matches('.hamburger')) {
+            if (dropdownContent.classList.contains('show')) {
+                dropdownContent.classList.remove('show');
+            }
+        }
+    });
+});
+
+// Used to toggle the menu on small screens when clicking on the menu button
+function myFunction() {
+  var x = document.getElementById("navDemo");
+  if (x.className.indexOf("w3-show") == -1) {
+    x.className += " w3-show";
+  } else {
+    x.className = x.className.replace(" w3-show", "");
+  }
+}
+
+</script>
+{% endblock %}
