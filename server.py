@@ -307,16 +307,16 @@ def get_trends(activities):
     activities.reverse()
     for i, activity in enumerate(activities):
         if activity.average_heartrate:
-            average_hr.append({'labels': i, 'values': activity.average_heartrate, 'tooltips': activity.name})
-            max_speed.append({'labels': i, 'values': round(float(unithelper.miles_per_hour(activity.max_speed)), 2), 'tooltips': activity.name})
-            kudos.append({'labels': i, 'values': activity.kudos_count, 'tooltips': activity.name})
+            average_hr.append({'labels': i, 'values': activity.average_heartrate, 'tooltips': activity.name, 'tags': activity.type})
+            max_speed.append({'labels': i, 'values': round(float(unithelper.miles_per_hour(activity.max_speed)), 2), 'tooltips': activity.name, 'tags': activity.type})
+            kudos.append({'labels': i, 'values': activity.kudos_count, 'tooltips': activity.name, 'tags': activity.type})
     average_hr_df = pd.DataFrame(average_hr)
     max_speed_df = pd.DataFrame(max_speed)
     kudos_df = pd.DataFrame(kudos)
     return [
-        {'index': 0, 'data': average_hr_df, 'name': 'Average Heart Rate (BPM)', 'rgba': 'rgba(235, 77, 77, 0.8)'},
-        {'index': 1, 'data': max_speed_df, 'name': 'Max Speed (MPH)', 'rgba': 'rgba(99, 99, 255, 0.8)'},
-        {'index': 2, 'data': kudos_df, 'name': 'Kudos Received', 'rgba': 'rgba(249, 150, 59, 0.8)'},
+        {'index': 0, 'workout_types': average_hr_df['tags'].unique(), 'data': average_hr_df, 'name': 'Average Heart Rate (BPM)', 'rgba': 'rgba(235, 77, 77, 0.8)'},
+        {'index': 1, 'workout_types': max_speed_df['tags'].unique(),'data': max_speed_df, 'name': 'Max Speed (MPH)', 'rgba': 'rgba(99, 99, 255, 0.8)'},
+        {'index': 2, 'workout_types': kudos_df['tags'].unique(),'data': kudos_df, 'name': 'Kudos Received', 'rgba': 'rgba(249, 150, 59, 0.8)'},
     ]
 
 

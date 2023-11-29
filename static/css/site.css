@@ -1,3 +1,24 @@
+.title-section {
+  background-color: black;
+  color: white;
+  padding: 40px;
+}
+.title {
+  font-size: 60px;
+}
+.logo {
+  max-width: 200px; /* Adjust size as needed */
+}
+@media screen and (max-width: 600px) {
+  .title {
+    text-align: center;
+  }
+  .logo {
+    display: block;
+    margin: 0 auto;
+  }
+}
+
 .jumbotron {
             background-image: url("/static/background.jpg"); /* Replace with your image */
             background-size: cover;
