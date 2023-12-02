@@ -1,47 +1,8 @@
-<!--<!DOCTYPE html>-->
-<!--<html lang="en">-->
-<!--<head>-->
-<!--    <meta charset="UTF-8">-->
-<!--    <title>Strava Login</title>-->
-<!--</head>-->
-<!--<body>-->
-<!--    <h1>Welcome to Strava Login</h1>-->
-<!--    <p><a class="btn btn-lg" href="{{ url_for('strava_login') }}" role="button"><img src="/static/ConnectWithStrava.png" border="0" width="262" height="43" /></a></p>-->
-<!--</body>-->
-<!--</html>-->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Strava Login</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f2f2f2;
-        }
+{% extends 'layout.html' %}
 
-        .container {
-            text-align: center;
-            margin-top: 50px;
-        }
-
-        h1 {
-            margin-bottom: 20px;
-        }
-
-        img {
-            max-width: 100%;
-            height: auto;
-        }
-    </style>
-</head>
-<body>
-
+{% block body %}
 <div class="container">
     <h1>Click to Login with Strava</h1>
     <p><a class="btn btn-lg" href="{{ url_for('strava_login') }}" role="button"><img src="/static/ConnectWithStrava.png" border="0" /></a></p>
 </div>
-
-</body>
-</html>
+{% endblock %}

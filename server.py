@@ -1,3 +1,4 @@
+import datetime
 import time
 import folium
 from tqdm import tqdm
@@ -46,8 +47,8 @@ def index():
     try:
         authenticated = refresh()
         if authenticated:
-            return redirect(url_for('personal_bests'))
-        return render_template('index.html')
+            return redirect(url_for('dashboard'))
+        return render_template('index.html', flask_env=FLASK_ENV)
     except:
         return redirect(url_for('logout'))
 
@@ -84,6 +85,9 @@ def refresh():
                 )
             except stravalib.exc.AccessUnauthorized:
                 print('Could not refresh, not authenticated')
+                return False
+            except Exception as e:
+                print("Unkown error: ", e)
                 return False
 
             # Store access token in the session for the user
@@ -126,7 +130,7 @@ def strava_callback():
         session['access_token'] = response['access_token']
         session['refresh_token'] = response['refresh_token']
         session['token_expires_at'] = response['expires_at']
-        return redirect(url_for('personal_bests'))
+        return redirect(url_for('dashboard'))
     else:
         return redirect(url_for('index'))
 
@@ -307,17 +311,42 @@ def get_trends(activities):
     activities.reverse()
     for i, activity in enumerate(activities):
         if activity.average_heartrate:
-            average_hr.append({'labels': i, 'values': activity.average_heartrate, 'tooltips': activity.name})
-            max_speed.append({'labels': i, 'values': round(float(unithelper.miles_per_hour(activity.max_speed)), 2), 'tooltips': activity.name})
-            kudos.append({'labels': i, 'values': activity.kudos_count, 'tooltips': activity.name})
+            average_hr.append({'labels': i, 'values': activity.average_heartrate, 'tooltips': activity.name, 'tags': activity.type})
+            max_speed.append({'labels': i, 'values': round(float(unithelper.miles_per_hour(activity.max_speed)), 2), 'tooltips': activity.name, 'tags': activity.type})
+            kudos.append({'labels': i, 'values': activity.kudos_count, 'tooltips': activity.name, 'tags': activity.type})
     average_hr_df = pd.DataFrame(average_hr)
     max_speed_df = pd.DataFrame(max_speed)
     kudos_df = pd.DataFrame(kudos)
     return [
-        {'index': 0, 'data': average_hr_df, 'name': 'Average Heart Rate (BPM)', 'rgba': 'rgba(235, 77, 77, 0.8)'},
-        {'index': 1, 'data': max_speed_df, 'name': 'Max Speed (MPH)', 'rgba': 'rgba(99, 99, 255, 0.8)'},
-        {'index': 2, 'data': kudos_df, 'name': 'Kudos Received', 'rgba': 'rgba(249, 150, 59, 0.8)'},
+        {'index': 0, 'workout_types': average_hr_df['tags'].unique(), 'data': average_hr_df, 'name': 'Average Heart Rate (BPM)', 'rgba': 'rgba(235, 77, 77, 0.8)'},
+        {'index': 1, 'workout_types': max_speed_df['tags'].unique(),'data': max_speed_df, 'name': 'Max Speed (MPH)', 'rgba': 'rgba(99, 99, 255, 0.8)'},
+        {'index': 2, 'workout_types': kudos_df['tags'].unique(),'data': kudos_df, 'name': 'Kudos Received', 'rgba': 'rgba(249, 150, 59, 0.8)'},
     ]
+
+
+def get_stats(activities, athlete):
+    # Because only run, bike and swim are supported, we have to calculate other total distances
+    hike_count = 0
+    hike_distance = 0.0
+    for activity in activities:
+        if activity.type == 'Hike':
+            hike_count += 1
+            hike_distance += float(unithelper.miles(activity.distance))
+    stats = {
+        'run': {
+            'count': athlete.stats.all_run_totals.count,
+            'distance': unithelper.miles(athlete.stats.all_run_totals.distance)
+        },
+        'bike': {
+            'count': athlete.stats.all_ride_totals.count,
+            'distance': unithelper.miles(athlete.stats.all_ride_totals.distance)
+        },
+        'hike': {
+            'count': hike_count,
+            'distance': hike_distance
+        }
+    }
+    return stats
 
 
 def seconds_to_time(seconds):
@@ -342,9 +371,8 @@ def seconds_to_time(seconds):
     return time_string.strip()
 
 
-@app.route("/dashboard")
-@cache.cached(timeout=60)  # Cache the heatmap for 60 seconds
-def dashboard():
+@app.route("/friends")
+def friends():
     authenticated = refresh()
     if not authenticated:
         return redirect(url_for('index'))
@@ -352,34 +380,35 @@ def dashboard():
     client.access_token = session['access_token']
     strava_athlete = client.get_athlete()
     os.makedirs(os.path.join("static", str(session['state'])), exist_ok=True)
-    activities = client.get_activities()
-    hike_count = 0
-    hike_distance = 0.0
-    for activity in activities:
-        if activity.type == 'Hike':
-            hike_count += 1
-            hike_distance += float(unithelper.miles(activity.distance))
-    stats = {
-        'run': {
-            'count': strava_athlete.stats.all_run_totals.count,
-            'distance': unithelper.miles(strava_athlete.stats.all_run_totals.distance)
-        },
-        'bike': {
-            'count': strava_athlete.stats.all_ride_totals.count,
-            'distance': unithelper.miles(strava_athlete.stats.all_ride_totals.distance)
-        },
-        'hike': {
-            'count': hike_count,
-            'distance': hike_distance
-        }
-    }
-    if not os.path.exists(os.path.join("static", str(session['state']), 'heatmap.html')):
-        generate_map(activities)
-    return render_template('dashboard.html', athlete=strava_athlete, stats=stats, state=session['state'], flask_env=FLASK_ENV)
+    clubs = client.get_athlete_clubs()
+    # one_year_ago = datetime.datetime.now() - datetime.timedelta(days=365)
+    club_data = []
+    i = 0
+    user_id = 0
+    for club in clubs:
+        this_club_data = {}
+        club_activities = client.get_club_activities(club.id)
+        for club_activity in club_activities:
+            if club_activity.type == 'Run':
+                username = (club_activity.athlete.firstname + club_activity.athlete.lastname).replace('.', '').replace(' ', '').replace('-', '')
+                if username not in this_club_data:
+                    this_club_data[username] = {'id': user_id, 'distance': 0, 'time': 0, 'color': 'rgba(255, 99, 132, 1)'}
+                    user_id += 1
+
+                distance = float(unithelper.miles(club_activity.distance))
+                time_elapsed = float(club_activity.moving_time.seconds / 3600)
+                this_club_data[username]['distance'] += distance
+                this_club_data[username]['time'] += time_elapsed
+        distances = [round(this_club_data[x]['distance'], 2) for x in this_club_data.keys()]
+        times = [round(this_club_data[x]['time'], 2) for x in this_club_data.keys()]
+        names = list(this_club_data.keys())
+        club_data.append({'name': club.name, 'index': i, 'distances': distances, 'times': times, 'names': names})
+        i += 1
+    return render_template('friends.html', clubs=club_data, athlete=strava_athlete, state=session['state'], flask_env=FLASK_ENV)
 
 
-@app.route("/personal_bests")
-def personal_bests():
+@app.route("/dashboard")
+def dashboard():
     authenticated = refresh()
     if not authenticated:
         return redirect(url_for('index'))
@@ -391,10 +420,17 @@ def personal_bests():
     clubs = client.get_athlete_clubs()
     gear = get_gear(activities)
     trends = get_trends(activities)
+    stats = get_stats(activities, strava_athlete)
     os.makedirs(os.path.join("static", str(session['state'])), exist_ok=True)
     if not os.path.exists(os.path.join("static", str(session['state']), 'heatmap.html')):
         generate_map(activities)
-    return render_template('personal_best.html', athlete=strava_athlete, best_efforts=best_efforts, clubs=clubs, gear=gear, state=session['state'], trends=trends, units=unithelper)
+    return render_template('dashboard.html', flask_env=FLASK_ENV, athlete=strava_athlete, best_efforts=best_efforts,
+                           clubs=clubs, gear=gear, stats=stats, state=session['state'], trends=trends, units=unithelper)
+
+
+@app.route("/support")
+def support():
+    return render_template('support.html')
 
 
 if __name__ == "__main__":
