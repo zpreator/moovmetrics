@@ -1,3 +1,21 @@
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh; /* Make sure the body covers the full viewport height */
+  margin: 0;
+}
+
+.container {
+    text-align: center;
+    margin-top: 50px;
+    flex: 1;
+}
+
+.footer {
+  flex-shrink: 0; /* Prevent footer from shrinking */
+  /* Footer styles */
+}
+
 .title-section {
   background-color: black;
   color: white;
