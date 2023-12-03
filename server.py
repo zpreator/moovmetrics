@@ -44,6 +44,14 @@ if 'STRAVA_CLIENT_SECRET' in os.environ:
     print('Found client secret')
 
 
+@app.errorhandler(Exception)
+def handle_all_exceptions(error):
+    # Log the exception or perform any necessary actions
+    # For simplicity, let's just return a JSON response
+    print(error)
+    return redirect(url_for('logout'))
+
+
 @app.route("/")
 def index():
     try:
