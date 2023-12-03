@@ -1,4 +1,6 @@
 import datetime
+import pickle
+import random
 import time
 import folium
 from tqdm import tqdm
@@ -48,7 +50,7 @@ def index():
         authenticated = refresh()
         if authenticated:
             return redirect(url_for('dashboard'))
-        return render_template('index.html', flask_env=FLASK_ENV)
+        return render_template('index.html', flask_env=FLASK_ENV, cow_path=get_cow_path())
     except:
         return redirect(url_for('logout'))
 
@@ -135,7 +137,7 @@ def strava_callback():
         return redirect(url_for('index'))
 
 
-def generate_map(activities):
+def generate_map(activities, save_path):
     print('Generating map')
 
     # Loop through activities and collect map data
@@ -195,7 +197,14 @@ def generate_map(activities):
     ).add_to(m)
 
     # Save map to an HTML file or render it in the template
-    m.save(f'static/{session["state"]}/heatmap.html')
+    m.save(save_path)
+
+
+def get_cow_path():
+    cow_folder = os.path.join('static', 'images', 'cow')
+    filename = random.choice(os.listdir(cow_folder))
+    print(filename)
+    return os.path.join(cow_folder, filename)
 
 
 def fastest_segment_within_distance(df, races):
@@ -371,6 +380,18 @@ def seconds_to_time(seconds):
     return time_string.strip()
 
 
+def file_created_within_60_minutes(file_path):
+    # Get the creation time of the file
+    creation_time = os.path.getctime(file_path)
+
+    # Calculate the difference from the current time
+    current_time = time.time()
+    age_seconds = current_time - creation_time
+
+    # Check if the file was created over 60 minutes ago
+    return age_seconds < 60 * 60  # 60 minutes * 60 seconds
+
+
 @app.route("/friends")
 def friends():
     authenticated = refresh()
@@ -381,6 +402,7 @@ def friends():
     strava_athlete = client.get_athlete()
     os.makedirs(os.path.join("static", str(session['state'])), exist_ok=True)
     clubs = client.get_athlete_clubs()
+    cow_path = get_cow_path()
     # one_year_ago = datetime.datetime.now() - datetime.timedelta(days=365)
     club_data = []
     i = 0
@@ -404,7 +426,8 @@ def friends():
         names = list(this_club_data.keys())
         club_data.append({'name': club.name, 'index': i, 'distances': distances, 'times': times, 'names': names})
         i += 1
-    return render_template('friends.html', clubs=club_data, athlete=strava_athlete, state=session['state'], flask_env=FLASK_ENV)
+    return render_template('friends.html', cow_path=cow_path, clubs=club_data, athlete=strava_athlete,
+                           state=session['state'], flask_env=FLASK_ENV)
 
 
 @app.route("/dashboard")
@@ -414,23 +437,47 @@ def dashboard():
         return redirect(url_for('index'))
     client.access_token = session['access_token']
     strava_athlete = client.get_athlete()
-    activities = get_activities()
+    athlete_folder = os.path.join("static", "temp", str(strava_athlete.id))
+    os.makedirs(athlete_folder, exist_ok=True)
+    activities_path = os.path.join(athlete_folder, 'activities.pkl')
+    if os.path.exists(activities_path) and file_created_within_60_minutes(activities_path):
+        with open(activities_path, 'rb') as file:
+            activities = pickle.load(file)
+    else:
+        activities = get_activities()
+        with open(activities_path, 'wb') as file:
+            pickle.dump(activities, file)
     # best_efforts = calculate_personal_bests(activities)
+    cow_path = get_cow_path()
     best_efforts = get_race_efforts(activities)
     clubs = client.get_athlete_clubs()
     gear = get_gear(activities)
     trends = get_trends(activities)
     stats = get_stats(activities, strava_athlete)
-    os.makedirs(os.path.join("static", str(session['state'])), exist_ok=True)
-    if not os.path.exists(os.path.join("static", str(session['state']), 'heatmap.html')):
-        generate_map(activities)
-    return render_template('dashboard.html', flask_env=FLASK_ENV, athlete=strava_athlete, best_efforts=best_efforts,
-                           clubs=clubs, gear=gear, stats=stats, state=session['state'], trends=trends, units=unithelper)
+
+    text_path = os.path.join(athlete_folder, 'num.txt')
+
+    num = -1
+    if os.path.exists(text_path):
+        with open(text_path, 'r') as file:
+            try:
+                num = int(file.read())
+            except:
+                print('There was a problem reading the number')
+    heatmap_path = os.path.join('static', 'temp', str(strava_athlete.id), 'heatmap.html')
+    if num < len(activities):
+        with open(text_path, 'w') as file:
+            file.write(str(len(activities)))
+        generate_map(activities, heatmap_path)
+    return render_template('dashboard.html', cow_path=cow_path, flask_env=FLASK_ENV, athlete=strava_athlete,
+                           best_efforts=best_efforts, clubs=clubs, gear=gear, stats=stats, heatmap_path=heatmap_path,
+                           trends=trends, units=unithelper)
 
 
 @app.route("/support")
 def support():
-    return render_template('support.html')
+    cow_path = get_cow_path()
+    return render_template('support.html', cow_path=cow_path, flask_env=FLASK_ENV)
 
 
 if __name__ == "__main__":
