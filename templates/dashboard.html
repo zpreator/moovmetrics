@@ -32,18 +32,7 @@
 </style>
 <!-- Page Container -->
 <div class="w3-content w3-margin-top" style="max-width:1400px;">
-    <!-- Upper section -->
-    <div class="w3-display-container w3-center title-section w3-margin-bottom">
-      <div class="w3-row-padding">
-        <div class="w3-half">
-          <h2 class="title" style="font-family: 'Pacifico', sans-serif;">Moov Metrics</h2>
-          <p>Deeper analysis that gets you mooving</p>
-        </div>
-        <div class="w3-half">
-          <img src="{{ url_for('static', filename='images/cow.png') }}" alt="Logo" class="logo">
-        </div>
-      </div>
-    </div>
+
 
   <!-- The Grid -->
   <div class="w3-row-padding">
@@ -54,7 +43,7 @@
       <div class="w3-white w3-text-grey w3-card-4">
         <div class="w3-display-container">
           <div class="avatar-container">
-              <img src="/static/topo.png" class="background-img" alt="background">
+              <img src="/static/images/topo.png" class="background-img" alt="background">
 
               <div class="circle">
                   <!-- Replace 'avatar.png' with the path or URL of your avatar image -->
@@ -85,11 +74,12 @@
 <!--          <p><i class="fa fa-phone fa-fw w3-margin-right w3-large w3-text-teal"></i>1224435534</p>-->
           <hr>
 
-          <p class="w3-large"><b><i class="fa fa-users fa-fw w3-margin-right w3-text-teal"></i>Groups</b></p>
-          {% for club in clubs %}
+          <p class="w3-large w3-text-theme"><b><i class="fa fa-bar-chart fa-fw w3-margin-right w3-text-teal"></i>Stats</b></p>
+          {% for sport in stats %}
           <div class="w3-container">
-            <h5 class="w3-opacity"><b>{{ club.name }}</b></h5>
-            <p>{{ club.member_count }} Members</p>
+            <h5 class="w3-opacity"><b>{{ sport | title }}</b></h5>
+            <p>Activities: {{ stats[sport]['count'] }}</p>
+            <p>Distance: {{ stats[sport]['distance'] | round(2)}}s</p>
             <hr>
           </div>
           {% endfor %}
@@ -102,6 +92,16 @@
             <hr>
           </div>
           {% endfor %}
+
+          <p class="w3-large"><b><i class="fa fa-users fa-fw w3-margin-right w3-text-teal"></i>Groups</b></p>
+          {% for club in clubs %}
+          <div class="w3-container">
+            <h5 class="w3-opacity"><b>{{ club.name }}</b></h5>
+            <p>{{ club.member_count }} Members</p>
+            <hr>
+          </div>
+          {% endfor %}
+
           <br>
         </div>
       </div><br>
@@ -114,6 +114,7 @@
 
       <div class="w3-container w3-card w3-white w3-margin-bottom">
         <h2 class="w3-text-grey w3-padding-16"><i class="fa fa-trophy fa-fw w3-margin-right w3-xxlarge w3-text-teal"></i>Race Efforts</h2>
+        <p>Your matching activities with the fastest time</p>
         {% for best_effort in best_efforts %}
         {% if best_effort['activity_best'] != None %}
         <div class="w3-container">
@@ -264,7 +265,7 @@
 
       <div class="w3-container w3-card w3-white">
         <h2>Activity Map</h2>
-        <iframe id="heatmapFrame" src="/static/{{ state }}/heatmap.html" width="100%" height="800px">Loading...</iframe>
+        <iframe id="heatmapFrame" src="{{ heatmap_path }}" width="100%" height="800px">Loading...</iframe>
       </div>
 
     <!-- End Right Column -->

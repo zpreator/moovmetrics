@@ -56,6 +56,19 @@ html,body,h1,h2,h3,h4,h5,h6 {font-family: "Roboto", sans-serif}
   <a href="/support" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Support Me</a>
   <a href="/logout" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Logout</a>
 </div>
+
+<!-- Upper section -->
+<div class="w3-display-container w3-center title-section w3-margin-bottom">
+  <div class="w3-row-padding">
+    <div class="w3-half">
+      <h2 class="title" style="font-family: 'Pacifico', sans-serif;">Moov Metrics</h2>
+      <p>Deeper analysis that gets you mooving</p>
+    </div>
+    <div class="w3-half">
+      <img src="{{ cow_path }}" alt="Logo" class="logo">
+    </div>
+  </div>
+</div>
 {% block body %}
 {% endblock %}
 <!-- Footer -->
@@ -63,7 +76,7 @@ html,body,h1,h2,h3,h4,h5,h6 {font-family: "Roboto", sans-serif}
   <i class="fa fa-github w3-hover-opacity"></i>
   <i class="fa fa-instagram w3-hover-opacity"></i>
   <div>
-    <img src="{{ url_for('static', filename='api_logo_pwrdBy_strava_horiz_light.png') }}">
+    <img src="{{ url_for('static', filename='images/api_logo_pwrdBy_strava_horiz_light.png') }}">
   </div>
 </footer>
 <script>
