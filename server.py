@@ -488,6 +488,11 @@ def support():
     return render_template('support.html', cow_path=cow_path, flask_env=FLASK_ENV)
 
 
+@app.route("/game")
+def game():
+    return render_template('game.html')
+
+
 if __name__ == "__main__":
     # Use the PORT environment variable provided by Heroku
     port = int(os.environ.get('PORT', 5001))

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Game</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    #endScreen {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7); /* Semi-transparent background */
+      color: white;
+      text-align: center;
+      padding-top: 20%;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 10px;
+      background-color: #3498db;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- End screen overlay -->
+  <div id="endScreen">
+    <h2>Game Over</h2>
+    <p>Your Score: <span id="scoreDisplay"></span></p>
+    <button id="restartButton">Restart</button>
+    <button id="exitButton">Exit</button>
+  </div>
+
+  <!-- Include your JavaScript file -->
+  <script src="{{ url_for('static', filename='js/game.js') }}"></script>
+  <script>
+    toggleFullScreen()
+  </script>
+</body>
+</html>

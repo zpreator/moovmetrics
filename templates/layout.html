@@ -26,6 +26,7 @@ html,body,h1,h2,h3,h4,h5,h6 {font-family: "Roboto", sans-serif}
 
     <a href="/dashboard" class="w3-bar-item w3-button w3-padding-large"><img src="{{ url_for('static', filename='images/cow-head.ico') }}" alt="Logo" height="20px"></a>
     <a href="/friends" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Friends</a>
+    <a href="/game" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Game</a>
     {% if flask_env == 'dev' %}
     <a href="moovmetrics.com/dashboard" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Live Site</a>
     {% else %}
@@ -48,6 +49,7 @@ html,body,h1,h2,h3,h4,h5,h6 {font-family: "Roboto", sans-serif}
 <!-- Navbar on small screens (remove the onclick attribute if you want the navbar to always show on top of the content when clicking on the links) -->
 <div id="navDemo" class="w3-bar-block w3-black w3-hide w3-hide-large w3-hide-medium w3-top" style="margin-top:46px">
   <a href="/friends" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Friends</a>
+  <a href="/game" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Game</a>
   {% if flask_env == 'dev' %}
   <a href="moovmetrics.com/dashboard" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Live Site</a>
   {% else %}
