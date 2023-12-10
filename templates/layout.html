@@ -28,7 +28,7 @@ html,body,h1,h2,h3,h4,h5,h6 {font-family: "Roboto", sans-serif}
     <a href="/friends" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Friends</a>
     <a href="/game" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Game</a>
     {% if flask_env == 'dev' %}
-    <a href="moovmetrics.com/dashboard" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Live Site</a>
+    <a href="https://www.moovmetrics.com" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Live Site</a>
     {% else %}
     <a href="http://stravapp-dev-99f4f17c9e2f.herokuapp.com/dashboard" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Beta Site</a>
     {% endif %}
@@ -51,9 +51,9 @@ html,body,h1,h2,h3,h4,h5,h6 {font-family: "Roboto", sans-serif}
   <a href="/friends" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Friends</a>
   <a href="/game" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Game</a>
   {% if flask_env == 'dev' %}
-  <a href="moovmetrics.com/dashboard" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Live Site</a>
+  <a href="https://www.moovmetrics.com" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Live Site</a>
   {% else %}
-  <a href="http://stravapp-dev-99f4f17c9e2f.herokuapp.com/dashboard" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Beta Site</a>
+  <a href="http://stravapp-dev-99f4f17c9e2f.herokuapp.com/dashboard" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Beta Site</a>
   {% endif %}
   <a href="/support" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Support Me</a>
   <a href="/logout" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Logout</a>
