@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Game</title>
+  <title>Cow Cardio</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body, html {
@@ -16,7 +16,7 @@
       width: 100%;
       height: 100%;
     }
-    #endScreen {
+    .overlay {
       display: none;
       position: absolute;
       top: 0;
@@ -42,17 +42,25 @@
   <canvas id="gameCanvas"></canvas>
 
   <!-- End screen overlay -->
-  <div id="endScreen">
+  <div id="endScreen" class="overlay">
     <h2>Game Over</h2>
-    <p>Your Score: <span id="scoreDisplay"></span></p>
+    <p>Your Score: <span id="scoreDisplay"></span> Miles</p>
     <button id="restartButton">Restart</button>
     <button id="exitButton">Exit</button>
+  </div>
+
+  <!-- Title screen overlay -->
+  <div id="titleScreen" class="overlay">
+    <h1>Cow Cardio</h1>
+    <p>High Score: <span id="highScoreDisplay"></span></p>
+    <button id="playButton">Play</button>
+    <button id="titleExitButton">Exit</button>
   </div>
 
   <!-- Include your JavaScript file -->
   <script src="{{ url_for('static', filename='js/game.js') }}"></script>
   <script>
-    toggleFullScreen()
+    let activities = {{ activities | safe }}
   </script>
 </body>
 </html>

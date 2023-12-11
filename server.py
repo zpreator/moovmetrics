@@ -46,10 +46,8 @@ if 'STRAVA_CLIENT_SECRET' in os.environ:
 
 @app.errorhandler(Exception)
 def handle_all_exceptions(error):
-    # Log the exception or perform any necessary actions
-    # For simplicity, let's just return a JSON response
     print(error)
-    return redirect(url_for('logout'))
+    return redirect(url_for('index'))
 
 
 @app.route("/")
@@ -288,12 +286,12 @@ def get_race_efforts(activities):
     return races
 
 
-def get_activities():
+def get_activities(as_dicts=False, activity_types=None, after_date=None):
     # Set a higher per_page limit to fetch more activities per request
     per_page = 100
 
     # Get the initial set of activities
-    activities = list(client.get_activities(limit=per_page))
+    activities = list(client.get_activities(limit=per_page, after=after_date))
 
     # Store activities in a list
     all_activities = list(activities)
@@ -301,9 +299,22 @@ def get_activities():
     # Retrieve remaining activities using pagination
     while len(activities) == per_page:
         # Fetch the next set of activities
-        activities = list(client.get_activities(limit=per_page, before=activities[-1].start_date))
+        activities = list(client.get_activities(limit=per_page, before=activities[-1].start_date, after=after_date))
         all_activities.extend(list(activities))
-    return all_activities
+
+    if as_dicts:
+        activities_dicts = []
+        for activity in all_activities:
+            if activity_types is None or activity.type in activity_types:
+                activities_dicts.append({
+                    'name': activity.name,
+                    'distance': float(round(unithelper.miles(activity.distance), 2)),
+                    'type': activity.type,
+                    'time': seconds_to_time(activity.moving_time.seconds)
+                })
+        return activities_dicts
+    else:
+        return all_activities
 
 
 def get_gear(activities):
@@ -490,7 +501,14 @@ def support():
 
 @app.route("/game")
 def game():
-    return render_template('game.html')
+    authenticated = refresh()
+    if not authenticated:
+        return redirect(url_for('index'))
+    activities = []
+    one_month_ago = datetime.datetime.today() - datetime.timedelta(days=31)
+    activities = get_activities(as_dicts=True, activity_types=['Run'], after_date=one_month_ago)
+    activities = sorted(activities, key=lambda x: x['distance'])
+    return render_template('game.html', activities=activities)
 
 
 if __name__ == "__main__":
