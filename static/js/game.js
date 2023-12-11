@@ -34,10 +34,11 @@ let isGrounded = true;
 
 let obstacles = []; // Array to store obstacles
 let obstacleSpeed = 5;
+let interval = 100
 
 // Load character running images
 const characterImages = [];
-const imagePaths = ['/static/images/cow/Cow1.png', '/static/images/cow/Cow2.png', '/static/images/cow/Cow3.png', '/static/images/cow/Cow4.png'];
+const imagePaths = ['/static/images/cow-head.png'];
 imagePaths.forEach((path) => {
   const img = new Image();
   img.src = path;
@@ -147,10 +148,14 @@ function update() {
   }
 
   // Trigger obstacles at intervals
-  if (animationFrame % 100 == 0){
+  if (interval == 0){
     createObstacle();
     obstacleSpeed = Math.floor(obstacleSpeed * 1.1);
+    interval = Math.floor(Math.random() * 150 + 50)
+    console.log(interval)
   }
+  interval --;
+
 
   // Draw the player
 //  ctx.fillStyle = 'black';
@@ -193,6 +198,7 @@ function restartGame() {
   obstacles = [];
   playerY = groundY;
   score = 0;
+  obstacleSpeed = 5;
   document.getElementById('endScreen').style.display = 'none';
   update(); // Restart the game loop
 }
