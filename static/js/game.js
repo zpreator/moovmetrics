@@ -22,17 +22,18 @@ canvas.height = window.innerHeight;
 // Game variables
 const gravity = 0.75;
 const jumpForce = -15;
-const groundY = Math.floor(canvas.height * 0.7);
+const groundY = Math.floor(canvas.height * 0.9);
 
 let score = 0;
 let velocityY = 0;
 let playerY = groundY;
 let playerWidth = 75;
 let playerHeight = 75;
-let playerX = Math.floor(canvas.width / 4);
+let playerX = Math.floor(canvas.width / 8);
 let isGrounded = true;
 
 let obstacles = []; // Array to store obstacles
+let lastTime = 0;
 let markers = [];
 let gameSpeed = 7;
 let markerSpeed = 4;
@@ -47,6 +48,10 @@ imagePaths.forEach((path) => {
   img.src = path;
   characterImages.push(img);
 });
+// Load the background image
+const backgroundImage = new Image();
+backgroundImage.src = '/static/images/cow_cardio/background/track.jpg'; // Replace 'track.png' with your image file path
+
 
 // Define variables for character animation
 let currentFrame = 0;
@@ -85,17 +90,22 @@ function createMarker(activity) {
     x: canvas.width,
     y: groundY - 100,
     width: 50,
-    height: Math.floor(canvas.height / 3),
+    height: Math.floor(canvas.height / 5),
     speed: markerSpeed
   };
   markers.push(marker);
 }
 
 // Function to update all objects' positions
-function updateObjects() {
+function updateObjects(time) {
+  const deltaTime = time - lastTime;
+  lastTime = time;
+  const foregroundSpeed = gameSpeed * deltaTime / 16; // Adjust divisor for desired speed
+  const backgroundSpeed = markerSpeed * deltaTime / 16; // Adjust divisor for desired speed
+
   // obstacles
   for (let i = 0; i < obstacles.length; i++) {
-    obstacles[i].x -= obstacles[i].speed; // Move obstacles from right to left
+    obstacles[i].x -= foregroundSpeed; // Move obstacles from right to left
 
     // Remove obstacles that go off-screen
     if (obstacles[i].x + obstacles[i].width < 0) {
@@ -105,7 +115,7 @@ function updateObjects() {
   }
   
   for (let i = 0; i < markers.length; i++) {
-    markers[i].x -= markers[i].speed; // Move markers from right to left
+    markers[i].x -= backgroundSpeed; // Move markers from right to left
 
     // Remove markers that go off-screen
     if (markers[i].x + markers[i].width < 0) {
@@ -139,6 +149,11 @@ function drawObjects() {
   }
 }
 
+// Function to draw the background
+function drawBackground() {
+  ctx.drawImage(backgroundImage, 0, canvas.height, canvas.width, canvas.height / 8);
+}
+
 // Function to check for collisions between player and obstacles
 function checkCollisions() {
   for (let i = 0; i < obstacles.length; i++) {
@@ -160,7 +175,10 @@ function checkCollisions() {
 }
 
 // Function to update the game
-function update() {
+function update(time) {
+  if (time == null){
+    time = 0;
+  }
   // Clear the canvas
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -180,7 +198,7 @@ function update() {
   playerY += velocityY;
 
   // Update obstacles
-  updateObjects();
+  updateObjects(time);
   drawObjects();
 
   // Check for ground collisions
@@ -286,7 +304,7 @@ function restartGame() {
   playerY = groundY;
   score = 0;
   document.getElementById('endScreen').style.display = 'none';
-  update(); // Restart the game loop
+  requestAnimationFrame(update); // Restart the game loop
 }
 
 // Event listener for restart button

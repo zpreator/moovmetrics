@@ -504,7 +504,6 @@ def game():
     authenticated = refresh()
     if not authenticated:
         return redirect(url_for('index'))
-    activities = []
     one_month_ago = datetime.datetime.today() - datetime.timedelta(days=31)
     activities = get_activities(as_dicts=True, activity_types=['Run'], after_date=one_month_ago)
     activities = sorted(activities, key=lambda x: x['distance'])
