@@ -21,37 +21,35 @@ canvas.height = window.innerHeight;
 
 // Game variables
 const gravity = 0.75;
-const jumpForce = -15;
+const jumpForce = -20;
 const groundY = Math.floor(canvas.height * 0.9);
 
 let score = 0;
 let velocityY = 0;
 let playerY = groundY;
-let playerWidth = 75;
-let playerHeight = 75;
+let playerWidth = 150;
+let playerHeight = 125;
 let playerX = Math.floor(canvas.width / 8);
 let isGrounded = true;
 
 let obstacles = []; // Array to store obstacles
+let grounds = [];
 let lastTime = 0;
 let markers = [];
-let gameSpeed = 7;
-let markerSpeed = 4;
+let layer1Speed = 7;
+let layer2Speed = 4;
+let layer3Speed = 2;
 let interval = 100
 let markerOffset = 0.25;
 
 // Load character running images
 const characterImages = [];
-const imagePaths = ['/static/images/cow-head.png'];
+const imagePaths = ['/static/images/cow_cardio/animation/run/1.png', '/static/images/cow_cardio/animation/run/2.png'];
 imagePaths.forEach((path) => {
   const img = new Image();
   img.src = path;
   characterImages.push(img);
 });
-// Load the background image
-const backgroundImage = new Image();
-backgroundImage.src = '/static/images/cow_cardio/background/track.jpg'; // Replace 'track.png' with your image file path
-
 
 // Define variables for character animation
 let currentFrame = 0;
@@ -90,18 +88,35 @@ function createMarker(activity) {
     x: canvas.width,
     y: groundY - 100,
     width: 50,
-    height: Math.floor(canvas.height / 5),
-    speed: markerSpeed
+    height: Math.floor(canvas.height / 5)
   };
   markers.push(marker);
+}
+
+function createGround(x) {
+    if (x == null){
+        x = canvas.width;
+    }
+    // Load the background image
+    const backgroundImage = new Image();
+    backgroundImage.src = '/static/images/cow_cardio/background/grass.jpg'; // Replace 'track.png' with your image file path
+
+    let ground = {
+        img: backgroundImage,
+        x: x,
+        y: groundY,
+        width: canvas.width,
+        height: canvas.height - groundY
+    };
+    grounds.push(ground);
 }
 
 // Function to update all objects' positions
 function updateObjects(time) {
   const deltaTime = time - lastTime;
   lastTime = time;
-  const foregroundSpeed = gameSpeed * deltaTime / 16; // Adjust divisor for desired speed
-  const backgroundSpeed = markerSpeed * deltaTime / 16; // Adjust divisor for desired speed
+  const foregroundSpeed = layer1Speed * deltaTime / 16; // Adjust divisor for desired speed
+  const backgroundSpeed = layer2Speed * deltaTime / 16; // Adjust divisor for desired speed
 
   // obstacles
   for (let i = 0; i < obstacles.length; i++) {
@@ -111,6 +126,18 @@ function updateObjects(time) {
     if (obstacles[i].x + obstacles[i].width < 0) {
       obstacles.splice(i, 1);
       i--;
+    }
+  }
+
+  // Ground
+  for (let i = 0; i < grounds.length; i++) {
+    grounds[i].x -= foregroundSpeed; // Move obstacles from right to left
+
+    // Remove obstacles that go off-screen
+    if (grounds[i].x + grounds[i].width < 0) {
+      grounds.splice(i, 1);
+      i--;
+      createGround();
     }
   }
   
@@ -132,6 +159,11 @@ function drawObjects() {
     ctx.drawImage(obstacles[i].img, obstacles[i].x, obstacles[i].y, obstacles[i].width, obstacles[i].height);
   }
 
+  // Ground
+  for (let i = 0; i < grounds.length; i++) {
+    ctx.drawImage(grounds[i].img, grounds[i].x, grounds[i].y, grounds[i].width, grounds[i].height);
+  }
+
   // markers
   for (let i = 0; i < markers.length; i++) {
     let lineWidth = 5;
@@ -147,11 +179,6 @@ function drawObjects() {
       ctx.fillText(markers[i].distance, markers[i].x + lineWidth, markers[i].y - lineHeight - 25);
       ctx.fillText(markers[i].time, markers[i].x + lineWidth, markers[i].y - lineHeight - 10);
   }
-}
-
-// Function to draw the background
-function drawBackground() {
-  ctx.drawImage(backgroundImage, 0, canvas.height, canvas.width, canvas.height / 8);
 }
 
 // Function to check for collisions between player and obstacles
@@ -201,6 +228,7 @@ function update(time) {
   updateObjects(time);
   drawObjects();
 
+
   // Check for ground collisions
   if (playerY + playerHeight >= groundY) {
     playerY = groundY - playerHeight;
@@ -216,13 +244,13 @@ function update(time) {
 
   // Update animation frame
   animationFrame++;
-  if (animationFrame % 5 === 0) { // Change the number to adjust animation speed
+  if (animationFrame % 10 === 0) { // Change the number to adjust animation speed
     currentFrame = (currentFrame + 1) % numberOfFrames;
   }
 
   // Trigger obstacles at intervals
   if (interval <= 0){
-    createObstacle('hurdle.png', gameSpeed);
+    createObstacle('hurdle.png', layer1Speed);
     interval = Math.floor(Math.random() * 150 + 50)
     console.log(interval)
   }
@@ -301,6 +329,10 @@ function restartGame() {
   // Reset game variables, player position, score, etc.
   // Example:
   obstacles = [];
+  markers = [];
+  grounds = [];
+  createGround(0);
+  createGround();
   playerY = groundY;
   score = 0;
   document.getElementById('endScreen').style.display = 'none';
