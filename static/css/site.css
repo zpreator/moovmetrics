@@ -141,3 +141,15 @@ a, button {
     color: white;
     font-weight: bold;
 }
+
+/* Additional CSS for styling the time window buttons and chart container */
+.time-window-buttons {
+  overflow-x: auto;
+  white-space: nowrap;
+  margin-bottom: 15px;
+}
+.chart-container {
+  position: relative;
+  width: 80%; /* Adjust the width according to your layout */
+  margin: auto;
+}

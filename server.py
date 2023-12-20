@@ -1,13 +1,15 @@
 import datetime
+import json
 import pickle
 import random
 import time
 import folium
+import numpy as np
 from tqdm import tqdm
-from folium.plugins import HeatMap, Fullscreen, TagFilterButton
+from folium.plugins import Fullscreen, TagFilterButton
 import polyline
 import stravalib.exc
-from flask import Flask, render_template, request, url_for, session, redirect
+from flask import Flask, render_template, request, url_for, session, redirect, jsonify
 from flask_caching import Cache
 from stravalib import unithelper, Client
 from dotenv import load_dotenv
@@ -47,7 +49,12 @@ if 'STRAVA_CLIENT_SECRET' in os.environ:
 @app.errorhandler(Exception)
 def handle_all_exceptions(error):
     print(error)
-    return redirect(url_for('index'))
+    return redirect(url_for('fail'))
+
+
+@app.route("/fail")
+def fail():
+    return render_template("fail.html", flask_env=FLASK_ENV, cow_path=get_cow_path())
 
 
 @app.route("/")
@@ -332,24 +339,37 @@ def get_gear(activities):
     return gear
 
 
-def get_trends(activities):
-    average_hr = []
-    max_speed = []
-    kudos = []
+def get_trends(activities, time_window, activity_types='all'):
+    activity_list = []
     activities.reverse()
     for i, activity in enumerate(activities):
-        if activity.average_heartrate:
-            average_hr.append({'labels': i, 'values': activity.average_heartrate, 'tooltips': activity.name, 'tags': activity.type})
-            max_speed.append({'labels': i, 'values': round(float(unithelper.miles_per_hour(activity.max_speed)), 2), 'tooltips': activity.name, 'tags': activity.type})
-            kudos.append({'labels': i, 'values': activity.kudos_count, 'tooltips': activity.name, 'tags': activity.type})
-    average_hr_df = pd.DataFrame(average_hr)
-    max_speed_df = pd.DataFrame(max_speed)
-    kudos_df = pd.DataFrame(kudos)
-    return [
-        {'index': 0, 'workout_types': average_hr_df['tags'].unique(), 'data': average_hr_df, 'name': 'Average Heart Rate (BPM)', 'rgba': 'rgba(235, 77, 77, 0.8)'},
-        {'index': 1, 'workout_types': max_speed_df['tags'].unique(),'data': max_speed_df, 'name': 'Max Speed (MPH)', 'rgba': 'rgba(99, 99, 255, 0.8)'},
-        {'index': 2, 'workout_types': kudos_df['tags'].unique(),'data': kudos_df, 'name': 'Kudos Received', 'rgba': 'rgba(249, 150, 59, 0.8)'},
-    ]
+        if activity.average_heartrate and (activity_types=='all' or activity.type in activity_types):
+            max_speed = round(float(unithelper.miles_per_hour(activity.max_speed)), 2)
+            activity_list.append({'date': activity.start_date_local, 'hr': activity.average_heartrate, 'max_speed': max_speed, 'kudos': activity.kudos_count})
+    activities_df = pd.DataFrame(activity_list)
+    activities_df['date'] = pd.to_datetime(activities_df['date'])
+    activities_df.set_index('date', inplace=True)
+
+    if time_window == 'w':
+        df = activities_df.resample('D').mean().tail(7)
+    elif time_window == 'm':
+        df = activities_df.resample('D').mean().tail(30)
+    elif time_window == '6m':
+        df = activities_df.resample('W').mean().tail(6 * 4)  # 6 months, at 4 weeks per month
+    else:
+        df = activities_df.resample('M').mean().tail(12)  # 12 months
+
+    df = df.fillna(np.nan).replace([np.nan], [None])
+
+    data = {
+        'dates': df.index.strftime('%Y-%m-%d').tolist(),
+        'values': {
+            'hr': df['hr'].tolist(),
+            'max_speed': df['max_speed'].tolist(),
+            'kudos': df['kudos'].tolist()
+        }
+    }
+    return data
 
 
 def get_stats(activities, athlete):
@@ -449,6 +469,25 @@ def friends():
                            state=session['state'], flask_env=FLASK_ENV)
 
 
+@app.route("/get_data", methods=['POST'])
+def get_data():
+    time_window = request.json.get('time_window')
+    client.access_token = session['access_token']
+    strava_athlete = client.get_athlete()
+    athlete_folder = os.path.join("static", "temp", str(strava_athlete.id))
+    os.makedirs(athlete_folder, exist_ok=True)
+    activities_path = os.path.join(athlete_folder, 'activities.pkl')
+    if os.path.exists(activities_path) and file_created_within_60_minutes(activities_path):
+        with open(activities_path, 'rb') as file:
+            activities = pickle.load(file)
+    else:
+        activities = get_activities()
+        with open(activities_path, 'wb') as file:
+            pickle.dump(activities, file)
+    data = get_trends(activities, time_window)
+    return jsonify({'data': json.dumps(data)})
+
+
 @app.route("/dashboard")
 def dashboard():
     authenticated = refresh()
@@ -471,7 +510,7 @@ def dashboard():
     best_efforts = get_race_efforts(activities)
     clubs = client.get_athlete_clubs()
     gear = get_gear(activities)
-    trends = get_trends(activities)
+    # trends = get_trends(activities)
     stats = get_stats(activities, strava_athlete)
 
     text_path = os.path.join(athlete_folder, 'num.txt')
@@ -490,7 +529,7 @@ def dashboard():
         generate_map(activities, heatmap_path)
     return render_template('dashboard.html', cow_path=cow_path, flask_env=FLASK_ENV, athlete=strava_athlete,
                            best_efforts=best_efforts, clubs=clubs, gear=gear, stats=stats, heatmap_path=heatmap_path,
-                           trends=trends, units=unithelper)
+                           units=unithelper)
 
 
 @app.route("/support")

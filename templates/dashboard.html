@@ -130,137 +130,124 @@
 
       <div class="w3-container w3-card w3-white w3-margin-bottom">
         <h2 class="w3-text-grey w3-padding-16"><i class="fa fa-trophy fa-fw w3-margin-right w3-xxlarge w3-text-teal"></i>Trends</h2>
-        {% for trend in trends %}
-<!--        <h2 class="w3-text-grey w3-padding-12">{{ trend['name'] }}</h2>-->
-        <div class="w3-container w3-margin-bottom" style="width: 100%; height: 200px">
-          {% for workout_type in trend['workout_types'] %}
-          <input type="checkbox" id="{{workout_type}}-{{ trend['index']}}" class="checkbox-{{ trend['index']}}" value="{{ workout_type}}">
-          <label for="{{workout_type}}-{{ trend['index']}}">{{ workout_type}}</label>
-          {% endfor %}
-          <canvas id="myChart{{ trend['index'] }}" width="100%" height="100%"></canvas>
+        <div class="time-window-buttons">
+          <button class="btn btn-primary time-window" onclick="updateChart('w')">W</button>
+          <button class="btn btn-primary time-window" onclick="updateChart('m')">M</button>
+          <button class="btn btn-primary time-window" onclick="updateChart('6m')">6M</button>
+          <button class="btn btn-primary time-window" onclick="updateChart('y')">Y</button>
+          <!-- Add more buttons for different time windows -->
         </div>
-        <br>
-        <hr>
-
+        <div class="w3-container w3-margin-bottom" style="width: 100%; height: 400px;">
+          <canvas id="canvas" style="height: 100%"></canvas>
+        </div>
         <script>
-            var ctx{{ trend['index'] }} = document.getElementById('myChart{{ trend['index'] }}').getContext('2d');
-            var chartData{{ trend['index'] }} = {
-                labels: {{ trend['data']['labels'].tolist() | safe }},
-                values: {{ trend['data']['values'].tolist() | safe }},
-                tooltips: {{ trend['data']['tooltips'].tolist() | safe }},
-                tags: {{ trend['data']['tags'].tolist() | safe }}
-            };
+          let myChart;
+          // Function to update chart based on selected time window
+          function updateChart(timeWindow) {
+            if (myChart) {
+                myChart.destroy();
+            }
 
-            var myChart{{ trend['index'] }} = new Chart(ctx{{ trend['index'] }}, {
-                type: 'line',
-                data: {
-                    labels: chartData{{ trend['index'] }}.labels,
-                    datasets: [{
-                        label: "{{ trend['name'] }}",
-                        data: chartData{{ trend['index'] }}.values,
-                        backgroundColor: '{{ trend['rgba'] }}',
-                        borderColor: '{{ trend['rgba'] }}',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  scales: {
-                    x: {
-                      display: true,
-                      title: {
-                          display: true,
-                          text: 'Workout Number',
-                      }
-                    }
+            let title;
+            if (timeWindow == "w") {
+              title = "Last 7 days";
+            } else if (timeWindow == "m") {
+              title = "Last 30 days";
+            } else if (timeWindow == "6m") {
+              title = "Last 6 months";
+            } else {
+              title = "Last 12 months";
+            }
+
+            // AJAX call to Flask endpoint
+            fetch('/get_data', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ 'time_window': timeWindow })
+            })
+            .then(response => {
+              // Log the response content to inspect it
+              console.log("Response content:", response);
+
+              if (!response.ok) {
+                throw new Error('Network response was not ok');
+              }
+              return response.json();
+            })
+            .then(data => {
+              let parsedData = JSON.parse(data.data);
+              // Update the chart with the received data
+              const chartData = {
+                labels: parsedData.dates,
+                datasets: [
+                  {
+                    label: 'Average Heart Rate',
+                    data: parsedData.values.hr.map(value => (value !== null ? value : NaN)), // Data received from Flask endpoint for Dataset 1
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1,
+                    hidden: false
                   },
-                  plugins: {
-                    tooltip: {
-                      mode: 'index',
-                      intersect: false,
-                      callbacks: {
-                        label: function(context) {
-                          var label = chartData{{ trend['index'] }}.values[context.dataIndex];
-                          if (label) {
-                              label += '\n ';
-                          }
+                  {
+                    label: 'Max Speed (mph)',
+                    data: parsedData.values.max_speed, // Data received from Flask endpoint for Dataset 2
+                    backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 1,
+                    hidden: true
+                  },
+                  {
+                    label: 'Kudos',
+                    data: parsedData.values.kudos, // Data received from Flask endpoint for Dataset 3
+                    backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1,
+                    hidden: true
+                  }
+                ]
+              };
 
-                          // Use additionalData instead of context.parsed.y
-                          label += chartData{{ trend['index'] }}.tooltips[context.dataIndex];
-                          return label;
-                        }
+              const ctx = document.getElementById('canvas').getContext('2d');
+              myChart = new Chart(ctx, {
+                type: 'line',
+                data: chartData,
+                options: {
+                  spanGaps: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    title: {
+                      display: true,
+                      text: title,
+                    },
+                    legend: {
+                      onClick: (e, legendItem, legend) => {
+                          const index = legendItem.datasetIndex;
+                          toggleDataset(index);
+                          console.log(legendItem.datasetIndex);
                       }
-                    }
+                    },
                   }
                 }
+              });
+            })
+            .catch(error => {
+              console.error('There was an error with the request:', error);
             });
+          }
 
-            // Function to filter data based on selected tags
-            function filterData{{ trend['index']}}() {
-                //var filteredData = {
-                //   labels: chartData{{ trend['index'] }}.labels.slice(),
-                //   values: chartData{{ trend['index'] }}.values.slice(),
-                //   tooltips: chartData{{ trend['index'] }}.tooltips.slice()
-                //}
-                var filteredData = {
-                    labels: [],
-                    values: [],
-                    tags: [],
-                    tooltips: []
-                };
+          // Function to toggle dataset visibility
+          function toggleDataset(index) {
+              myChart.data.datasets.forEach((dataset, i) => {
+                  dataset.hidden = (i !== index) ? true : false;
+              });
+              myChart.update();
+          }
 
-                var tagCheckboxes = document.querySelectorAll('.checkbox-{{ trend['index']}}');
-
-                for (var i = 0; i < chartData{{ trend['index'] }}.tags.length; i++) {
-                    var includeData = true;
-
-                    for (var j = 0; j < tagCheckboxes.length; j++) {
-                        if (!tagCheckboxes[j].checked && chartData{{ trend['index'] }}.tags[i] === tagCheckboxes[j].value) {
-                            includeData = false;
-                            break;
-                        }
-                    }
-
-                    if (includeData) {
-                        filteredData.labels.push(chartData{{ trend['index'] }}.labels[i]);
-                        filteredData.values.push(chartData{{ trend['index'] }}.values[i]);
-                        filteredData.tags.push(chartData{{ trend['index'] }}.tags[i]);
-                        filteredData.tooltips.push(chartData{{ trend['index'] }}.tooltips[i]);
-                    }
-                }
-
-                // Check each checkbox status and filter data accordingly
-                //document.querySelectorAll('.tagCheckbox').forEach(function(checkbox) {
-                //    if (!checkbox.checked) {
-                //        var tag = checkbox.value;
-                //        filteredData = filteredData.filter(function(item) {
-                //            // Your logic to filter data based on tags
-                //            return item.tags.includes(tag); // Adjust this according to your data structure
-                //        });
-                //    }
-                //});
-
-                // Update the chart with filtered data
-                updateChart{{ trend['index']}}(filteredData);
-            }
-
-            // Function to update the chart with new data
-            function updateChart{{ trend['index']}}(newData) {
-                // Update chart's dataset with the filtered data
-                myChart{{ trend['index'] }}.labels = newData.labels
-                myChart{{ trend['index'] }}.data.datasets[0].data = newData.values;
-
-                // Update chart
-                myChart{{ trend['index'] }}.update();
-            }
-
-            // Attach event listeners to checkboxes
-            document.querySelectorAll('.checkbox-{{ trend['index']}}').forEach(function(checkbox) {
-                checkbox.addEventListener('change', filterData{{ trend['index']}});
-            });
+          // Initial chart display (default time window)
+          updateChart("w"); // Default time window set to 30 days
         </script>
-    {% endfor %}
       </div>
 
       <div class="w3-container w3-card w3-white">
