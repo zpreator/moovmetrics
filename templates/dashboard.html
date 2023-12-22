@@ -31,13 +31,9 @@
         }
 </style>
 <!-- Page Container -->
-<div class="w3-content w3-margin-top" style="max-width:1400px;">
-
-
+<div class="w3-margin-top" >
   <!-- The Grid -->
   <div class="w3-row-padding">
-
-
     <!-- Left Column -->
     <div class="w3-third">
       <div class="w3-white w3-text-grey w3-card-4">
@@ -113,6 +109,27 @@
     <div class="w3-twothird">
 
       <div class="w3-container w3-card w3-white w3-margin-bottom">
+        <h2 class="w3-text-grey w3-padding-16"><i class="fa fa-trophy fa-fw w3-margin-right w3-xxlarge w3-text-teal"></i>Trends</h2>
+        <div class="chart-buttons">
+          <button class="chart-button active" id="w" onclick="updateWindow('w')">W</button>
+          <button class="chart-button" id="m" onclick="updateWindow('m')">M</button>
+          <button class="chart-button" id="6m" onclick="updateWindow('6m')">6M</button>
+          <button class="chart-button" id="y" onclick="updateWindow('y')">Y</button>
+          <!-- Add more buttons for different time windows -->
+        </div>
+
+        <div class="canvas-container">
+          <canvas id="canvas" style="height: 100%"></canvas>
+        </div>
+        <div class="chart-buttons">
+          <button class="chart-button active" id="hr" onclick="updateDataset('hr')">Heart Rate</button>
+          <button class="chart-button" id="max_speed" onclick="updateDataset('max_speed')">Max Speed</button>
+          <button class="chart-button" id="kudos" onclick="updateDataset('kudos')">Kudos</button>
+          <!-- Add more buttons for different time windows -->
+        </div>
+      </div>
+
+      <div class="w3-container w3-card w3-white w3-margin-bottom">
         <h2 class="w3-text-grey w3-padding-16"><i class="fa fa-trophy fa-fw w3-margin-right w3-xxlarge w3-text-teal"></i>Race Efforts</h2>
         <p>Your matching activities with the fastest time</p>
         {% for best_effort in best_efforts %}
@@ -128,44 +145,38 @@
         {% endfor %}
       </div>
 
-      <div class="w3-container w3-card w3-white w3-margin-bottom">
-        <h2 class="w3-text-grey w3-padding-16"><i class="fa fa-trophy fa-fw w3-margin-right w3-xxlarge w3-text-teal"></i>Trends</h2>
-        <div class="time-window-buttons">
-          <button class="btn btn-primary time-window" onclick="updateChart('w')">W</button>
-          <button class="btn btn-primary time-window" onclick="updateChart('m')">M</button>
-          <button class="btn btn-primary time-window" onclick="updateChart('6m')">6M</button>
-          <button class="btn btn-primary time-window" onclick="updateChart('y')">Y</button>
-          <!-- Add more buttons for different time windows -->
-        </div>
-        <div class="w3-container w3-margin-bottom" style="width: 100%; height: 400px;">
-          <canvas id="canvas" style="height: 100%"></canvas>
-        </div>
-        <script>
+      <div class="w3-container w3-card w3-white">
+        <h2>Activity Map</h2>
+        <iframe id="heatmapFrame" src="{{ heatmap_path }}" width="100%" height="800px">Loading...</iframe>
+      </div>
+
+    <!-- End Right Column -->
+    </div>
+
+  <!-- End Grid -->
+  </div>
+
+  <!-- End Page Container -->
+</div>
+<script>
           let myChart;
-          // Function to update chart based on selected time window
-          function updateChart(timeWindow) {
-            if (myChart) {
-                myChart.destroy();
-            }
+          let activityData;
+          let timeWindow = "w";
+          let dataset = "hr";
+          const datasetTitles = {
+            "hr": "Average Heart Rate",
+            "max_speed": "Max Speed",
+            "kudos": "Kudos"
+          }
 
-            let title;
-            if (timeWindow == "w") {
-              title = "Last 7 days";
-            } else if (timeWindow == "m") {
-              title = "Last 30 days";
-            } else if (timeWindow == "6m") {
-              title = "Last 6 months";
-            } else {
-              title = "Last 12 months";
-            }
-
+          function getData() {
             // AJAX call to Flask endpoint
             fetch('/get_data', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ 'time_window': timeWindow })
+              body: JSON.stringify({})
             })
             .then(response => {
               // Log the response content to inspect it
@@ -177,34 +188,43 @@
               return response.json();
             })
             .then(data => {
-              let parsedData = JSON.parse(data.data);
-              // Update the chart with the received data
+              activityData = JSON.parse(data.data);
+              updateChart();
+            })
+            .catch(error => {
+              console.error('There was an error with the request:', error);
+            });
+          }
+
+          // Function to update chart based on selected time window
+          function updateChart() {
+            //if (myChart) {
+            //    myChart.destroy();
+            //}
+
+            let title;
+            title = activityData[timeWindow]["title"];
+            labels = activityData[timeWindow]["dates"];
+            values = activityData[timeWindow]["values"][dataset];
+
+            if (myChart){
+              var chartConfig = myChart.config;
+              chartConfig.data.labels = labels;
+              chartConfig.data.datasets[0].data = values;
+              chartConfig.data.datasets[0].label = datasetTitles[dataset];
+              chartConfig.options.plugins.title.text = title;
+              myChart.update();
+            } else {
               const chartData = {
-                labels: parsedData.dates,
+                labels: labels,
                 datasets: [
                   {
-                    label: 'Average Heart Rate',
-                    data: parsedData.values.hr.map(value => (value !== null ? value : NaN)), // Data received from Flask endpoint for Dataset 1
+                    label: datasetTitles[dataset],
+                    data: values.map(value => (value !== null ? value : NaN)), // Data received from Flask endpoint for Dataset 1
                     backgroundColor: 'rgba(54, 162, 235, 0.5)',
                     borderColor: 'rgba(54, 162, 235, 1)',
                     borderWidth: 1,
                     hidden: false
-                  },
-                  {
-                    label: 'Max Speed (mph)',
-                    data: parsedData.values.max_speed, // Data received from Flask endpoint for Dataset 2
-                    backgroundColor: 'rgba(255, 99, 132, 0.5)',
-                    borderColor: 'rgba(255, 99, 132, 1)',
-                    borderWidth: 1,
-                    hidden: true
-                  },
-                  {
-                    label: 'Kudos',
-                    data: parsedData.values.kudos, // Data received from Flask endpoint for Dataset 3
-                    backgroundColor: 'rgba(75, 192, 192, 0.5)',
-                    borderColor: 'rgba(75, 192, 192, 1)',
-                    borderWidth: 1,
-                    hidden: true
                   }
                 ]
               };
@@ -220,21 +240,29 @@
                     title: {
                       display: true,
                       text: title,
-                    },
-                    legend: {
-                      onClick: (e, legendItem, legend) => {
-                          const index = legendItem.datasetIndex;
-                          toggleDataset(index);
-                          console.log(legendItem.datasetIndex);
-                      }
-                    },
+                    }
                   }
                 }
               });
-            })
-            .catch(error => {
-              console.error('There was an error with the request:', error);
-            });
+            }
+          }
+
+          function updateWindow(newTimeWindow) {
+            timeWindow = newTimeWindow;
+            setButtons();
+            updateChart();
+          }
+
+          function updateDataset(newDataset) {
+            dataset = newDataset;
+            setButtons();
+            updateChart();
+          }
+
+          function setButtons() {
+            document.querySelectorAll('.chart-button').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(timeWindow).classList.add('active');
+            document.getElementById(dataset).classList.add('active');
           }
 
           // Function to toggle dataset visibility
@@ -245,22 +273,7 @@
               myChart.update();
           }
 
-          // Initial chart display (default time window)
-          updateChart("w"); // Default time window set to 30 days
+          // Initial chart display
+          getData();
         </script>
-      </div>
-
-      <div class="w3-container w3-card w3-white">
-        <h2>Activity Map</h2>
-        <iframe id="heatmapFrame" src="{{ heatmap_path }}" width="100%" height="800px">Loading...</iframe>
-      </div>
-
-    <!-- End Right Column -->
-    </div>
-
-  <!-- End Grid -->
-  </div>
-
-  <!-- End Page Container -->
-</div>
 {% endblock %}

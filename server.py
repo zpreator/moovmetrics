@@ -20,8 +20,8 @@ import pandas as pd
 app = Flask(__name__)
 cache = Cache(app, config={'CACHE_TYPE': 'simple'})
 app.secret_key = 'your_secret_key_here'  # Change this to a secure secret key
-if os.path.exists("settings.env"):
-    load_dotenv("settings.env")
+if os.path.exists("settings2.env"):
+    load_dotenv("settings2.env")
 
 FLASK_ENV = os.environ.get("FLASK_ENV", "dev")
 
@@ -278,6 +278,8 @@ def calculate_personal_bests(activities, limit=10):
 
 
 def get_race_efforts(activities):
+    if len(activities) == 0:
+        return []
     races = list(RACES)
     for i, activity in enumerate(activities):
         for j, race in enumerate(races):
@@ -339,7 +341,7 @@ def get_gear(activities):
     return gear
 
 
-def get_trends(activities, time_window, activity_types='all'):
+def get_trends(activities, activity_types='all'):
     activity_list = []
     activities.reverse()
     for i, activity in enumerate(activities):
@@ -349,25 +351,51 @@ def get_trends(activities, time_window, activity_types='all'):
     activities_df = pd.DataFrame(activity_list)
     activities_df['date'] = pd.to_datetime(activities_df['date'])
     activities_df.set_index('date', inplace=True)
+    activities_df = activities_df.fillna(np.nan).replace([np.nan], [None])
 
-    if time_window == 'w':
-        df = activities_df.resample('D').mean().tail(7)
-    elif time_window == 'm':
-        df = activities_df.resample('D').mean().tail(30)
-    elif time_window == '6m':
-        df = activities_df.resample('W').mean().tail(6 * 4)  # 6 months, at 4 weeks per month
-    else:
-        df = activities_df.resample('M').mean().tail(12)  # 12 months
-
-    df = df.fillna(np.nan).replace([np.nan], [None])
+    df_w = activities_df.resample('D').mean().tail(7).replace([np.nan], [None])
+    df_d = activities_df.resample('D').mean().tail(30).replace([np.nan], [None])
+    df_6m = activities_df.resample('W').mean().tail(6 * 4).replace([np.nan], [None])  # 6 months, at 4 weeks per month
+    df_y = activities_df.resample('M').mean().tail(12).replace([np.nan], [None])  # 12 months
 
     data = {
-        'dates': df.index.strftime('%Y-%m-%d').tolist(),
-        'values': {
-            'hr': df['hr'].tolist(),
-            'max_speed': df['max_speed'].tolist(),
-            'kudos': df['kudos'].tolist()
+        'w': {
+            'title': 'Last 7 days',
+            'dates': df_w.index.day_name().tolist(),
+            'values': {
+                'hr': df_w['hr'].tolist(),
+                'max_speed': df_w['max_speed'].tolist(),
+                'kudos': df_w['kudos'].tolist()
+            }
+        },
+        'm': {
+            'title': 'Last 30 days',
+            'dates': df_d.index.strftime("%b %d").tolist(),
+            'values': {
+                'hr': df_d['hr'].tolist(),
+                'max_speed': df_d['max_speed'].tolist(),
+                'kudos': df_d['kudos'].tolist()
+            }
+        },
+        '6m': {
+            'title': 'Last 6 months',
+            'dates': df_6m.index.strftime("%b %d %y").tolist(),
+            'values': {
+                'hr': df_6m['hr'].tolist(),
+                'max_speed': df_6m['max_speed'].tolist(),
+                'kudos': df_6m['kudos'].tolist()
+            }
+        },
+        'y': {
+            'title': 'Last 12 months',
+            'dates': df_y.index.strftime("%b %y").tolist(),
+            'values': {
+                'hr': df_y['hr'].tolist(),
+                'max_speed': df_y['max_speed'].tolist(),
+                'kudos': df_y['kudos'].tolist()
+            }
         }
+
     }
     return data
 
@@ -471,7 +499,6 @@ def friends():
 
 @app.route("/get_data", methods=['POST'])
 def get_data():
-    time_window = request.json.get('time_window')
     client.access_token = session['access_token']
     strava_athlete = client.get_athlete()
     athlete_folder = os.path.join("static", "temp", str(strava_athlete.id))
@@ -484,7 +511,7 @@ def get_data():
         activities = get_activities()
         with open(activities_path, 'wb') as file:
             pickle.dump(activities, file)
-    data = get_trends(activities, time_window)
+    data = get_trends(activities)
     return jsonify({'data': json.dumps(data)})
 
 
@@ -498,10 +525,11 @@ def dashboard():
     athlete_folder = os.path.join("static", "temp", str(strava_athlete.id))
     os.makedirs(athlete_folder, exist_ok=True)
     activities_path = os.path.join(athlete_folder, 'activities.pkl')
+    activities = []
     if os.path.exists(activities_path) and file_created_within_60_minutes(activities_path):
         with open(activities_path, 'rb') as file:
             activities = pickle.load(file)
-    else:
+    if len(activities) == 0:
         activities = get_activities()
         with open(activities_path, 'wb') as file:
             pickle.dump(activities, file)

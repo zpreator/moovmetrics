@@ -142,14 +142,31 @@ a, button {
     font-weight: bold;
 }
 
-/* Additional CSS for styling the time window buttons and chart container */
-.time-window-buttons {
-  overflow-x: auto;
-  white-space: nowrap;
-  margin-bottom: 15px;
+/* Button styles */
+.chart-button {
+    padding: 8px 16px;
+    margin: 5px;
+    border: none;
+    border-radius: 5px;
+    background-color: #f0f0f0;
+    color: #333;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
 }
-.chart-container {
-  position: relative;
-  width: 80%; /* Adjust the width according to your layout */
-  margin: auto;
+
+.chart-button.active {
+    background-color: #007bff;
+    color: #fff;
+}
+
+/* Button container styles */
+.chart-buttons {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px; /* Add some margin if needed */
+}
+
+.canvas-container {
+    height: 60vh;
 }
