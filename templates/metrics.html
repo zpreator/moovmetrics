@@ -1,0 +1,83 @@
+{% extends 'layout.html' %}
+
+{% block body %}
+<!-- The Grid -->
+  <div class="w3-row-padding">
+<!--     Left Column -->
+    <div class="w3-third">
+      <div class="w3-container w3-card w3-white">
+        <div class="canvas-container">
+          <canvas id="canvas" style="height: 100%"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="w3-twothird">
+      <div class="w3-container w3-card w3-white">
+        <div class="w3-container w3-card w3-white">
+          <h2>Activity Map</h2>
+          <iframe id="heatmapFrame" src="{{ heatmap_path }}" width="100%" height="400px">Loading...</iframe>
+        </div>
+      </div>
+    </div>
+  </div>
+<script>
+  const hrData = {{ hr_data | safe }}
+  const maxHeartRate = 200;
+  const zones = [
+        { color: 'blue', max: maxHeartRate * 0.2 },
+        { color: 'green', max: maxHeartRate * 0.4 },
+        { color: 'yellow', max: maxHeartRate * 0.6 },
+        { color: 'orange', max: maxHeartRate * 0.8 },
+        { color: 'red', max: maxHeartRate }
+    ];
+
+  const ctx = document.getElementById('canvas').getContext('2d');
+  const heartRateChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: hrData.time,
+        datasets: [{
+            label: 'Heart Rate',
+            data: hrData.heart_rate,
+            backgroundColor: function(context) {
+                const heartRate = context.raw;
+                for (let i = 0; i < zones.length; i++) {
+                    if (heartRate <= zones[i].max) {
+                        return zones[i].color;
+                    }
+                }
+                return 'black'; // Default color if heart rate is higher than max
+            },
+            borderColor: function(context) {
+                const heartRate = context.raw;
+                for (let i = 0; i < zones.length; i++) {
+                    if (heartRate <= zones[i].max) {
+                        return zones[i].color;
+                    }
+                }
+                return 'black'; // Default color if heart rate is higher than max
+            },
+            fill: false
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            x: {
+                title: {
+                    display: true,
+                    text: 'Time'
+                }
+            },
+            y: {
+                title: {
+                    display: true,
+                    text: 'Heart Rate'
+                }
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

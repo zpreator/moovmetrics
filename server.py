@@ -46,10 +46,11 @@ if 'STRAVA_CLIENT_SECRET' in os.environ:
     print('Found client secret')
 
 
-@app.errorhandler(Exception)
-def handle_all_exceptions(error):
-    print(error)
-    return redirect(url_for('fail'))
+# @app.errorhandler(Exception)
+# def handle_all_exceptions(error):
+#     print(error)
+#     raise
+#     # return redirect(url_for('fail'))
 
 
 @app.route("/fail")
@@ -150,7 +151,7 @@ def strava_callback():
         return redirect(url_for('index'))
 
 
-def generate_map(activities, save_path):
+def generate_map(activities, save_path, filter=True):
     print('Generating map')
 
     # Loop through activities and collect map data
@@ -175,7 +176,7 @@ def generate_map(activities, save_path):
                 routes.append(p)
 
     # Create a base map centered on a location
-    m = folium.Map(location=decoded_coords[0], zoom_start=12)
+    m = folium.Map(location=decoded_coords[0], zoom_start=13)
 
     # Customize the map controls for mobile devices
     mobile_styles = """
@@ -200,7 +201,8 @@ def generate_map(activities, save_path):
     for route in routes:
         m.add_child(route)
 
-    TagFilterButton(activity_types).add_to(m)
+    if filter:
+        TagFilterButton(activity_types).add_to(m)
 
     Fullscreen(
         position="topright",
@@ -217,7 +219,7 @@ def get_cow_path():
     cow_folder = os.path.join('static', 'images', 'cow')
     filename = random.choice(os.listdir(cow_folder))
     print(filename)
-    return os.path.join(cow_folder, filename)
+    return url_for('static', filename=os.path.join('images', 'cow', filename))
 
 
 def fastest_segment_within_distance(df, races):
@@ -295,21 +297,30 @@ def get_race_efforts(activities):
     return races
 
 
-def get_activities(as_dicts=False, activity_types=None, after_date=None):
-    # Set a higher per_page limit to fetch more activities per request
-    per_page = 100
+def get_activities(strava_athlete, as_dicts=False, activity_types=None, after_date=None):
+    athlete_folder = os.path.join("static", "temp", str(strava_athlete.id))
+    activities_path = os.path.join(athlete_folder, 'activities.pkl')
+    all_activities = []
+    if os.path.exists(activities_path) and file_created_within_60_minutes(activities_path):
+        with open(activities_path, 'rb') as file:
+            all_activities = pickle.load(file)
+    if len(all_activities) == 0:
+        # Set a higher per_page limit to fetch more activities per request
+        per_page = 100
 
-    # Get the initial set of activities
-    activities = list(client.get_activities(limit=per_page, after=after_date))
+        # Get the initial set of activities
+        activities = list(client.get_activities(limit=per_page, after=after_date))
 
-    # Store activities in a list
-    all_activities = list(activities)
+        # Store activities in a list
+        all_activities = list(activities)
 
-    # Retrieve remaining activities using pagination
-    while len(activities) == per_page:
-        # Fetch the next set of activities
-        activities = list(client.get_activities(limit=per_page, before=activities[-1].start_date, after=after_date))
-        all_activities.extend(list(activities))
+        # Retrieve remaining activities using pagination
+        while len(activities) == per_page:
+            # Fetch the next set of activities
+            activities = list(client.get_activities(limit=per_page, before=activities[-1].start_date, after=after_date))
+            all_activities.extend(list(activities))
+        with open(activities_path, 'wb') as file:
+            pickle.dump(all_activities, file)
 
     if as_dicts:
         activities_dicts = []
@@ -459,58 +470,58 @@ def file_created_within_60_minutes(file_path):
     return age_seconds < 60 * 60  # 60 minutes * 60 seconds
 
 
-@app.route("/friends")
-def friends():
+@app.route("/activities_page")
+def activities_page():
     authenticated = refresh()
     if not authenticated:
         return redirect(url_for('index'))
     # Use the access token to fetch user data from Strava
     client.access_token = session['access_token']
     strava_athlete = client.get_athlete()
-    os.makedirs(os.path.join("static", str(session['state'])), exist_ok=True)
-    clubs = client.get_athlete_clubs()
-    cow_path = get_cow_path()
-    # one_year_ago = datetime.datetime.now() - datetime.timedelta(days=365)
-    club_data = []
-    i = 0
-    user_id = 0
-    for club in clubs:
-        this_club_data = {}
-        club_activities = client.get_club_activities(club.id)
-        for club_activity in club_activities:
-            if club_activity.type == 'Run':
-                username = (club_activity.athlete.firstname + club_activity.athlete.lastname).replace('.', '').replace(' ', '').replace('-', '')
-                if username not in this_club_data:
-                    this_club_data[username] = {'id': user_id, 'distance': 0, 'time': 0, 'color': 'rgba(255, 99, 132, 1)'}
-                    user_id += 1
+    activities = get_activities(strava_athlete)
+    return render_template('activities.html', cow_path=get_cow_path(), flask_env=FLASK_ENV, activities=activities)
 
-                distance = float(unithelper.miles(club_activity.distance))
-                time_elapsed = float(club_activity.moving_time.seconds / 3600)
-                this_club_data[username]['distance'] += distance
-                this_club_data[username]['time'] += time_elapsed
-        distances = [round(this_club_data[x]['distance'], 2) for x in this_club_data.keys()]
-        times = [round(this_club_data[x]['time'], 2) for x in this_club_data.keys()]
-        names = list(this_club_data.keys())
-        club_data.append({'name': club.name, 'index': i, 'distances': distances, 'times': times, 'names': names})
-        i += 1
-    return render_template('friends.html', cow_path=cow_path, clubs=club_data, athlete=strava_athlete,
-                           state=session['state'], flask_env=FLASK_ENV)
+
+@app.route("/metrics/<activity_id>")
+def metrics(activity_id):
+    authenticated = refresh()
+    if not authenticated:
+        return redirect(url_for('index'))
+    # Use the access token to fetch user data from Strava
+    client.access_token = session['access_token']
+    strava_athlete = client.get_athlete()
+    activity = client.get_activity(activity_id)
+    types = [
+        "time",
+        "latlng",
+        "altitude",
+        "heartrate",
+        "temp",
+    ]
+    streams = client.get_activity_streams(activity.id, types=types, resolution="medium")
+    relative_path = os.path.join('temp', str(strava_athlete.id), f'{activity_id}.html')
+    save_path = os.path.join('static', relative_path)
+    heatmap_path = url_for("static", filename=relative_path)
+    generate_map([activity], save_path=save_path, filter=False)
+
+    # Extracting time and heart rate data
+    time_data = streams['time'].data
+    heart_rate_values = streams['heartrate'].data
+
+    # Prepare data for JavaScript
+    heart_rate_json = json.dumps({
+        'time': time_data,
+        'heart_rate': heart_rate_values
+    })
+
+    return render_template('metrics.html', cow_path=get_cow_path(), flask_env=FLASK_ENV, hr_data=heart_rate_json, heatmap_path=heatmap_path)
 
 
 @app.route("/get_data", methods=['POST'])
 def get_data():
     client.access_token = session['access_token']
     strava_athlete = client.get_athlete()
-    athlete_folder = os.path.join("static", "temp", str(strava_athlete.id))
-    os.makedirs(athlete_folder, exist_ok=True)
-    activities_path = os.path.join(athlete_folder, 'activities.pkl')
-    if os.path.exists(activities_path) and file_created_within_60_minutes(activities_path):
-        with open(activities_path, 'rb') as file:
-            activities = pickle.load(file)
-    else:
-        activities = get_activities()
-        with open(activities_path, 'wb') as file:
-            pickle.dump(activities, file)
+    activities = get_activities(strava_athlete)
     data = get_trends(activities)
     return jsonify({'data': json.dumps(data)})
 
@@ -524,15 +535,7 @@ def dashboard():
     strava_athlete = client.get_athlete()
     athlete_folder = os.path.join("static", "temp", str(strava_athlete.id))
     os.makedirs(athlete_folder, exist_ok=True)
-    activities_path = os.path.join(athlete_folder, 'activities.pkl')
-    activities = []
-    if os.path.exists(activities_path) and file_created_within_60_minutes(activities_path):
-        with open(activities_path, 'rb') as file:
-            activities = pickle.load(file)
-    if len(activities) == 0:
-        activities = get_activities()
-        with open(activities_path, 'wb') as file:
-            pickle.dump(activities, file)
+    activities = get_activities(strava_athlete)
     # best_efforts = calculate_personal_bests(activities)
     cow_path = get_cow_path()
     best_efforts = get_race_efforts(activities)
@@ -550,11 +553,13 @@ def dashboard():
                 num = int(file.read())
             except:
                 print('There was a problem reading the number')
-    heatmap_path = os.path.join('static', 'temp', str(strava_athlete.id), 'heatmap.html')
+    relative_path = os.path.join('temp', str(strava_athlete.id), 'heatmap.html')
+    save_path = os.path.join('static', relative_path)
     if num < len(activities):
         with open(text_path, 'w') as file:
             file.write(str(len(activities)))
-        generate_map(activities, heatmap_path)
+        generate_map(activities, save_path)
+    heatmap_path = url_for("static", filename=relative_path)
     return render_template('dashboard.html', cow_path=cow_path, flask_env=FLASK_ENV, athlete=strava_athlete,
                            best_efforts=best_efforts, clubs=clubs, gear=gear, stats=stats, heatmap_path=heatmap_path,
                            units=unithelper)
