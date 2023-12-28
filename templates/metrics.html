@@ -6,22 +6,60 @@
 <!--     Left Column -->
     <div class="w3-third">
       <div class="w3-container w3-card w3-white">
-        <div class="canvas-container">
-          <canvas id="canvas" style="height: 100%"></canvas>
-        </div>
+          <div class="w3-container">
+            <h2>{{ activity.name }}</h2>
+              <div class="w3-container">
+                  <p><i class="fa fa-id-card"></i> Date:  {{ activity.start_date_local.strftime('%d/%m/%Y') }}</p>
+                  <p><i class="fa fa-user">   </i> Elevation Gained:  {{ activity.total_elevation_gain }}</p>
+                  <p><i class="fa fa-user">   </i> Moving Time:  {{ activity.moving_time }}</p>
+                  <p><i class="fa fa-user">   </i> Max Heart Rate:  {{ activity.max_heartrate }}</p>
+                  <p><i class="fa fa-user">   </i> Max Speed:  {{ activity.max_speed }}</p>
+                  <p><i class="fa fa-user">   </i> Workout Type:  {{ activity.type }}</p>
+                  <p><i class="fa fa-user">   </i> Gear:  {{ activity.gear.name }} ({{ activity.gear.distance }})</p>
+              </div>
+          </div>
+          <div class="w3-container">
+              <p class="w3-large w3-text-theme"><b><i class="fa fa-bar-chart fa-fw w3-margin-right w3-text-teal"></i>Best Efforts</b></p>
+              {% for best_effort in best_efforts %}
+              <div class="w3-container">
+                <h5 class="w3-opacity"><b>{{ best_effort.distance }}</b></h5>
+                <p>Time: {{ best_effort.time }}</p>
+                <hr>
+              </div>
+              {% endfor %}
+          </div>
       </div>
     </div>
     <div class="w3-twothird">
-      <div class="w3-container w3-card w3-white">
+        <div class="w3-container w3-card w3-white w3-margin-bottom">
+            <div class="w3-half">
+                <div class="w3-container" style="height: 150px;">
+                    <canvas id="hr" style="height: 100%"></canvas>
+                </div>
+                <div class="w3-container" style="height: 150px;">
+                    <canvas id="pace" style="height: 100%"></canvas>
+                </div>
+                <div class="w3-container" style="height: 150px;">
+                    <canvas id="elevation" style="height: 100%"></canvas>
+                </div>
+            </div>
+            <div class="w3-half">
+                <div class="w3-container" style="height: 450px;">
+                  <canvas id="splits" style="height: 100%"></canvas>
+                </div>
+            </div>
+        </div>
         <div class="w3-container w3-card w3-white">
           <h2>Activity Map</h2>
           <iframe id="heatmapFrame" src="{{ heatmap_path }}" width="100%" height="400px">Loading...</iframe>
         </div>
-      </div>
     </div>
   </div>
 <script>
   const hrData = {{ hr_data | safe }}
+  const paceData = {{ pace_data | safe }}
+  const splitData = {{ splits_data | safe }}
+  const elevationData = {{ elevation_data | safe }}
   const maxHeartRate = 200;
   const zones = [
         { color: 'blue', max: maxHeartRate * 0.2 },
@@ -30,53 +68,192 @@
         { color: 'orange', max: maxHeartRate * 0.8 },
         { color: 'red', max: maxHeartRate }
     ];
+ console.log(splitData.tips);
 
-  const ctx = document.getElementById('canvas').getContext('2d');
-  const heartRateChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-        labels: hrData.time,
-        datasets: [{
-            label: 'Heart Rate',
-            data: hrData.heart_rate,
-            backgroundColor: function(context) {
-                const heartRate = context.raw;
-                for (let i = 0; i < zones.length; i++) {
-                    if (heartRate <= zones[i].max) {
-                        return zones[i].color;
+// Function to convert milliseconds to "HH:mm" format
+function formatTime(seconds) {
+  if (seconds === null || seconds === undefined) {
+    return null;
+  }
+
+  const days = Math.floor(seconds / (24 * 3600));
+  const hours = Math.floor((seconds % (24 * 3600)) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = Math.floor(seconds % 60);
+
+  let timeString = "";
+
+  if (days > 0) {
+    timeString += `${days}d `;
+  }
+  if (hours > 0) {
+    timeString += `${hours}h `;
+  }
+  if (minutes > 0) {
+    timeString += `${minutes}m `;
+  }
+  if (remainingSeconds > 0 || timeString === "") {
+    timeString += `${remainingSeconds}s`;
+  }
+
+  return timeString.trim();
+}
+
+function lineChart(canvasId, data, borderColor, backgroundColor, xLabel, yLabel, title) {
+      // Calculate x-axis labels at 15-minute intervals
+      const xLabels = [];
+      const startTime = data.time[0]; // Assuming time array is sorted
+      const endTime = data.time[data.time.length - 1];
+      let currentTime = startTime;
+
+      while (currentTime <= endTime) {
+        xLabels.push(currentTime);
+        currentTime += 15 * 60; // Add 15 minutes
+      }
+      const maxXValue = Math.max(...data.time);
+      var ctx = document.getElementById(canvasId).getContext('2d');
+      var chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: xLabels,
+            datasets: [{
+                label: title,
+                data: data.time.map((time, index) => ({ x: time, y: data.values[index] })),
+                backgroundColor: backgroundColor,
+                borderColor: borderColor,
+                tension: 0.1,
+                radius: 0,
+                borderWidth: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: xLabel
+                    },
+                    type: 'linear',
+                    max: maxXValue,
+                    ticks: {
+                      stepSize: 900,
+                      suggestedMin: 0,
+                      callback: function (value, index, values) {
+                        return formatTime(value); // Format ticks using the custom function
+                      }
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: yLabel
+                    },
+                    ticks: {
+                        callback: function (value) {
+                            // Calculate the length of the label
+                            const labelLength = value.toString().length;
+                            const spaces = (n) => " ".repeat(n);
+                            let padding = (4 - labelLength) * 2
+                            value = spaces(padding) + value;
+                            return value;
+                        }
                     }
                 }
-                return 'black'; // Default color if heart rate is higher than max
             },
-            borderColor: function(context) {
-                const heartRate = context.raw;
-                for (let i = 0; i < zones.length; i++) {
-                    if (heartRate <= zones[i].max) {
-                        return zones[i].color;
-                    }
-                }
-                return 'black'; // Default color if heart rate is higher than max
+            plugins: {
+              // Use the afterLayout event to dynamically set the max value for the x-axis
+              afterLayout: function (chart) {
+                const xAxis = chart.scales['x'];
+                const maxXValue = Math.max(...data.time);
+                xAxis.options.max = maxXValue;
+                chart.update();
+              }
             },
-            fill: false
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-            x: {
-                title: {
-                    display: true,
-                    text: 'Time'
-                }
-            },
-            y: {
-                title: {
-                    display: true,
-                    text: 'Heart Rate'
+            layout: {
+                padding: {
+                    right: 20,
+                    left: 20
                 }
             }
         }
+    });
+}
+
+lineChart("hr", hrData, 'rgba(255, 99, 132)', 'rgba(255, 99, 132, 0.2)', 'Time', 'Heart Rate (BPM)', 'Heart Rate');
+lineChart("pace", paceData, 'rgba(255, 159, 64)', 'rgba(255, 159, 64, 0.2)', 'Time', 'Pace (MPH)', 'Pace');
+lineChart("elevation", elevationData, 'rgba(153, 102, 255)', 'rgba(153, 102, 255, 0.2)', 'Time', 'Elevation (ft)', 'Elevation');
+
+const ctx2 = document.getElementById('splits').getContext('2d');
+  const splitChart = new Chart(ctx2, {
+    type: 'bar',
+    data: {
+        labels: splitData.miles,
+        datasets: [{
+            label: 'Splits',
+            data: splitData.speed,
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+            borderColor: 'rgb(75, 192, 192)',
+            borderWidth: 1
+        }]
+    },
+    options: {
+        animation: {
+            duration: 0,
+            onComplete: function() {
+                ctx = this.ctx;
+                ctx.font = Chart.helpers.fontString(Chart.defaults.font.size, Chart.defaults.font.style, Chart.defaults.font.family);
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                chartinst = this;
+                this.data.datasets.forEach(function(dataset, i) {
+                    if(chartinst.isDatasetVisible(i)){
+                        var meta = chartinst.getDatasetMeta(i);
+                        meta.data.forEach(function(bar, index) {
+                            var data = splitData.tips[index];
+                            ctx.fillText(data, bar.x, bar.y - 5);
+                        });
+                    }
+                });
+            }
+        },
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            title: {
+                display: true,
+                text: 'Mile'
+            }
+          },
+          y: {
+            title: {
+              display: true,
+              text: 'Pace (mph)'
+            },
+          }
+        },
+        layout: {
+            padding: {
+                right: 20,
+                left: 20
+            }
+        },
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: function (context) {
+                return splitData.tips[context.dataIndex];
+              }
+            }
+          },
+          legend: {
+            display: true,
+            position: 'top' // Adjust legend position as needed
+          }
+        },
+
     }
 });
 </script>

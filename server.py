@@ -30,6 +30,7 @@ client = Client()
 
 RACES = [
     {'name': '1/2 mile', 'distance': 804.67},
+    {'name': '1k', 'distance': 1000},
     {'name': '1 mile', 'distance': 1609.34},
     {'name': '2 mile', 'distance': 1609.34*2},
     {'name': '5k', 'distance': 5000},
@@ -436,6 +437,13 @@ def get_stats(activities, athlete):
     return stats
 
 
+def speed_to_time(speed):
+    mph = float(unithelper.miles_per_hour(speed))
+    min_per_mile = 60 / mph
+    seconds_per_mile = 60 * min_per_mile
+    return seconds_to_time(seconds_per_mile)
+
+
 def seconds_to_time(seconds):
     if seconds is None:
         return None
@@ -447,13 +455,13 @@ def seconds_to_time(seconds):
     time_string = ""
 
     if days > 0:
-        time_string += f"{days} d "
+        time_string += f"{days}d "
     if hours > 0:
-        time_string += f"{hours} h "
+        time_string += f"{hours}h "
     if minutes > 0:
-        time_string += f"{minutes} m "
+        time_string += f"{minutes}m "
     if seconds > 0 or time_string == "":
-        time_string += f"{seconds} s"
+        time_string += f"{seconds}s"
 
     return time_string.strip()
 
@@ -469,6 +477,13 @@ def file_created_within_60_minutes(file_path):
     # Check if the file was created over 60 minutes ago
     return age_seconds < 60 * 60  # 60 minutes * 60 seconds
 
+
+def get_race_name(distance):
+    distance = int(distance)
+    for race in RACES:
+        if abs(distance - race['distance']) < 10:
+            return race['name']
+    return f"{distance} meters"
 
 @app.route("/activities_page")
 def activities_page():
@@ -497,6 +512,7 @@ def metrics(activity_id):
         "altitude",
         "heartrate",
         "temp",
+        "velocity_smooth"
     ]
     streams = client.get_activity_streams(activity.id, types=types, resolution="medium")
     relative_path = os.path.join('temp', str(strava_athlete.id), f'{activity_id}.html')
@@ -504,17 +520,40 @@ def metrics(activity_id):
     heatmap_path = url_for("static", filename=relative_path)
     generate_map([activity], save_path=save_path, filter=False)
 
+    # Calculate best efforts
+    best_efforts = []
+    for best_effort in activity.best_efforts:
+        best_efforts.append({'time': best_effort.elapsed_time, 'distance': get_race_name(best_effort.distance)})
+
     # Extracting time and heart rate data
     time_data = streams['time'].data
+    pace_data = streams['velocity_smooth'].data
+    elevation_data = streams['altitude'].data
     heart_rate_values = streams['heartrate'].data
 
     # Prepare data for JavaScript
     heart_rate_json = json.dumps({
         'time': time_data,
-        'heart_rate': heart_rate_values
+        'values': heart_rate_values
+    })
+    pace_json = json.dumps({
+        'time': time_data,
+        'values': [float(unithelper.miles_per_hour(x)) for x in pace_data]
+    })
+    elevation_json = json.dumps({
+        'time': time_data,
+        'values': [int(unithelper.feet(x)) for x in elevation_data]
     })
 
-    return render_template('metrics.html', cow_path=get_cow_path(), flask_env=FLASK_ENV, hr_data=heart_rate_json, heatmap_path=heatmap_path)
+    splits_json = json.dumps({
+        'miles': [f"{float(x.split-1)} - {round(float(unithelper.miles(x.distance)) + (x.split - 1), 2)}" for x in activity.splits_standard],
+        'speed': [float(unithelper.miles_per_hour(x.average_speed)) for x in activity.splits_standard],
+        'tips': [f"{speed_to_time(x.average_speed)}" for x in activity.splits_standard]
+    })
+
+    return render_template('metrics.html', cow_path=get_cow_path(), flask_env=FLASK_ENV, activity=activity, best_efforts=best_efforts,
+                           hr_data=heart_rate_json, pace_data=pace_json, elevation_data=elevation_json,
+                           splits_data=splits_json, heatmap_path=heatmap_path)
 
 
 @app.route("/get_data", methods=['POST'])
