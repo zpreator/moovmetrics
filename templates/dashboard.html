@@ -30,12 +30,6 @@
             display: block;
         }
 
-        .chart-buttons {
-          overflow-x: auto; /* Enable horizontal scrolling */
-          white-space: nowrap; /* Prevent buttons from wrapping onto new lines */
-          -webkit-overflow-scrolling: touch; /* Enable smooth scrolling on iOS devices */
-          width: 100%; /* Ensure the container takes up the full width of its parent */
-        }
 </style>
 <!-- Page Container -->
 <div class="w3-margin-top" >
@@ -117,14 +111,14 @@
 
       <div class="w3-container w3-card w3-white w3-margin-bottom">
         <h2 class="w3-text-grey w3-padding-16"><i class="fa fa-trophy fa-fw w3-margin-right w3-xxlarge w3-text-teal"></i>Trends</h2>
-        <div class="chart-buttons">
+        <div class="chart-buttons types">
           <button class="chart-button type active" id="all" onclick="updateType('all')">All</button>
           {% for activity_type in activity_types %}
           <button class="chart-button type" id="{{activity_type}}" onclick="updateType('{{activity_type}}')">{{activity_type | title }}</button>
           {% endfor %}
 
         </div>
-        <div class="chart-buttons">
+        <div class="chart-buttons windows">
           <button class="chart-button window active" id="w" onclick="updateWindow('w')">W</button>
           <button class="chart-button window" id="m" onclick="updateWindow('m')">M</button>
           <button class="chart-button window" id="6m" onclick="updateWindow('6m')">6M</button>
@@ -135,7 +129,7 @@
         <div class="canvas-container">
           <canvas id="canvas" style="height: 100%"></canvas>
         </div>
-        <div class="chart-buttons">
+        <div class="chart-buttons datasets">
           <button class="chart-button dataset active" id="hr" onclick="updateDataset('hr')">Heart Rate</button>
           <button class="chart-button dataset" id="avg_speed" onclick="updateDataset('avg_speed')">Average Speed</button>
           <button class="chart-button dataset" id="kudos" onclick="updateDataset('kudos')">Kudos</button>

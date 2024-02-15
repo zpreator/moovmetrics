@@ -27,13 +27,33 @@ body {
 .logo {
   max-width: 200px; /* Adjust size as needed */
 }
-@media screen and (max-width: 600px) {
+@media screen and (max-width: 700) {
   .title {
     text-align: center;
   }
   .logo {
     display: block;
     margin: 0 auto;
+  }
+  .section {
+    width: 100%; /* Set width to 100% for vertical stacking */
+  }
+  .left-buttons, .right-buttons {
+    display: none; /* Hide buttons on mobile */
+  }
+
+  .hamburger {
+      display: block; /* Display hamburger menu */
+  }
+
+  /* Show buttons in dropdown when hamburger is clicked */
+  .left-buttons.show, .right-buttons.show {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    top: 50px; /* Adjust as needed based on your design */
+    background-color: #444;
+    z-index: 1;
   }
 }
 
@@ -67,12 +87,6 @@ body {
     margin: 10px;
 }
 
-/* Media query for mobile devices */
-@media (max-width: 1000px) {
-    .section {
-        width: 100%; /* Set width to 100% for vertical stacking */
-    }
-}
 
 /* Navbar styles */
 .navbar {
@@ -106,27 +120,6 @@ a, button {
     display: none; /* Hide by default on larger screens */
 }
 
-/* Media query for mobile view */
-@media (max-width: 1000px) {
-    .left-buttons, .right-buttons {
-        display: none; /* Hide buttons on mobile */
-    }
-
-    .hamburger {
-        display: block; /* Display hamburger menu */
-    }
-
-    /* Show buttons in dropdown when hamburger is clicked */
-    .left-buttons.show, .right-buttons.show {
-        display: flex;
-        flex-direction: column;
-        position: absolute;
-        top: 50px; /* Adjust as needed based on your design */
-        background-color: #444;
-        z-index: 1;
-    }
-}
-}
 
 /* Ribbon styles */
 .ribbon {
@@ -152,6 +145,7 @@ a, button {
     color: #333;
     cursor: pointer;
     transition: background-color 0.3s ease;
+    white-space: nowrap;
 }
 
 .chart-button.active {
@@ -162,9 +156,20 @@ a, button {
 /* Button container styles */
 .chart-buttons {
     display: flex;
-    justify-content: center;
     align-items: center;
     margin-bottom: 20px; /* Add some margin if needed */
+    overflow-x: auto; /* Enable horizontal scrolling */
+    white-space: nowrap; /*Prevent buttons from wrapping onto new lines */
+    -webkit-overflow-scrolling: touch; /* Enable smooth scrolling on iOS devices */
+    width: 100%; /* Ensure the container takes up the full width of its parent */
+}
+
+.types {
+  justify-content: left;
+}
+
+.windows, .datasets {
+  justify-content: center;
 }
 
 .canvas-container {
