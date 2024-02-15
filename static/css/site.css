@@ -141,3 +141,32 @@ a, button {
     color: white;
     font-weight: bold;
 }
+
+/* Button styles */
+.chart-button {
+    padding: 8px 16px;
+    margin: 5px;
+    border: none;
+    border-radius: 5px;
+    background-color: #f0f0f0;
+    color: #333;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.chart-button.active {
+    background-color: #007bff;
+    color: #fff;
+}
+
+/* Button container styles */
+.chart-buttons {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px; /* Add some margin if needed */
+}
+
+.canvas-container {
+    height: 400px;
+}

@@ -1,25 +1,34 @@
 import datetime
+import io
+import json
 import pickle
 import random
 import time
 import folium
+import numpy as np
 from tqdm import tqdm
-from folium.plugins import HeatMap, Fullscreen, TagFilterButton
+from folium.plugins import Fullscreen, TagFilterButton
 import polyline
+import requests
 import stravalib.exc
-from flask import Flask, render_template, request, url_for, session, redirect
+from flask import Flask, render_template, request, url_for, session, redirect, jsonify
 from flask_caching import Cache
 from stravalib import unithelper, Client
 from dotenv import load_dotenv
 from uuid import uuid4
 import os
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from matplotlib.figure import Figure
+from matplotlib.patches import FancyBboxPatch
+from PIL import Image, ImageFont, ImageDraw
 
 app = Flask(__name__)
 cache = Cache(app, config={'CACHE_TYPE': 'simple'})
 app.secret_key = 'your_secret_key_here'  # Change this to a secure secret key
-if os.path.exists("settings.env"):
-    load_dotenv("settings.env")
+if os.path.exists("settings2.env"):
+    load_dotenv("settings2.env")
 
 FLASK_ENV = os.environ.get("FLASK_ENV", "dev")
 
@@ -28,6 +37,7 @@ client = Client()
 
 RACES = [
     {'name': '1/2 mile', 'distance': 804.67},
+    {'name': '1k', 'distance': 1000},
     {'name': '1 mile', 'distance': 1609.34},
     {'name': '2 mile', 'distance': 1609.34*2},
     {'name': '5k', 'distance': 5000},
@@ -44,12 +54,16 @@ if 'STRAVA_CLIENT_SECRET' in os.environ:
     print('Found client secret')
 
 
-@app.errorhandler(Exception)
-def handle_all_exceptions(error):
-    # Log the exception or perform any necessary actions
-    # For simplicity, let's just return a JSON response
-    print(error)
-    return redirect(url_for('logout'))
+# @app.errorhandler(Exception)
+# def handle_all_exceptions(error):
+#     print(error)
+#     raise
+#     # return redirect(url_for('fail'))
+
+
+@app.route("/fail")
+def fail():
+    return render_template("fail.html", flask_env=FLASK_ENV, cow_path=get_cow_path())
 
 
 @app.route("/")
@@ -145,7 +159,7 @@ def strava_callback():
         return redirect(url_for('index'))
 
 
-def generate_map(activities, save_path):
+def generate_map(activities, save_path, filter=True):
     print('Generating map')
 
     # Loop through activities and collect map data
@@ -170,7 +184,7 @@ def generate_map(activities, save_path):
                 routes.append(p)
 
     # Create a base map centered on a location
-    m = folium.Map(location=decoded_coords[0], zoom_start=12)
+    m = folium.Map(location=decoded_coords[0], zoom_start=13)
 
     # Customize the map controls for mobile devices
     mobile_styles = """
@@ -195,7 +209,8 @@ def generate_map(activities, save_path):
     for route in routes:
         m.add_child(route)
 
-    TagFilterButton(activity_types).add_to(m)
+    if filter:
+        TagFilterButton(activity_types).add_to(m)
 
     Fullscreen(
         position="topright",
@@ -212,7 +227,7 @@ def get_cow_path():
     cow_folder = os.path.join('static', 'images', 'cow')
     filename = random.choice(os.listdir(cow_folder))
     print(filename)
-    return os.path.join(cow_folder, filename)
+    return url_for('static', filename=os.path.join('images', 'cow', filename))
 
 
 def fastest_segment_within_distance(df, races):
@@ -273,6 +288,8 @@ def calculate_personal_bests(activities, limit=10):
 
 
 def get_race_efforts(activities):
+    if len(activities) == 0:
+        return []
     races = list(RACES)
     for i, activity in enumerate(activities):
         for j, race in enumerate(races):
@@ -288,22 +305,47 @@ def get_race_efforts(activities):
     return races
 
 
-def get_activities():
-    # Set a higher per_page limit to fetch more activities per request
-    per_page = 100
+def get_activities(strava_athlete, as_dicts=False, activity_types=None, after_date=None):
+    athlete_folder = os.path.join("static", "temp", str(strava_athlete.id))
+    activities_path = os.path.join(athlete_folder, 'activities.pkl')
+    all_activities = []
+    if os.path.exists(activities_path) and file_created_within_60_minutes(activities_path):
+        with open(activities_path, 'rb') as file:
+            all_activities = pickle.load(file)
+    if len(all_activities) == 0:
+        # Set a higher per_page limit to fetch more activities per request
+        per_page = 100
 
-    # Get the initial set of activities
-    activities = list(client.get_activities(limit=per_page))
+        # Get the initial set of activities
+        activities = list(client.get_activities(limit=per_page, after=after_date))
 
-    # Store activities in a list
-    all_activities = list(activities)
+        # Store activities in a list
+        all_activities = list(activities)
 
-    # Retrieve remaining activities using pagination
-    while len(activities) == per_page:
-        # Fetch the next set of activities
-        activities = list(client.get_activities(limit=per_page, before=activities[-1].start_date))
-        all_activities.extend(list(activities))
-    return all_activities
+        # Retrieve remaining activities using pagination
+        while len(activities) == per_page:
+            # Fetch the next set of activities
+            activities = list(client.get_activities(limit=per_page, before=activities[-1].start_date, after=after_date))
+            all_activities.extend(list(activities))
+        with open(activities_path, 'wb') as file:
+            pickle.dump(all_activities, file)
+
+    if as_dicts:
+        activities_dicts = []
+        for activity in all_activities:
+            if activity_types is None or activity.type in activity_types:
+                activities_dicts.append({
+                    'name': activity.name,
+                    'date': activity.start_date_local,
+                    'distance': float(round(unithelper.miles(activity.distance), 2)),
+                    'type': activity.type,
+                    'time': seconds_to_time(activity.moving_time.seconds),
+                    'elapsed_time': activity.elapsed_time.seconds,
+                    'elevation': float(round(unithelper.feet(activity.total_elevation_gain)))
+                })
+        return activities_dicts
+    else:
+        return all_activities
 
 
 def get_gear(activities):
@@ -321,24 +363,63 @@ def get_gear(activities):
     return gear
 
 
-def get_trends(activities):
-    average_hr = []
-    max_speed = []
-    kudos = []
+def get_trends(activities, activity_types='all'):
+    activity_list = []
     activities.reverse()
     for i, activity in enumerate(activities):
-        if activity.average_heartrate:
-            average_hr.append({'labels': i, 'values': activity.average_heartrate, 'tooltips': activity.name, 'tags': activity.type})
-            max_speed.append({'labels': i, 'values': round(float(unithelper.miles_per_hour(activity.max_speed)), 2), 'tooltips': activity.name, 'tags': activity.type})
-            kudos.append({'labels': i, 'values': activity.kudos_count, 'tooltips': activity.name, 'tags': activity.type})
-    average_hr_df = pd.DataFrame(average_hr)
-    max_speed_df = pd.DataFrame(max_speed)
-    kudos_df = pd.DataFrame(kudos)
-    return [
-        {'index': 0, 'workout_types': average_hr_df['tags'].unique(), 'data': average_hr_df, 'name': 'Average Heart Rate (BPM)', 'rgba': 'rgba(235, 77, 77, 0.8)'},
-        {'index': 1, 'workout_types': max_speed_df['tags'].unique(),'data': max_speed_df, 'name': 'Max Speed (MPH)', 'rgba': 'rgba(99, 99, 255, 0.8)'},
-        {'index': 2, 'workout_types': kudos_df['tags'].unique(),'data': kudos_df, 'name': 'Kudos Received', 'rgba': 'rgba(249, 150, 59, 0.8)'},
-    ]
+        if activity.average_heartrate and (activity_types[0] =='all' or activity.type.lower() in activity_types):
+            avg_speed = round(float(unithelper.miles_per_hour(activity.average_speed)), 2)
+            activity_list.append({'date': activity.start_date_local, 'hr': activity.average_heartrate, 'avg_speed': avg_speed, 'kudos': activity.kudos_count})
+    activities_df = pd.DataFrame(activity_list)
+    activities_df['date'] = pd.to_datetime(activities_df['date'])
+    activities_df.set_index('date', inplace=True)
+    activities_df = activities_df.fillna(np.nan).replace([np.nan], [None])
+
+    df_w = activities_df.resample('D').mean().round(2).tail(7).replace([np.nan], [None])
+    df_d = activities_df.resample('D').mean().round(2).tail(30).replace([np.nan], [None])
+    df_6m = activities_df.resample('W').mean().round(2).tail(6 * 4).replace([np.nan], [None])  # 6 months, at 4 weeks per month
+    df_y = activities_df.resample('M').mean().round(2).tail(12).replace([np.nan], [None])  # 12 months
+
+    data = {
+        'w': {
+            'title': 'Last 7 days',
+            'dates': df_w.index.day_name().tolist(),
+            'values': {
+                'hr': df_w['hr'].tolist(),
+                'avg_speed': df_w['avg_speed'].tolist(),
+                'kudos': df_w['kudos'].tolist()
+            }
+        },
+        'm': {
+            'title': 'Last 30 days',
+            'dates': df_d.index.strftime("%b %d").tolist(),
+            'values': {
+                'hr': df_d['hr'].tolist(),
+                'avg_speed': df_d['avg_speed'].tolist(),
+                'kudos': df_d['kudos'].tolist()
+            }
+        },
+        '6m': {
+            'title': 'Last 6 months',
+            'dates': df_6m.index.strftime("%b %d %y").tolist(),
+            'values': {
+                'hr': df_6m['hr'].tolist(),
+                'avg_speed': df_6m['avg_speed'].tolist(),
+                'kudos': df_6m['kudos'].tolist()
+            }
+        },
+        'y': {
+            'title': 'Last 12 months',
+            'dates': df_y.index.strftime("%b %y").tolist(),
+            'values': {
+                'hr': df_y['hr'].tolist(),
+                'avg_speed': df_y['avg_speed'].tolist(),
+                'kudos': df_y['kudos'].tolist()
+            }
+        }
+
+    }
+    return data
 
 
 def get_stats(activities, athlete):
@@ -366,24 +447,32 @@ def get_stats(activities, athlete):
     return stats
 
 
-def seconds_to_time(seconds):
+def speed_to_time(speed):
+    mph = float(unithelper.miles_per_hour(speed))
+    min_per_mile = 60 / mph
+    seconds_per_mile = 60 * min_per_mile
+    return seconds_to_time(seconds_per_mile)
+
+
+def seconds_to_time(seconds, calc_days=True, show_seconds=True):
     if seconds is None:
         return None
-    days = int(seconds // (24 * 3600))
-    hours = int((seconds % (24 * 3600)) // 3600)
-    minutes = int((seconds % 3600) // 60)
-    seconds = int(seconds % 60)
+    days = 0
+    if calc_days:
+        days, seconds = divmod(seconds, 86400)
+    hours, seconds = divmod(seconds, 3600)
+    minutes, seconds = divmod(seconds, 60)
 
     time_string = ""
 
     if days > 0:
-        time_string += f"{days} d "
-    if hours > 0:
-        time_string += f"{hours} h "
+        time_string += f"{days}d "
+    if hours > 0 or days is None:
+        time_string += f"{hours}h "
     if minutes > 0:
-        time_string += f"{minutes} m "
-    if seconds > 0 or time_string == "":
-        time_string += f"{seconds} s"
+        time_string += f"{minutes}m "
+    if seconds > 0 or time_string == "" and show_seconds:
+        time_string += f"{seconds}s"
 
     return time_string.strip()
 
@@ -400,42 +489,249 @@ def file_created_within_60_minutes(file_path):
     return age_seconds < 60 * 60  # 60 minutes * 60 seconds
 
 
-@app.route("/friends")
-def friends():
+def get_race_name(distance):
+    distance = int(distance)
+    for race in RACES:
+        if abs(distance - race['distance']) < 10:
+            return race['name']
+    return f"{distance} meters"
+
+
+def get_sports_bar_graph(df):
+    # Sports bar graph
+    # Your plot creation logic here using Figure
+    fig = Figure(figsize=(5, 3))
+    ax = fig.add_subplot(111)
+
+    # Assuming activities_df is your DataFrame
+    type_percentage = df['type'].value_counts(normalize=True) * 100
+
+    # Create a bar plot
+    sns.barplot(x=type_percentage.values, y=type_percentage.index, palette='viridis', ax=ax, joinstyle="bevel")
+    new_patches = []
+    for patch in reversed(ax.patches):
+        # print(bb.xmin, bb.ymin,abs(bb.width), abs(bb.height))
+        bb = patch.get_bbox()
+        rounding_size = 2
+        if (bb.x1 - bb.x0) < 2:
+            rounding_size = (bb.x1 - bb.x0) * 0.9
+        color = patch.get_facecolor()
+        p_bbox = FancyBboxPatch((bb.xmin, bb.ymin),
+                                abs(bb.width), abs(bb.height),
+                                boxstyle=f"round,pad=-0.0040,rounding_size={rounding_size}",
+                                ec="none", fc=color,
+                                mutation_aspect=0.2
+                                )
+        patch.remove()
+        new_patches.append(p_bbox)
+
+    for patch in new_patches:
+        ax.add_patch(patch)
+
+    # sns.despine(left=True, bottom=True)
+    ax.spines['top'].set_color('black')
+    ax.spines['bottom'].set_color('black')
+    ax.spines['left'].set_color('black')
+    ax.spines['right'].set_color('black')
+
+    ax.grid(False)
+    # ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
+    ax.tick_params(axis=u'both', which=u'both', length=0, colors="white")
+    ax.set(xlabel='', ylabel='')
+    fig.tight_layout()
+    buffer = io.BytesIO()
+    fig.savefig(buffer, format="png")
+    return Image.open(buffer)
+
+
+def get_time_graphs(df):
+    df['Month'] = df['date'].dt.strftime('%b')  # Extract month abbreviation
+
+    # Find the month with the maximum rows
+    months_df = df['Month'].value_counts().rename_axis("Month").to_frame("counts")
+    months_df = months_df.reset_index()
+    months_df["Percentage"] = months_df["counts"] / months_df["counts"].max()
+
+    # Sort months for plotting
+    months_order = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    months_df['Month'] = pd.Categorical(months_df['Month'], categories=months_order, ordered=True)
+    months_df.sort_values(by="Month", inplace=True)
+    months_df = months_df.set_index("Month")
+
+    fig = Figure(figsize=(8, 12))
+    # Create subplots using add_subplot
+    axes = [fig.add_subplot(4, 3, i + 1) for i in range(12)]
+
+
+    # Plot the circular bar charts
+    for ax, month in zip(axes, months_order):
+        if month not in months_df.index:
+            percentage = 0
+        else:
+            percentage = months_df.loc[month, 'Percentage']
+
+        # Plot circular bar chart
+        ax.pie([percentage, 1 - percentage], radius=1.5, startangle=270, counterclock=False, colors=['blue', 'black'], wedgeprops={'width': 0.5, 'edgecolor': 'black'})
+
+        # Add the month abbreviation to the center of each chart
+        ax.text(0.5, 0.5, month, transform=ax.transAxes, ha='center', va='center', fontsize=20, fontweight='bold')
+
+    # Customize the layout and appearance
+    fig.suptitle('Circular Bar Percentage Charts by Month', y=1.05)
+
+    buffer = io.BytesIO()
+    fig.savefig(buffer, format="png")
+    return Image.open(buffer)
+
+def insert_text(image, text, position, font_size=20, font_color=(255, 255, 255)):
+    draw = ImageDraw.Draw(image)
+    font = ImageFont.load_default(font_size)
+    draw.text(position, str(text), font=font, fill=font_color)
+
+def insert_image(background, overlay, position, size=None):
+    if size is not None:
+        overlay = overlay.resize(size)
+    background.paste(overlay, position, overlay)
+
+def get_year_in_review(athlete):
+    # Customize the style
+    sns.set(style='dark', rc={'axes.facecolor': 'black', 'figure.facecolor': 'black', 'grid.color': 'black', 'text.color': 'white'})
+    activities = get_activities(athlete, as_dicts=True)
+    activities_df = pd.DataFrame(activities)
+    year = datetime.datetime.now().year - 1
+    # filter activities to the year
+    activities_df = activities_df[activities_df['date'].dt.year == year]
+
+    # 1 Summary
+    total_time = seconds_to_time(activities_df['elapsed_time'].sum(), calc_days=False, show_seconds=False)
+    total_distance = round(activities_df['distance'].sum())
+    top_sport = activities_df['type'].value_counts().idxmax()
+    total_elevation = round(activities_df['elevation'].sum())
+    days_active = activities_df['date'].dt.date.nunique()
+    response = requests.get(athlete.profile)
+    profile = Image.open(io.BytesIO(response.content)).convert("RGBA")
+    name = f"{athlete.firstname} {athlete.lastname}"
+    template_1 = Image.open(os.path.join("static", "images", "year_in_review", "year_in_sport.png"))
+    insert_text(template_1, year, (1000, 120), font_size=125)
+    insert_text(template_1, name, (300, 600), font_size=50)
+    insert_text(template_1, "Total Time", (250, 825), font_size=50)
+    insert_text(template_1, total_time, (250, 925), font_size=100)
+    insert_text(template_1, "Total Distance", (250, 1350), font_size=50)
+    insert_text(template_1, f"{total_distance} miles", (250, 1450), font_size=100)
+    insert_text(template_1, "Total Elevation", (250, 1900), font_size=50)
+    insert_text(template_1, f"{total_elevation} feet", (250, 2000), font_size=100)
+    insert_text(template_1, "Days Active", (1050, 1350), font_size=50)
+    insert_text(template_1, days_active, (1050, 1450), font_size=100)
+    insert_text(template_1, "Top Sport", (1050, 825), font_size=50)
+    insert_text(template_1, top_sport, (1050, 925), font_size=100)
+    insert_image(template_1, profile, (300, 400))
+    template_1.save("template_1.png")
+
+    # 2 Sports bar graph
+    template_2 = Image.open(os.path.join("static", "images", "year_in_review", "top_sports.png"))
+    bar_graph = get_sports_bar_graph(activities_df)
+    insert_text(template_2, f"Top Sport: {top_sport}", (250, 400), font_size=75)
+    insert_image(template_2, bar_graph, (100, 1410), (1500, 900))
+    template_2.save("template_2.png")
+
+    # 3 Total Time
+    time_graphs = get_time_graphs(activities_df)
+    time_graphs.save('months.png')
+
+    # Circular bar graphs
+    # https://stackoverflow.com/questions/59672712/circular-barplot-in-python-with-percentage-labels
+
+
+@app.route("/activities_page")
+def activities_page():
     authenticated = refresh()
     if not authenticated:
         return redirect(url_for('index'))
     # Use the access token to fetch user data from Strava
     client.access_token = session['access_token']
     strava_athlete = client.get_athlete()
-    os.makedirs(os.path.join("static", str(session['state'])), exist_ok=True)
-    clubs = client.get_athlete_clubs()
-    cow_path = get_cow_path()
-    # one_year_ago = datetime.datetime.now() - datetime.timedelta(days=365)
-    club_data = []
-    i = 0
-    user_id = 0
-    for club in clubs:
-        this_club_data = {}
-        club_activities = client.get_club_activities(club.id)
-        for club_activity in club_activities:
-            if club_activity.type == 'Run':
-                username = (club_activity.athlete.firstname + club_activity.athlete.lastname).replace('.', '').replace(' ', '').replace('-', '')
-                if username not in this_club_data:
-                    this_club_data[username] = {'id': user_id, 'distance': 0, 'time': 0, 'color': 'rgba(255, 99, 132, 1)'}
-                    user_id += 1
+    activities = get_activities(strava_athlete)
+    return render_template('activities.html', cow_path=get_cow_path(), flask_env=FLASK_ENV, activities=activities)
 
-                distance = float(unithelper.miles(club_activity.distance))
-                time_elapsed = float(club_activity.moving_time.seconds / 3600)
-                this_club_data[username]['distance'] += distance
-                this_club_data[username]['time'] += time_elapsed
-        distances = [round(this_club_data[x]['distance'], 2) for x in this_club_data.keys()]
-        times = [round(this_club_data[x]['time'], 2) for x in this_club_data.keys()]
-        names = list(this_club_data.keys())
-        club_data.append({'name': club.name, 'index': i, 'distances': distances, 'times': times, 'names': names})
-        i += 1
-    return render_template('friends.html', cow_path=cow_path, clubs=club_data, athlete=strava_athlete,
-                           state=session['state'], flask_env=FLASK_ENV)
+
+@app.route("/metrics/<activity_id>")
+def metrics(activity_id):
+    authenticated = refresh()
+    if not authenticated:
+        return redirect(url_for('index'))
+    # Use the access token to fetch user data from Strava
+    client.access_token = session['access_token']
+    strava_athlete = client.get_athlete()
+    activity = client.get_activity(activity_id)
+    types = [
+        "time",
+        "latlng",
+        "altitude",
+        "heartrate",
+        "temp",
+        "velocity_smooth"
+    ]
+    streams = client.get_activity_streams(activity.id, types=types, resolution="medium")
+    relative_path = os.path.join('temp', str(strava_athlete.id), f'{activity_id}.html')
+    save_path = os.path.join('static', relative_path)
+    heatmap_path = url_for("static", filename=relative_path)
+    generate_map([activity], save_path=save_path, filter=False)
+
+    # Calculate best efforts
+    best_efforts = []
+    for best_effort in activity.best_efforts:
+        best_efforts.append({'time': best_effort.elapsed_time, 'distance': get_race_name(best_effort.distance)})
+
+    # Extracting time and heart rate data
+    time_data = streams['time'].data
+    pace_data = streams['velocity_smooth'].data
+    elevation_data = streams['altitude'].data
+    heart_rate_values = streams['heartrate'].data
+
+    # Prepare data for JavaScript
+    heart_rate_json = json.dumps({
+        'time': time_data,
+        'values': heart_rate_values
+    })
+    pace_json = json.dumps({
+        'time': time_data,
+        'values': [float(unithelper.miles_per_hour(x)) for x in pace_data]
+    })
+    elevation_json = json.dumps({
+        'time': time_data,
+        'values': [int(unithelper.feet(x)) for x in elevation_data]
+    })
+
+    splits_json = json.dumps({
+        'miles': [f"{float(x.split-1)} - {round(float(unithelper.miles(x.distance)) + (x.split - 1), 2)}" for x in activity.splits_standard],
+        'speed': [float(unithelper.miles_per_hour(x.average_speed)) for x in activity.splits_standard],
+        'tips': [f"{speed_to_time(x.average_speed)}" for x in activity.splits_standard]
+    })
+
+    return render_template('metrics.html', cow_path=get_cow_path(), flask_env=FLASK_ENV, activity=activity, best_efforts=best_efforts,
+                           hr_data=heart_rate_json, pace_data=pace_json, elevation_data=elevation_json,
+                           splits_data=splits_json, heatmap_path=heatmap_path)
+
+
+@app.route("/get_data", methods=['POST'])
+def get_data():
+    activity_types = request.get_json()["activity_types"]
+    client.access_token = session['access_token']
+    strava_athlete = client.get_athlete()
+    activities = get_activities(strava_athlete)
+    data = get_trends(activities, activity_types=activity_types)
+    return jsonify({'data': json.dumps(data)})
+
+
+@app.route("/year_in_review")
+def year_in_review():
+    authenticated = refresh()
+    if not authenticated:
+        return redirect(url_for('index'))
+    client.access_token = session['access_token']
+    strava_athlete = client.get_athlete()
+    get_year_in_review(strava_athlete)
+    return render_template('year_in_review.html', cow_path=get_cow_path(), flask_env=FLASK_ENV, athlete=strava_athlete)
 
 
 @app.route("/dashboard")
@@ -447,20 +743,14 @@ def dashboard():
     strava_athlete = client.get_athlete()
     athlete_folder = os.path.join("static", "temp", str(strava_athlete.id))
     os.makedirs(athlete_folder, exist_ok=True)
-    activities_path = os.path.join(athlete_folder, 'activities.pkl')
-    if os.path.exists(activities_path) and file_created_within_60_minutes(activities_path):
-        with open(activities_path, 'rb') as file:
-            activities = pickle.load(file)
-    else:
-        activities = get_activities()
-        with open(activities_path, 'wb') as file:
-            pickle.dump(activities, file)
+    activities = get_activities(strava_athlete)
+    activity_types = list(set([x.type.lower() for x in activities]))
     # best_efforts = calculate_personal_bests(activities)
     cow_path = get_cow_path()
     best_efforts = get_race_efforts(activities)
     clubs = client.get_athlete_clubs()
     gear = get_gear(activities)
-    trends = get_trends(activities)
+    # trends = get_trends(activities)
     stats = get_stats(activities, strava_athlete)
 
     text_path = os.path.join(athlete_folder, 'num.txt')
@@ -472,20 +762,34 @@ def dashboard():
                 num = int(file.read())
             except:
                 print('There was a problem reading the number')
-    heatmap_path = os.path.join('static', 'temp', str(strava_athlete.id), 'heatmap.html')
+    relative_path = os.path.join('temp', str(strava_athlete.id), 'heatmap.html')
+    save_path = os.path.join('static', relative_path)
     if num < len(activities):
         with open(text_path, 'w') as file:
             file.write(str(len(activities)))
-        generate_map(activities, heatmap_path)
+        generate_map(activities, save_path)
+    heatmap_path = url_for("static", filename=relative_path)
     return render_template('dashboard.html', cow_path=cow_path, flask_env=FLASK_ENV, athlete=strava_athlete,
                            best_efforts=best_efforts, clubs=clubs, gear=gear, stats=stats, heatmap_path=heatmap_path,
-                           trends=trends, units=unithelper)
+                           activity_types=activity_types, units=unithelper)
 
 
 @app.route("/support")
 def support():
     cow_path = get_cow_path()
     return render_template('support.html', cow_path=cow_path, flask_env=FLASK_ENV)
+
+
+@app.route("/game")
+def game():
+    authenticated = refresh()
+    if not authenticated:
+        return redirect(url_for('index'))
+    athlete = client.get_athlete()
+    one_month_ago = datetime.datetime.today() - datetime.timedelta(days=31)
+    activities = get_activities(athlete, as_dicts=True, activity_types=['Run'], after_date=one_month_ago)
+    activities = sorted(activities, key=lambda x: x['distance'])
+    return render_template('game.html', activities=activities)
 
 
 if __name__ == "__main__":
