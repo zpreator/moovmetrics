@@ -6,3 +6,5 @@ polyline
 folium
 pandas
 tqdm
+matplotlib
+seaborn

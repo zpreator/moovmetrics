@@ -111,10 +111,17 @@
       <div class="w3-container w3-card w3-white w3-margin-bottom">
         <h2 class="w3-text-grey w3-padding-16"><i class="fa fa-trophy fa-fw w3-margin-right w3-xxlarge w3-text-teal"></i>Trends</h2>
         <div class="chart-buttons">
-          <button class="chart-button active" id="w" onclick="updateWindow('w')">W</button>
-          <button class="chart-button" id="m" onclick="updateWindow('m')">M</button>
-          <button class="chart-button" id="6m" onclick="updateWindow('6m')">6M</button>
-          <button class="chart-button" id="y" onclick="updateWindow('y')">Y</button>
+          <button class="chart-button type active" id="all" onclick="updateType('all')">All</button>
+          {% for activity_type in activity_types %}
+          <button class="chart-button type" id="{{activity_type}}" onclick="updateType('{{activity_type}}')">{{activity_type | title }}</button>
+          {% endfor %}
+
+        </div>
+        <div class="chart-buttons">
+          <button class="chart-button window active" id="w" onclick="updateWindow('w')">W</button>
+          <button class="chart-button window" id="m" onclick="updateWindow('m')">M</button>
+          <button class="chart-button window" id="6m" onclick="updateWindow('6m')">6M</button>
+          <button class="chart-button window" id="y" onclick="updateWindow('y')">Y</button>
           <!-- Add more buttons for different time windows -->
         </div>
 
@@ -122,9 +129,9 @@
           <canvas id="canvas" style="height: 100%"></canvas>
         </div>
         <div class="chart-buttons">
-          <button class="chart-button active" id="hr" onclick="updateDataset('hr')">Heart Rate</button>
-          <button class="chart-button" id="max_speed" onclick="updateDataset('max_speed')">Max Speed</button>
-          <button class="chart-button" id="kudos" onclick="updateDataset('kudos')">Kudos</button>
+          <button class="chart-button dataset active" id="hr" onclick="updateDataset('hr')">Heart Rate</button>
+          <button class="chart-button dataset" id="avg_speed" onclick="updateDataset('avg_speed')">Average Speed</button>
+          <button class="chart-button dataset" id="kudos" onclick="updateDataset('kudos')">Kudos</button>
           <!-- Add more buttons for different time windows -->
         </div>
       </div>
@@ -163,9 +170,10 @@
           let activityData;
           let timeWindow = "w";
           let dataset = "hr";
+          let activityTypes = ["all"];
           const datasetTitles = {
             "hr": "Average Heart Rate",
-            "max_speed": "Max Speed",
+            "avg_speed": "Average Speed",
             "kudos": "Kudos"
           }
 
@@ -176,7 +184,7 @@
               headers: {
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({})
+              body: JSON.stringify({"activity_types": activityTypes})
             })
             .then(response => {
               // Log the response content to inspect it
@@ -249,20 +257,50 @@
 
           function updateWindow(newTimeWindow) {
             timeWindow = newTimeWindow;
-            setButtons();
+            document.querySelectorAll('.window').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(timeWindow).classList.add('active');
+            updateChart();
+          }
+
+          function updateType(newActivityType) {
+            if (newActivityType == "all"){
+              document.querySelectorAll('.type').forEach(btn => btn.classList.remove('active'));
+              activityTypes = ["all"];
+            } else {
+              document.getElementById("all").classList.remove('active');
+              let index = activityTypes.indexOf("all");
+              if (activityTypes.includes("all")) {
+                activityTypes.splice(index, 1);
+              }
+            }
+            
+            if (document.getElementById(newActivityType).classList.contains("active")) {
+              document.getElementById(newActivityType).classList.remove('active');
+              let index = activityTypes.indexOf(newActivityType);
+              if (activityTypes.includes(newActivityType)) {
+                activityTypes.splice(index, 1);
+              }
+            } else {
+              document.getElementById(newActivityType).classList.add('active');
+              if (!activityTypes.includes(newActivityType)) {
+                activityTypes.push(newActivityType);
+              }
+            }
+            
+            if (activityTypes.length == 0) {
+              activityTypes = ["all"];
+              document.getElementById("all").classList.add('active');
+            }
+            
+            getData();
             updateChart();
           }
 
           function updateDataset(newDataset) {
             dataset = newDataset;
-            setButtons();
-            updateChart();
-          }
-
-          function setButtons() {
-            document.querySelectorAll('.chart-button').forEach(btn => btn.classList.remove('active'));
-            document.getElementById(timeWindow).classList.add('active');
+            document.querySelectorAll('.dataset').forEach(btn => btn.classList.remove('active'));
             document.getElementById(dataset).classList.add('active');
+            updateChart();
           }
 
           // Function to toggle dataset visibility

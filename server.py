@@ -1,4 +1,5 @@
 import datetime
+import io
 import json
 import pickle
 import random
@@ -8,6 +9,7 @@ import numpy as np
 from tqdm import tqdm
 from folium.plugins import Fullscreen, TagFilterButton
 import polyline
+import requests
 import stravalib.exc
 from flask import Flask, render_template, request, url_for, session, redirect, jsonify
 from flask_caching import Cache
@@ -16,6 +18,11 @@ from dotenv import load_dotenv
 from uuid import uuid4
 import os
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from matplotlib.figure import Figure
+from matplotlib.patches import FancyBboxPatch
+from PIL import Image, ImageFont, ImageDraw
 
 app = Flask(__name__)
 cache = Cache(app, config={'CACHE_TYPE': 'simple'})
@@ -329,9 +336,12 @@ def get_activities(strava_athlete, as_dicts=False, activity_types=None, after_da
             if activity_types is None or activity.type in activity_types:
                 activities_dicts.append({
                     'name': activity.name,
+                    'date': activity.start_date_local,
                     'distance': float(round(unithelper.miles(activity.distance), 2)),
                     'type': activity.type,
-                    'time': seconds_to_time(activity.moving_time.seconds)
+                    'time': seconds_to_time(activity.moving_time.seconds),
+                    'elapsed_time': activity.elapsed_time.seconds,
+                    'elevation': float(round(unithelper.feet(activity.total_elevation_gain)))
                 })
         return activities_dicts
     else:
@@ -357,18 +367,18 @@ def get_trends(activities, activity_types='all'):
     activity_list = []
     activities.reverse()
     for i, activity in enumerate(activities):
-        if activity.average_heartrate and (activity_types=='all' or activity.type in activity_types):
-            max_speed = round(float(unithelper.miles_per_hour(activity.max_speed)), 2)
-            activity_list.append({'date': activity.start_date_local, 'hr': activity.average_heartrate, 'max_speed': max_speed, 'kudos': activity.kudos_count})
+        if activity.average_heartrate and (activity_types[0] =='all' or activity.type.lower() in activity_types):
+            avg_speed = round(float(unithelper.miles_per_hour(activity.average_speed)), 2)
+            activity_list.append({'date': activity.start_date_local, 'hr': activity.average_heartrate, 'avg_speed': avg_speed, 'kudos': activity.kudos_count})
     activities_df = pd.DataFrame(activity_list)
     activities_df['date'] = pd.to_datetime(activities_df['date'])
     activities_df.set_index('date', inplace=True)
     activities_df = activities_df.fillna(np.nan).replace([np.nan], [None])
 
-    df_w = activities_df.resample('D').mean().tail(7).replace([np.nan], [None])
-    df_d = activities_df.resample('D').mean().tail(30).replace([np.nan], [None])
-    df_6m = activities_df.resample('W').mean().tail(6 * 4).replace([np.nan], [None])  # 6 months, at 4 weeks per month
-    df_y = activities_df.resample('M').mean().tail(12).replace([np.nan], [None])  # 12 months
+    df_w = activities_df.resample('D').mean().round(2).tail(7).replace([np.nan], [None])
+    df_d = activities_df.resample('D').mean().round(2).tail(30).replace([np.nan], [None])
+    df_6m = activities_df.resample('W').mean().round(2).tail(6 * 4).replace([np.nan], [None])  # 6 months, at 4 weeks per month
+    df_y = activities_df.resample('M').mean().round(2).tail(12).replace([np.nan], [None])  # 12 months
 
     data = {
         'w': {
@@ -376,7 +386,7 @@ def get_trends(activities, activity_types='all'):
             'dates': df_w.index.day_name().tolist(),
             'values': {
                 'hr': df_w['hr'].tolist(),
-                'max_speed': df_w['max_speed'].tolist(),
+                'avg_speed': df_w['avg_speed'].tolist(),
                 'kudos': df_w['kudos'].tolist()
             }
         },
@@ -385,7 +395,7 @@ def get_trends(activities, activity_types='all'):
             'dates': df_d.index.strftime("%b %d").tolist(),
             'values': {
                 'hr': df_d['hr'].tolist(),
-                'max_speed': df_d['max_speed'].tolist(),
+                'avg_speed': df_d['avg_speed'].tolist(),
                 'kudos': df_d['kudos'].tolist()
             }
         },
@@ -394,7 +404,7 @@ def get_trends(activities, activity_types='all'):
             'dates': df_6m.index.strftime("%b %d %y").tolist(),
             'values': {
                 'hr': df_6m['hr'].tolist(),
-                'max_speed': df_6m['max_speed'].tolist(),
+                'avg_speed': df_6m['avg_speed'].tolist(),
                 'kudos': df_6m['kudos'].tolist()
             }
         },
@@ -403,7 +413,7 @@ def get_trends(activities, activity_types='all'):
             'dates': df_y.index.strftime("%b %y").tolist(),
             'values': {
                 'hr': df_y['hr'].tolist(),
-                'max_speed': df_y['max_speed'].tolist(),
+                'avg_speed': df_y['avg_speed'].tolist(),
                 'kudos': df_y['kudos'].tolist()
             }
         }
@@ -444,23 +454,24 @@ def speed_to_time(speed):
     return seconds_to_time(seconds_per_mile)
 
 
-def seconds_to_time(seconds):
+def seconds_to_time(seconds, calc_days=True, show_seconds=True):
     if seconds is None:
         return None
-    days = int(seconds // (24 * 3600))
-    hours = int((seconds % (24 * 3600)) // 3600)
-    minutes = int((seconds % 3600) // 60)
-    seconds = int(seconds % 60)
+    days = 0
+    if calc_days:
+        days, seconds = divmod(seconds, 86400)
+    hours, seconds = divmod(seconds, 3600)
+    minutes, seconds = divmod(seconds, 60)
 
     time_string = ""
 
     if days > 0:
         time_string += f"{days}d "
-    if hours > 0:
+    if hours > 0 or days is None:
         time_string += f"{hours}h "
     if minutes > 0:
         time_string += f"{minutes}m "
-    if seconds > 0 or time_string == "":
+    if seconds > 0 or time_string == "" and show_seconds:
         time_string += f"{seconds}s"
 
     return time_string.strip()
@@ -484,6 +495,152 @@ def get_race_name(distance):
         if abs(distance - race['distance']) < 10:
             return race['name']
     return f"{distance} meters"
+
+
+def get_sports_bar_graph(df):
+    # Sports bar graph
+    # Your plot creation logic here using Figure
+    fig = Figure(figsize=(5, 3))
+    ax = fig.add_subplot(111)
+
+    # Assuming activities_df is your DataFrame
+    type_percentage = df['type'].value_counts(normalize=True) * 100
+
+    # Create a bar plot
+    sns.barplot(x=type_percentage.values, y=type_percentage.index, palette='viridis', ax=ax, joinstyle="bevel")
+    new_patches = []
+    for patch in reversed(ax.patches):
+        # print(bb.xmin, bb.ymin,abs(bb.width), abs(bb.height))
+        bb = patch.get_bbox()
+        rounding_size = 2
+        if (bb.x1 - bb.x0) < 2:
+            rounding_size = (bb.x1 - bb.x0) * 0.9
+        color = patch.get_facecolor()
+        p_bbox = FancyBboxPatch((bb.xmin, bb.ymin),
+                                abs(bb.width), abs(bb.height),
+                                boxstyle=f"round,pad=-0.0040,rounding_size={rounding_size}",
+                                ec="none", fc=color,
+                                mutation_aspect=0.2
+                                )
+        patch.remove()
+        new_patches.append(p_bbox)
+
+    for patch in new_patches:
+        ax.add_patch(patch)
+
+    # sns.despine(left=True, bottom=True)
+    ax.spines['top'].set_color('black')
+    ax.spines['bottom'].set_color('black')
+    ax.spines['left'].set_color('black')
+    ax.spines['right'].set_color('black')
+
+    ax.grid(False)
+    # ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
+    ax.tick_params(axis=u'both', which=u'both', length=0, colors="white")
+    ax.set(xlabel='', ylabel='')
+    fig.tight_layout()
+    buffer = io.BytesIO()
+    fig.savefig(buffer, format="png")
+    return Image.open(buffer)
+
+
+def get_time_graphs(df):
+    df['Month'] = df['date'].dt.strftime('%b')  # Extract month abbreviation
+
+    # Find the month with the maximum rows
+    months_df = df['Month'].value_counts().rename_axis("Month").to_frame("counts")
+    months_df = months_df.reset_index()
+    months_df["Percentage"] = months_df["counts"] / months_df["counts"].max()
+
+    # Sort months for plotting
+    months_order = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    months_df['Month'] = pd.Categorical(months_df['Month'], categories=months_order, ordered=True)
+    months_df.sort_values(by="Month", inplace=True)
+    months_df = months_df.set_index("Month")
+
+    fig = Figure(figsize=(8, 12))
+    # Create subplots using add_subplot
+    axes = [fig.add_subplot(4, 3, i + 1) for i in range(12)]
+
+
+    # Plot the circular bar charts
+    for ax, month in zip(axes, months_order):
+        if month not in months_df.index:
+            percentage = 0
+        else:
+            percentage = months_df.loc[month, 'Percentage']
+
+        # Plot circular bar chart
+        ax.pie([percentage, 1 - percentage], radius=1.5, startangle=270, counterclock=False, colors=['blue', 'black'], wedgeprops={'width': 0.5, 'edgecolor': 'black'})
+
+        # Add the month abbreviation to the center of each chart
+        ax.text(0.5, 0.5, month, transform=ax.transAxes, ha='center', va='center', fontsize=20, fontweight='bold')
+
+    # Customize the layout and appearance
+    fig.suptitle('Circular Bar Percentage Charts by Month', y=1.05)
+
+    buffer = io.BytesIO()
+    fig.savefig(buffer, format="png")
+    return Image.open(buffer)
+
+def insert_text(image, text, position, font_size=20, font_color=(255, 255, 255)):
+    draw = ImageDraw.Draw(image)
+    font = ImageFont.load_default(font_size)
+    draw.text(position, str(text), font=font, fill=font_color)
+
+def insert_image(background, overlay, position, size=None):
+    if size is not None:
+        overlay = overlay.resize(size)
+    background.paste(overlay, position, overlay)
+
+def get_year_in_review(athlete):
+    # Customize the style
+    sns.set(style='dark', rc={'axes.facecolor': 'black', 'figure.facecolor': 'black', 'grid.color': 'black', 'text.color': 'white'})
+    activities = get_activities(athlete, as_dicts=True)
+    activities_df = pd.DataFrame(activities)
+    year = datetime.datetime.now().year - 1
+    # filter activities to the year
+    activities_df = activities_df[activities_df['date'].dt.year == year]
+
+    # 1 Summary
+    total_time = seconds_to_time(activities_df['elapsed_time'].sum(), calc_days=False, show_seconds=False)
+    total_distance = round(activities_df['distance'].sum())
+    top_sport = activities_df['type'].value_counts().idxmax()
+    total_elevation = round(activities_df['elevation'].sum())
+    days_active = activities_df['date'].dt.date.nunique()
+    response = requests.get(athlete.profile)
+    profile = Image.open(io.BytesIO(response.content)).convert("RGBA")
+    name = f"{athlete.firstname} {athlete.lastname}"
+    template_1 = Image.open(os.path.join("static", "images", "year_in_review", "year_in_sport.png"))
+    insert_text(template_1, year, (1000, 120), font_size=125)
+    insert_text(template_1, name, (300, 600), font_size=50)
+    insert_text(template_1, "Total Time", (250, 825), font_size=50)
+    insert_text(template_1, total_time, (250, 925), font_size=100)
+    insert_text(template_1, "Total Distance", (250, 1350), font_size=50)
+    insert_text(template_1, f"{total_distance} miles", (250, 1450), font_size=100)
+    insert_text(template_1, "Total Elevation", (250, 1900), font_size=50)
+    insert_text(template_1, f"{total_elevation} feet", (250, 2000), font_size=100)
+    insert_text(template_1, "Days Active", (1050, 1350), font_size=50)
+    insert_text(template_1, days_active, (1050, 1450), font_size=100)
+    insert_text(template_1, "Top Sport", (1050, 825), font_size=50)
+    insert_text(template_1, top_sport, (1050, 925), font_size=100)
+    insert_image(template_1, profile, (300, 400))
+    template_1.save("template_1.png")
+
+    # 2 Sports bar graph
+    template_2 = Image.open(os.path.join("static", "images", "year_in_review", "top_sports.png"))
+    bar_graph = get_sports_bar_graph(activities_df)
+    insert_text(template_2, f"Top Sport: {top_sport}", (250, 400), font_size=75)
+    insert_image(template_2, bar_graph, (100, 1410), (1500, 900))
+    template_2.save("template_2.png")
+
+    # 3 Total Time
+    time_graphs = get_time_graphs(activities_df)
+    time_graphs.save('months.png')
+
+    # Circular bar graphs
+    # https://stackoverflow.com/questions/59672712/circular-barplot-in-python-with-percentage-labels
+
 
 @app.route("/activities_page")
 def activities_page():
@@ -558,11 +715,23 @@ def metrics(activity_id):
 
 @app.route("/get_data", methods=['POST'])
 def get_data():
+    activity_types = request.get_json()["activity_types"]
     client.access_token = session['access_token']
     strava_athlete = client.get_athlete()
     activities = get_activities(strava_athlete)
-    data = get_trends(activities)
+    data = get_trends(activities, activity_types=activity_types)
     return jsonify({'data': json.dumps(data)})
+
+
+@app.route("/year_in_review")
+def year_in_review():
+    authenticated = refresh()
+    if not authenticated:
+        return redirect(url_for('index'))
+    client.access_token = session['access_token']
+    strava_athlete = client.get_athlete()
+    get_year_in_review(strava_athlete)
+    return render_template('year_in_review.html', cow_path=get_cow_path(), flask_env=FLASK_ENV, athlete=strava_athlete)
 
 
 @app.route("/dashboard")
@@ -575,6 +744,7 @@ def dashboard():
     athlete_folder = os.path.join("static", "temp", str(strava_athlete.id))
     os.makedirs(athlete_folder, exist_ok=True)
     activities = get_activities(strava_athlete)
+    activity_types = list(set([x.type.lower() for x in activities]))
     # best_efforts = calculate_personal_bests(activities)
     cow_path = get_cow_path()
     best_efforts = get_race_efforts(activities)
@@ -601,7 +771,7 @@ def dashboard():
     heatmap_path = url_for("static", filename=relative_path)
     return render_template('dashboard.html', cow_path=cow_path, flask_env=FLASK_ENV, athlete=strava_athlete,
                            best_efforts=best_efforts, clubs=clubs, gear=gear, stats=stats, heatmap_path=heatmap_path,
-                           units=unithelper)
+                           activity_types=activity_types, units=unithelper)
 
 
 @app.route("/support")
@@ -615,8 +785,9 @@ def game():
     authenticated = refresh()
     if not authenticated:
         return redirect(url_for('index'))
+    athlete = client.get_athlete()
     one_month_ago = datetime.datetime.today() - datetime.timedelta(days=31)
-    activities = get_activities(as_dicts=True, activity_types=['Run'], after_date=one_month_ago)
+    activities = get_activities(athlete, as_dicts=True, activity_types=['Run'], after_date=one_month_ago)
     activities = sorted(activities, key=lambda x: x['distance'])
     return render_template('game.html', activities=activities)
 
