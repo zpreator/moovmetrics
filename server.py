@@ -159,12 +159,12 @@ def strava_callback():
         return redirect(url_for('index'))
 
 
-def generate_map(activities, save_path, filter=True):
+def generate_map(activities, activity_types, save_path, filter=True):
     print('Generating map')
 
     # Loop through activities and collect map data
     routes = []
-    activity_types = ['Run', 'Hike', 'Ride']
+    # activity_types = ['Run', 'Hike', 'Ride']
     decoded_coords = [(40, -112),]  # Define initial map position (this will get overwritten)
     for activity in activities:
         if activity.type in activity_types and activity.map:
@@ -363,13 +363,43 @@ def get_gear(activities):
     return gear
 
 
+def calculate_VO2_max(activity):
+    """
+    Calculate VO2 max using Astrand-Ryhming nomogram.
+    """
+    if activity.type == "Run":
+        average_heartrate = activity.average_heartrate
+        average_speed = activity.average_speed
+
+        VO2_max = 2900 * float(average_speed) / float(average_heartrate)
+        #Astrand-Ryhming nomogram parameters
+        # a = 0.1
+        # b = 0.84
+
+        # work_rate = float(unithelper.meters_per_second(average_speed)) * 60
+        # VO2_max = ((work_rate) / (a * average_heart_rate - b))  # mL/(kg*min)
+        # VO2_max = float(unithelper.meters_per_second(average_speed)) * 0.192 + 0.058 * average_heart_rate + 7.04
+        return round(VO2_max, 2)
+    else:
+        return None
+
+
 def get_trends(activities, activity_types='all'):
     activity_list = []
     activities.reverse()
     for i, activity in enumerate(activities):
         if activity.average_heartrate and (activity_types[0] =='all' or activity.type.lower() in activity_types):
             avg_speed = round(float(unithelper.miles_per_hour(activity.average_speed)), 2)
-            activity_list.append({'date': activity.start_date_local, 'hr': activity.average_heartrate, 'avg_speed': avg_speed, 'kudos': activity.kudos_count})
+            vo2_max = calculate_VO2_max(activity)
+            activity_list.append({
+                'date': activity.start_date_local, 
+                'hr': activity.average_heartrate, 
+                'avg_speed': avg_speed, 
+                'kudos': activity.kudos_count,
+                'vo2_max': vo2_max,
+                'pr_count': activity.pr_count,
+                'distance': round(float(unithelper.miles(activity.distance)), 2)
+            })
     activities_df = pd.DataFrame(activity_list)
     activities_df['date'] = pd.to_datetime(activities_df['date'])
     activities_df.set_index('date', inplace=True)
@@ -381,13 +411,21 @@ def get_trends(activities, activity_types='all'):
     df_y = activities_df.resample('M').mean().round(2).tail(12).replace([np.nan], [None])  # 12 months
 
     data = {
+        'units':{
+            'hr': 'bpm',
+            'avg_speed': 'mph',
+            'kudos': 'count'
+        },
         'w': {
             'title': 'Last 7 days',
-            'dates': df_w.index.day_name().tolist(),
+            'dates': df_w.index.strftime("%b %d").tolist(),
             'values': {
                 'hr': df_w['hr'].tolist(),
                 'avg_speed': df_w['avg_speed'].tolist(),
-                'kudos': df_w['kudos'].tolist()
+                'kudos': df_w['kudos'].tolist(),
+                'vo2_max': df_w['vo2_max'].tolist(),
+                'pr_count': df_w['pr_count'].tolist(),
+                'distance': df_w['distance'].tolist()
             }
         },
         'm': {
@@ -396,7 +434,10 @@ def get_trends(activities, activity_types='all'):
             'values': {
                 'hr': df_d['hr'].tolist(),
                 'avg_speed': df_d['avg_speed'].tolist(),
-                'kudos': df_d['kudos'].tolist()
+                'kudos': df_d['kudos'].tolist(),
+                'vo2_max': df_d['vo2_max'].tolist(),
+                'pr_count': df_d['pr_count'].tolist(),
+                'distance': df_d['distance'].tolist()
             }
         },
         '6m': {
@@ -405,7 +446,10 @@ def get_trends(activities, activity_types='all'):
             'values': {
                 'hr': df_6m['hr'].tolist(),
                 'avg_speed': df_6m['avg_speed'].tolist(),
-                'kudos': df_6m['kudos'].tolist()
+                'kudos': df_6m['kudos'].tolist(),
+                'vo2_max': df_6m['vo2_max'].tolist(),
+                'pr_count': df_6m['pr_count'].tolist(),
+                'distance': df_6m['distance'].tolist()
             }
         },
         'y': {
@@ -414,7 +458,10 @@ def get_trends(activities, activity_types='all'):
             'values': {
                 'hr': df_y['hr'].tolist(),
                 'avg_speed': df_y['avg_speed'].tolist(),
-                'kudos': df_y['kudos'].tolist()
+                'kudos': df_y['kudos'].tolist(),
+                'vo2_max': df_y['vo2_max'].tolist(),
+                'pr_count': df_y['pr_count'].tolist(),
+                'distance': df_y['distance'].tolist()
             }
         }
 
@@ -424,26 +471,34 @@ def get_trends(activities, activity_types='all'):
 
 def get_stats(activities, athlete):
     # Because only run, bike and swim are supported, we have to calculate other total distances
-    hike_count = 0
-    hike_distance = 0.0
+    # hike_count = 0
+    # hike_distance = 0.0
+    # for activity in activities:
+    #     if activity.type == 'Hike':
+    #         hike_count += 1
+    #         hike_distance += float(unithelper.miles(activity.distance))
+    # stats = {
+    #     'run': {
+    #         'count': athlete.stats.all_run_totals.count,
+    #         'distance': unithelper.miles(athlete.stats.all_run_totals.distance)
+    #     },
+    #     'bike': {
+    #         'count': athlete.stats.all_ride_totals.count,
+    #         'distance': unithelper.miles(athlete.stats.all_ride_totals.distance)
+    #     },
+    #     'hike': {
+    #         'count': hike_count,
+    #         'distance': hike_distance
+    #     }
+    # }
+
+    stats = {}
     for activity in activities:
-        if activity.type == 'Hike':
-            hike_count += 1
-            hike_distance += float(unithelper.miles(activity.distance))
-    stats = {
-        'run': {
-            'count': athlete.stats.all_run_totals.count,
-            'distance': unithelper.miles(athlete.stats.all_run_totals.distance)
-        },
-        'bike': {
-            'count': athlete.stats.all_ride_totals.count,
-            'distance': unithelper.miles(athlete.stats.all_ride_totals.distance)
-        },
-        'hike': {
-            'count': hike_count,
-            'distance': hike_distance
-        }
-    }
+        if activity.distance is not None and activity.distance > 0:
+            if activity.type not in stats.keys():
+                stats[activity.type] = {'count': 0, 'distance': 0.0}
+            stats[activity.type]['count'] += 1
+            stats[activity.type]['distance'] += float(unithelper.miles(activity.distance))
     return stats
 
 
@@ -767,7 +822,7 @@ def dashboard():
     if num < len(activities):
         with open(text_path, 'w') as file:
             file.write(str(len(activities)))
-        generate_map(activities, save_path)
+        generate_map(activities, activity_types, save_path)
     heatmap_path = url_for("static", filename=relative_path)
     return render_template('dashboard.html', cow_path=cow_path, flask_env=FLASK_ENV, athlete=strava_athlete,
                            best_efforts=best_efforts, clubs=clubs, gear=gear, stats=stats, heatmap_path=heatmap_path,

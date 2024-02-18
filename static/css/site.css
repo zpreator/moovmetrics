@@ -164,14 +164,19 @@ a, button {
     width: 100%; /* Ensure the container takes up the full width of its parent */
 }
 
-.types {
+.types, .datasets {
   justify-content: left;
 }
 
-.windows, .datasets {
+.windows {
   justify-content: center;
 }
 
 .canvas-container {
     height: 400px;
+}
+
+.avatar {
+  border-radius: 50%;
+  overflow: hidden;
 }
