@@ -17,6 +17,7 @@ from stravalib import unithelper, Client
 from dotenv import load_dotenv
 from uuid import uuid4
 import os
+from collections import Counter
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -164,10 +165,11 @@ def generate_map(activities, save_path, filter=True):
 
     # Loop through activities and collect map data
     routes = []
-    activity_types = ['Run', 'Hike', 'Ride']
+    activity_types = []
     decoded_coords = [(40, -112),]  # Define initial map position (this will get overwritten)
     for activity in activities:
-        if activity.type in activity_types and activity.map:
+        if activity.map and float(activity.distance) > 0:
+            activity_types.append(activity.type)
             coords = activity.map.summary_polyline
             if coords:
                 # Decode the polyline data to retrieve latitude and longitude
@@ -184,7 +186,7 @@ def generate_map(activities, save_path, filter=True):
                 routes.append(p)
 
     # Create a base map centered on a location
-    m = folium.Map(location=decoded_coords[0], zoom_start=13)
+    m = folium.Map(location=decoded_coords[0], zoom_start=11)
 
     # Customize the map controls for mobile devices
     mobile_styles = """
@@ -302,6 +304,11 @@ def get_race_efforts(activities):
             race['activity_best'] = min(race['activities'], key=lambda x: x.elapsed_time)
         else:
             race['activity_best'] = None
+    for race in races:
+        if race['activity_best'] is not None:
+            speed = 60 / float(unithelper.miles_per_hour(race['activity_best'].average_speed))
+            race['frmt_speed'] = min2minsec(round(speed, 2))
+            race['frmt_time'] = format_time(race['activity_best'].elapsed_time)
     return races
 
 
@@ -336,10 +343,12 @@ def get_activities(strava_athlete, as_dicts=False, activity_types=None, after_da
             if activity_types is None or activity.type in activity_types:
                 activities_dicts.append({
                     'name': activity.name,
+                    'id': activity.id,
                     'date': activity.start_date_local,
                     'distance': float(round(unithelper.miles(activity.distance), 2)),
+                    'average_speed': activity.average_speed,
                     'type': activity.type,
-                    'time': seconds_to_time(activity.moving_time.seconds),
+                    'time': format_time(activity.moving_time),
                     'elapsed_time': activity.elapsed_time.seconds,
                     'elevation': float(round(unithelper.feet(activity.total_elevation_gain)))
                 })
@@ -363,13 +372,43 @@ def get_gear(activities):
     return gear
 
 
+def calculate_VO2_max(activity):
+    """
+    Calculate VO2 max using Astrand-Ryhming nomogram.
+    """
+    if activity.type == "Run":
+        average_heartrate = activity.average_heartrate
+        average_speed = activity.average_speed
+
+        VO2_max = 2900 * float(average_speed) / float(average_heartrate)
+        #Astrand-Ryhming nomogram parameters
+        # a = 0.1
+        # b = 0.84
+
+        # work_rate = float(unithelper.meters_per_second(average_speed)) * 60
+        # VO2_max = ((work_rate) / (a * average_heart_rate - b))  # mL/(kg*min)
+        # VO2_max = float(unithelper.meters_per_second(average_speed)) * 0.192 + 0.058 * average_heart_rate + 7.04
+        return round(VO2_max, 2)
+    else:
+        return None
+
+
 def get_trends(activities, activity_types='all'):
     activity_list = []
     activities.reverse()
     for i, activity in enumerate(activities):
         if activity.average_heartrate and (activity_types[0] =='all' or activity.type.lower() in activity_types):
             avg_speed = round(float(unithelper.miles_per_hour(activity.average_speed)), 2)
-            activity_list.append({'date': activity.start_date_local, 'hr': activity.average_heartrate, 'avg_speed': avg_speed, 'kudos': activity.kudos_count})
+            vo2_max = calculate_VO2_max(activity)
+            activity_list.append({
+                'date': activity.start_date_local, 
+                'hr': activity.average_heartrate, 
+                'avg_speed': avg_speed, 
+                'kudos': activity.kudos_count,
+                'vo2_max': vo2_max,
+                'pr_count': activity.pr_count,
+                'distance': round(float(unithelper.miles(activity.distance)), 2)
+            })
     activities_df = pd.DataFrame(activity_list)
     activities_df['date'] = pd.to_datetime(activities_df['date'])
     activities_df.set_index('date', inplace=True)
@@ -381,13 +420,21 @@ def get_trends(activities, activity_types='all'):
     df_y = activities_df.resample('M').mean().round(2).tail(12).replace([np.nan], [None])  # 12 months
 
     data = {
+        'units':{
+            'hr': 'bpm',
+            'avg_speed': 'mph',
+            'kudos': 'count'
+        },
         'w': {
             'title': 'Last 7 days',
-            'dates': df_w.index.day_name().tolist(),
+            'dates': df_w.index.strftime("%b %d").tolist(),
             'values': {
                 'hr': df_w['hr'].tolist(),
                 'avg_speed': df_w['avg_speed'].tolist(),
-                'kudos': df_w['kudos'].tolist()
+                'kudos': df_w['kudos'].tolist(),
+                'vo2_max': df_w['vo2_max'].tolist(),
+                'pr_count': df_w['pr_count'].tolist(),
+                'distance': df_w['distance'].tolist()
             }
         },
         'm': {
@@ -396,7 +443,10 @@ def get_trends(activities, activity_types='all'):
             'values': {
                 'hr': df_d['hr'].tolist(),
                 'avg_speed': df_d['avg_speed'].tolist(),
-                'kudos': df_d['kudos'].tolist()
+                'kudos': df_d['kudos'].tolist(),
+                'vo2_max': df_d['vo2_max'].tolist(),
+                'pr_count': df_d['pr_count'].tolist(),
+                'distance': df_d['distance'].tolist()
             }
         },
         '6m': {
@@ -405,7 +455,10 @@ def get_trends(activities, activity_types='all'):
             'values': {
                 'hr': df_6m['hr'].tolist(),
                 'avg_speed': df_6m['avg_speed'].tolist(),
-                'kudos': df_6m['kudos'].tolist()
+                'kudos': df_6m['kudos'].tolist(),
+                'vo2_max': df_6m['vo2_max'].tolist(),
+                'pr_count': df_6m['pr_count'].tolist(),
+                'distance': df_6m['distance'].tolist()
             }
         },
         'y': {
@@ -414,7 +467,10 @@ def get_trends(activities, activity_types='all'):
             'values': {
                 'hr': df_y['hr'].tolist(),
                 'avg_speed': df_y['avg_speed'].tolist(),
-                'kudos': df_y['kudos'].tolist()
+                'kudos': df_y['kudos'].tolist(),
+                'vo2_max': df_y['vo2_max'].tolist(),
+                'pr_count': df_y['pr_count'].tolist(),
+                'distance': df_y['distance'].tolist()
             }
         }
 
@@ -424,34 +480,41 @@ def get_trends(activities, activity_types='all'):
 
 def get_stats(activities, athlete):
     # Because only run, bike and swim are supported, we have to calculate other total distances
-    hike_count = 0
-    hike_distance = 0.0
+    # hike_count = 0
+    # hike_distance = 0.0
+    # for activity in activities:
+    #     if activity.type == 'Hike':
+    #         hike_count += 1
+    #         hike_distance += float(unithelper.miles(activity.distance))
+    # stats = {
+    #     'run': {
+    #         'count': athlete.stats.all_run_totals.count,
+    #         'distance': unithelper.miles(athlete.stats.all_run_totals.distance)
+    #     },
+    #     'bike': {
+    #         'count': athlete.stats.all_ride_totals.count,
+    #         'distance': unithelper.miles(athlete.stats.all_ride_totals.distance)
+    #     },
+    #     'hike': {
+    #         'count': hike_count,
+    #         'distance': hike_distance
+    #     }
+    # }
+
+    stats = {}
     for activity in activities:
-        if activity.type == 'Hike':
-            hike_count += 1
-            hike_distance += float(unithelper.miles(activity.distance))
-    stats = {
-        'run': {
-            'count': athlete.stats.all_run_totals.count,
-            'distance': unithelper.miles(athlete.stats.all_run_totals.distance)
-        },
-        'bike': {
-            'count': athlete.stats.all_ride_totals.count,
-            'distance': unithelper.miles(athlete.stats.all_ride_totals.distance)
-        },
-        'hike': {
-            'count': hike_count,
-            'distance': hike_distance
-        }
-    }
+        if activity.distance is not None and activity.distance > 0:
+            if activity.type not in stats.keys():
+                stats[activity.type] = {'count': 0, 'distance': 0.0}
+            stats[activity.type]['count'] += 1
+            stats[activity.type]['distance'] += float(unithelper.miles(activity.distance))
     return stats
 
 
 def speed_to_time(speed):
     mph = float(unithelper.miles_per_hour(speed))
     min_per_mile = 60 / mph
-    seconds_per_mile = 60 * min_per_mile
-    return seconds_to_time(seconds_per_mile)
+    return min2minsec(min_per_mile)
 
 
 def seconds_to_time(seconds, calc_days=True, show_seconds=True):
@@ -650,8 +713,46 @@ def activities_page():
     # Use the access token to fetch user data from Strava
     client.access_token = session['access_token']
     strava_athlete = client.get_athlete()
-    activities = get_activities(strava_athlete)
+    activities = get_activities(strava_athlete, as_dicts=True)
+    for activity in activities:
+        if activity['distance'] > 0:
+            elapsed_time = activity['time']
+            pace = speed_to_time(activity['average_speed'])
+            activity['frmt_details'] = f"{elapsed_time} - {pace} /mi"
+        else:
+            activity['frmt_details'] = ""
+
     return render_template('activities.html', cow_path=get_cow_path(), flask_env=FLASK_ENV, activities=activities)
+
+def format_time(elapsed_time):
+    """Erase the leading zeros and colons"""
+    time_str = str(elapsed_time)
+    # Split the string at colons
+    time_parts = time_str.split(':')
+    new_parts = []
+    strip = True
+    for time_part in time_parts:
+        if strip:
+            time_part = time_part.lstrip('0')
+        if time_part == '':
+            continue
+        elif strip:
+            strip = False
+        new_parts.append(time_part)
+    
+    # Join the parts back together with colons
+    cleaned_time = ':'.join(new_parts)
+    
+    return cleaned_time
+
+
+def min2minsec(total_minutes):
+    # Calculate minutes and seconds
+    minutes = int(total_minutes)
+    seconds = int((total_minutes - minutes) * 60)
+    
+    # Format the result as "minutes:seconds"
+    return f"{minutes}:{seconds:02d}"
 
 
 @app.route("/metrics/<activity_id>")
@@ -680,7 +781,14 @@ def metrics(activity_id):
     # Calculate best efforts
     best_efforts = []
     for best_effort in activity.best_efforts:
-        best_efforts.append({'time': best_effort.elapsed_time, 'distance': get_race_name(best_effort.distance)})
+        elapsed_time = best_effort.elapsed_time
+        distance = best_effort.distance
+        pace = (elapsed_time.total_seconds() / 60) / float(unithelper.miles(distance))
+        best_efforts.append({
+            'time': format_time(elapsed_time), 
+            'distance': get_race_name(distance),
+            'pace': min2minsec(round(pace, 2))
+        })
 
     # Extracting time and heart rate data
     time_data = streams['time'].data
@@ -705,12 +813,24 @@ def metrics(activity_id):
     splits_json = json.dumps({
         'miles': [f"{float(x.split-1)} - {round(float(unithelper.miles(x.distance)) + (x.split - 1), 2)}" for x in activity.splits_standard],
         'speed': [float(unithelper.miles_per_hour(x.average_speed)) for x in activity.splits_standard],
-        'tips': [f"{speed_to_time(x.average_speed)}" for x in activity.splits_standard]
+        'tips': [f"{speed_to_time(x.average_speed)} /mi" for x in activity.splits_standard]
     })
 
+    stats = [
+        {"name": "Average Speed", "units": "/mi", "value": min2minsec(round(60 / float(unithelper.miles_per_hour(activity.average_speed)), 2))},
+        {"name": "Average Heart Rate", "units": "bpm", "value": activity.average_heartrate},
+        {"name": "Elevation Gained", "units": "ft", "value": round(float(unithelper.feet(activity.total_elevation_gain)), 2)},
+        {"name": "Max Speed", "units": "/mi", "value": min2minsec(round( 60 / float(unithelper.miles_per_hour(activity.max_speed)), 2))},
+        {"name": "Max Heart Rate", "units": "bpm", "value": activity.max_heartrate},
+        {"name": "Kudos", "units": "", "value": activity.kudos_count}
+    ]
+    gear_item = {
+        "name": activity.gear.name, 
+        "distance": float(unithelper.miles(activity.gear.distance))
+    }
     return render_template('metrics.html', cow_path=get_cow_path(), flask_env=FLASK_ENV, activity=activity, best_efforts=best_efforts,
                            hr_data=heart_rate_json, pace_data=pace_json, elevation_data=elevation_json,
-                           splits_data=splits_json, heatmap_path=heatmap_path)
+                           splits_data=splits_json, heatmap_path=heatmap_path, stats=stats, gear_item=gear_item)
 
 
 @app.route("/get_data", methods=['POST'])
@@ -744,7 +864,10 @@ def dashboard():
     athlete_folder = os.path.join("static", "temp", str(strava_athlete.id))
     os.makedirs(athlete_folder, exist_ok=True)
     activities = get_activities(strava_athlete)
-    activity_types = list(set([x.type.lower() for x in activities]))
+    # activity_types = list(set([x.type.lower() for x in activities]))
+    type_counts = Counter(x.type.lower() for x in activities)
+    activity_types = [x for x, _ in type_counts.most_common()]
+
     # best_efforts = calculate_personal_bests(activities)
     cow_path = get_cow_path()
     best_efforts = get_race_efforts(activities)
