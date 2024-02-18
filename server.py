@@ -17,6 +17,7 @@ from stravalib import unithelper, Client
 from dotenv import load_dotenv
 from uuid import uuid4
 import os
+from collections import Counter
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -863,7 +864,10 @@ def dashboard():
     athlete_folder = os.path.join("static", "temp", str(strava_athlete.id))
     os.makedirs(athlete_folder, exist_ok=True)
     activities = get_activities(strava_athlete)
-    activity_types = list(set([x.type.lower() for x in activities]))
+    # activity_types = list(set([x.type.lower() for x in activities]))
+    type_counts = Counter(x.type.lower() for x in activities)
+    activity_types = [x for x, _ in type_counts.most_common()]
+
     # best_efforts = calculate_personal_bests(activities)
     cow_path = get_cow_path()
     best_efforts = get_race_efforts(activities)
