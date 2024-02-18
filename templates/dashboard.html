@@ -2,10 +2,6 @@
 
 {% block body %}
 <style>
-  body {
-    background-image: url('/static/images/topo.png'); /* Replace 'path/to/your/image.jpg' with the path to your image */
-    background-size: contain; /* Cover the entire background */
-  }
   .avatar-container {
       width: 100%;
       background-color: #c19078;
@@ -28,17 +24,6 @@
       overflow: hidden;
   }
 
-  .list-items {
-    margin-top: 5px; 
-    margin-bottom: 5px; 
-    padding-top: 5px; 
-    padding-bottom: 5px;
-  }
-
-  .small-margin {
-    margin-top: 0px;
-    margin-bottom: 0px;
-  }
 </style>
 <!-- Page Container -->
 <div class="w3-margin-top" >
@@ -84,6 +69,7 @@
         <p>See a heatmap of all your activities. Use the filter tool to select specific activities</p>
         <iframe id="heatmapFrame" src="{{ heatmap_path }}" width="100%" height="800px">Loading...</iframe>
       </div>
+      <br>
 
     <!-- End Right Column -->
     </div>
@@ -151,11 +137,11 @@
         {% if best_effort['activity_best'] != None %}
         <div class="w3-container">
           <h5 class="w3-opacity"><b>{{ best_effort['name'] | title() }} | {{ best_effort['activity_best'].name }} | {{ best_effort['activity_best'].start_date_local.strftime('%d/%m/%Y') }}</b></h5>
-          <p><i class="fa fa-clock-o fa-fw w3-margin-right w3-text-teal"></i>{{ best_effort['activity_best'].moving_time }}
+          <p><i class="fa fa-clock-o fa-fw w3-margin-right w3-text-teal"></i>{{ best_effort['frmt_time'] }}
              <i class="fa fa-arrows-h fa-fw w3-margin-left w3-text-teal"></i>{{ units.miles(best_effort['activity_best'].distance) | round(2)}}s
-             <i class="fa fa-fast-forward fa-fw w3-margin-left w3-text-teal"></i>{{ (60 / units.miles_per_hour(best_effort['activity_best'].average_speed) | float) | round(2) }} min/mile
+             <i class="fa fa-fast-forward fa-fw w3-margin-left w3-text-teal"></i>{{ best_effort['frmt_speed'] }} /mi
             </p>
-          <hr>
+          <hr class="small-margin">
         </div>
         {% endif %}
         {% endfor %}

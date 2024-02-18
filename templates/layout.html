@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Moov Metrics</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js" integrity="sha512-ZwR1/gSZM3ai6vCdI+LVF1zSq/5HznD3ZSTk7kajkaj4D292NLuduDCO1c/NT8Id+jE58KYLKT7hXnbtryGmMg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
     <link href="https://fonts.googleapis.com/css?family=Roboto:400,700|Montserrat:400,700|Open+Sans:400,700|Lato:400,700|Playfair+Display:400,700|Raleway:400,700|Pacifico|Oswald:400,700&display=swap" rel="stylesheet">
     <link rel="icon" href="{{ url_for('static', filename='images/cow-head.ico') }}" type="image/x-icon">
     <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
@@ -17,6 +18,10 @@
 
 <style>
 html,body,h1,h2,h3,h4,h5,h6 {font-family: "Roboto", sans-serif}
+body {
+    background-image: url('/static/images/topo.png'); /* Replace 'path/to/your/image.jpg' with the path to your image */
+    background-size: contain; /* Cover the entire background */
+  }
 </style>
 
 <!-- Navbar -->

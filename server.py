@@ -159,15 +159,16 @@ def strava_callback():
         return redirect(url_for('index'))
 
 
-def generate_map(activities, activity_types, save_path, filter=True):
+def generate_map(activities, save_path, filter=True):
     print('Generating map')
 
     # Loop through activities and collect map data
     routes = []
-    # activity_types = ['Run', 'Hike', 'Ride']
+    activity_types = []
     decoded_coords = [(40, -112),]  # Define initial map position (this will get overwritten)
     for activity in activities:
-        if activity.type in activity_types and activity.map:
+        if activity.map and float(activity.distance) > 0:
+            activity_types.append(activity.type)
             coords = activity.map.summary_polyline
             if coords:
                 # Decode the polyline data to retrieve latitude and longitude
@@ -184,7 +185,7 @@ def generate_map(activities, activity_types, save_path, filter=True):
                 routes.append(p)
 
     # Create a base map centered on a location
-    m = folium.Map(location=decoded_coords[0], zoom_start=13)
+    m = folium.Map(location=decoded_coords[0], zoom_start=11)
 
     # Customize the map controls for mobile devices
     mobile_styles = """
@@ -302,6 +303,11 @@ def get_race_efforts(activities):
             race['activity_best'] = min(race['activities'], key=lambda x: x.elapsed_time)
         else:
             race['activity_best'] = None
+    for race in races:
+        if race['activity_best'] is not None:
+            speed = 60 / float(unithelper.miles_per_hour(race['activity_best'].average_speed))
+            race['frmt_speed'] = min2minsec(round(speed, 2))
+            race['frmt_time'] = format_time(race['activity_best'].elapsed_time)
     return races
 
 
@@ -336,10 +342,12 @@ def get_activities(strava_athlete, as_dicts=False, activity_types=None, after_da
             if activity_types is None or activity.type in activity_types:
                 activities_dicts.append({
                     'name': activity.name,
+                    'id': activity.id,
                     'date': activity.start_date_local,
                     'distance': float(round(unithelper.miles(activity.distance), 2)),
+                    'average_speed': activity.average_speed,
                     'type': activity.type,
-                    'time': seconds_to_time(activity.moving_time.seconds),
+                    'time': format_time(activity.moving_time),
                     'elapsed_time': activity.elapsed_time.seconds,
                     'elevation': float(round(unithelper.feet(activity.total_elevation_gain)))
                 })
@@ -505,8 +513,7 @@ def get_stats(activities, athlete):
 def speed_to_time(speed):
     mph = float(unithelper.miles_per_hour(speed))
     min_per_mile = 60 / mph
-    seconds_per_mile = 60 * min_per_mile
-    return seconds_to_time(seconds_per_mile)
+    return min2minsec(min_per_mile)
 
 
 def seconds_to_time(seconds, calc_days=True, show_seconds=True):
@@ -705,8 +712,46 @@ def activities_page():
     # Use the access token to fetch user data from Strava
     client.access_token = session['access_token']
     strava_athlete = client.get_athlete()
-    activities = get_activities(strava_athlete)
+    activities = get_activities(strava_athlete, as_dicts=True)
+    for activity in activities:
+        if activity['distance'] > 0:
+            elapsed_time = activity['time']
+            pace = speed_to_time(activity['average_speed'])
+            activity['frmt_details'] = f"{elapsed_time} - {pace} /mi"
+        else:
+            activity['frmt_details'] = ""
+
     return render_template('activities.html', cow_path=get_cow_path(), flask_env=FLASK_ENV, activities=activities)
+
+def format_time(elapsed_time):
+    """Erase the leading zeros and colons"""
+    time_str = str(elapsed_time)
+    # Split the string at colons
+    time_parts = time_str.split(':')
+    new_parts = []
+    strip = True
+    for time_part in time_parts:
+        if strip:
+            time_part = time_part.lstrip('0')
+        if time_part == '':
+            continue
+        elif strip:
+            strip = False
+        new_parts.append(time_part)
+    
+    # Join the parts back together with colons
+    cleaned_time = ':'.join(new_parts)
+    
+    return cleaned_time
+
+
+def min2minsec(total_minutes):
+    # Calculate minutes and seconds
+    minutes = int(total_minutes)
+    seconds = int((total_minutes - minutes) * 60)
+    
+    # Format the result as "minutes:seconds"
+    return f"{minutes}:{seconds:02d}"
 
 
 @app.route("/metrics/<activity_id>")
@@ -735,7 +780,14 @@ def metrics(activity_id):
     # Calculate best efforts
     best_efforts = []
     for best_effort in activity.best_efforts:
-        best_efforts.append({'time': best_effort.elapsed_time, 'distance': get_race_name(best_effort.distance)})
+        elapsed_time = best_effort.elapsed_time
+        distance = best_effort.distance
+        pace = (elapsed_time.total_seconds() / 60) / float(unithelper.miles(distance))
+        best_efforts.append({
+            'time': format_time(elapsed_time), 
+            'distance': get_race_name(distance),
+            'pace': min2minsec(round(pace, 2))
+        })
 
     # Extracting time and heart rate data
     time_data = streams['time'].data
@@ -760,12 +812,24 @@ def metrics(activity_id):
     splits_json = json.dumps({
         'miles': [f"{float(x.split-1)} - {round(float(unithelper.miles(x.distance)) + (x.split - 1), 2)}" for x in activity.splits_standard],
         'speed': [float(unithelper.miles_per_hour(x.average_speed)) for x in activity.splits_standard],
-        'tips': [f"{speed_to_time(x.average_speed)}" for x in activity.splits_standard]
+        'tips': [f"{speed_to_time(x.average_speed)} /mi" for x in activity.splits_standard]
     })
 
+    stats = [
+        {"name": "Average Speed", "units": "/mi", "value": min2minsec(round(60 / float(unithelper.miles_per_hour(activity.average_speed)), 2))},
+        {"name": "Average Heart Rate", "units": "bpm", "value": activity.average_heartrate},
+        {"name": "Elevation Gained", "units": "ft", "value": round(float(unithelper.feet(activity.total_elevation_gain)), 2)},
+        {"name": "Max Speed", "units": "/mi", "value": min2minsec(round( 60 / float(unithelper.miles_per_hour(activity.max_speed)), 2))},
+        {"name": "Max Heart Rate", "units": "bpm", "value": activity.max_heartrate},
+        {"name": "Kudos", "units": "", "value": activity.kudos_count}
+    ]
+    gear_item = {
+        "name": activity.gear.name, 
+        "distance": float(unithelper.miles(activity.gear.distance))
+    }
     return render_template('metrics.html', cow_path=get_cow_path(), flask_env=FLASK_ENV, activity=activity, best_efforts=best_efforts,
                            hr_data=heart_rate_json, pace_data=pace_json, elevation_data=elevation_json,
-                           splits_data=splits_json, heatmap_path=heatmap_path)
+                           splits_data=splits_json, heatmap_path=heatmap_path, stats=stats, gear_item=gear_item)
 
 
 @app.route("/get_data", methods=['POST'])
@@ -822,7 +886,7 @@ def dashboard():
     if num < len(activities):
         with open(text_path, 'w') as file:
             file.write(str(len(activities)))
-        generate_map(activities, activity_types, save_path)
+        generate_map(activities, save_path)
     heatmap_path = url_for("static", filename=relative_path)
     return render_template('dashboard.html', cow_path=cow_path, flask_env=FLASK_ENV, athlete=strava_athlete,
                            best_efforts=best_efforts, clubs=clubs, gear=gear, stats=stats, heatmap_path=heatmap_path,
