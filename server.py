@@ -656,7 +656,7 @@ def insert_image(background, overlay, position, size=None):
         overlay = overlay.resize(size)
     background.paste(overlay, position, overlay)
 
-def get_year_in_review(athlete):
+def get_year_in_review(athlete, save_folder):
     # Customize the style
     sns.set(style='dark', rc={'axes.facecolor': 'black', 'figure.facecolor': 'black', 'grid.color': 'black', 'text.color': 'white'})
     activities = get_activities(athlete, as_dicts=True)
@@ -688,18 +688,18 @@ def get_year_in_review(athlete):
     insert_text(template_1, "Top Sport", (1050, 825), font_size=50)
     insert_text(template_1, top_sport, (1050, 925), font_size=100)
     insert_image(template_1, profile, (300, 400))
-    template_1.save("template_1.png")
+    template_1.save(os.path.join(save_folder, "image_1.png"))
 
     # 2 Sports bar graph
     template_2 = Image.open(os.path.join("static", "images", "year_in_review", "top_sports.png"))
     bar_graph = get_sports_bar_graph(activities_df)
     insert_text(template_2, f"Top Sport: {top_sport}", (250, 400), font_size=75)
     insert_image(template_2, bar_graph, (100, 1410), (1500, 900))
-    template_2.save("template_2.png")
+    template_2.save(os.path.join(save_folder, "image_2.png"))
 
     # 3 Total Time
     time_graphs = get_time_graphs(activities_df)
-    time_graphs.save('months.png')
+    time_graphs.save(os.path.join(save_folder, "image_3.png"))
 
     # Circular bar graphs
     # https://stackoverflow.com/questions/59672712/circular-barplot-in-python-with-percentage-labels
@@ -850,8 +850,12 @@ def year_in_review():
         return redirect(url_for('index'))
     client.access_token = session['access_token']
     strava_athlete = client.get_athlete()
-    get_year_in_review(strava_athlete)
-    return render_template('year_in_review.html', cow_path=get_cow_path(), flask_env=FLASK_ENV, athlete=strava_athlete)
+    relative_path = os.path.join('temp', str(strava_athlete.id))
+    save_path = os.path.join('static', relative_path)
+    get_year_in_review(strava_athlete, save_path)
+    images_folder = url_for("static", filename=relative_path)
+    image_names = [os.path.join(images_folder, f"image_{x}.png") for x in range(1, 4)]
+    return render_template('year_in_review.html', cow_path=get_cow_path(), flask_env=FLASK_ENV, athlete=strava_athlete, image_names=image_names)
 
 
 @app.route("/dashboard")
