@@ -298,7 +298,8 @@ def get_race_efforts(activities):
             if 'activities' not in race:
                 race['activities'] = []
             if -10 < (float(activity.distance) - race['distance']) < 250:
-                race['activities'].append(activity)
+                if activity.id not in [x.id for x in race['activities']]:
+                    race['activities'].append(activity)
     for race in races:
         if len(race['activities']) > 0:
             race['activity_best'] = min(race['activities'], key=lambda x: x.elapsed_time)
@@ -310,6 +311,21 @@ def get_race_efforts(activities):
             race['frmt_speed'] = min2minsec(round(speed, 2))
             race['frmt_time'] = format_time(race['activity_best'].elapsed_time)
     return races
+
+
+def format_effort_data(races, race_filter=None):
+    data = {}
+
+    for race in races:
+        if race_filter is not None and race['name'] != race_filter:
+            continue
+        activities = sorted(race['activities'], key=lambda x: x.start_date_local)
+        data[race['name']] = {
+            "labels": [x.start_date_local.strftime("%b %d, %y") for x in activities],
+            "values": [(x.elapsed_time.seconds / 60) for x in activities],
+            "tips": [min2minsec(60 / float(unithelper.miles_per_hour(x.average_speed))) for x in race['activities']]
+        }
+    return data
 
 
 def get_activities(strava_athlete, as_dicts=False, activity_types=None, after_date=None):
@@ -842,6 +858,17 @@ def get_data():
     data = get_trends(activities, activity_types=activity_types)
     return jsonify({'data': json.dumps(data)})
 
+@app.route("/get_effort_data", methods=['POST'])
+def get_effort_data():
+    race = request.get_json()['race']
+    client.access_token = session['access_token']
+    strava_athlete = client.get_athlete()
+    activities = get_activities(strava_athlete)
+    activities = [x for x in activities if x.type == "Run"]
+    races = get_race_efforts(activities)
+    data = format_effort_data(races, race)
+    return jsonify({'data': json.dumps(data)})
+
 
 @app.route("/year_in_review")
 def year_in_review():
@@ -898,7 +925,7 @@ def dashboard():
     heatmap_path = url_for("static", filename=relative_path)
     return render_template('dashboard.html', cow_path=cow_path, flask_env=FLASK_ENV, athlete=strava_athlete,
                            best_efforts=best_efforts, clubs=clubs, gear=gear, stats=stats, heatmap_path=heatmap_path,
-                           activity_types=activity_types, units=unithelper)
+                           activity_types=activity_types, units=unithelper, races=RACES)
 
 
 @app.route("/support")

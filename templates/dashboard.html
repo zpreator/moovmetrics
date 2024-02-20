@@ -64,12 +64,23 @@
         </div>
       </div>
 
-      <div class="w3-container w3-card w3-white">
+      <div class="w3-container w3-card w3-white w3-margin-bottom">
+        <h2 class="w3-text-grey w3-padding-16"><i class="fa fa-line-chart fa-fw w3-margin-right w3-xxlarge w3-text-teal"></i>Running Efforts</h2>
+        <div class="chart-buttons races">
+          {% for race in races %}
+          <button class="chart-button race {% if race['name'] == '5k' %} active {% endif %}" id="{{race['name']}}" onclick="updateRace('{{race['name']}}')">{{race['name'] | title}}</button>
+          {% endfor %}
+        </div>
+        <div class="canvas-container">
+          <canvas id="canvas2" style="height: 100%">Loading...</canvas>
+        </div>
+      </div>
+
+      <div class="w3-container w3-card w3-white w3-margin-bottom">
         <h2>Activity Map</h2>
         <p>See a heatmap of all your activities. Use the filter tool to select specific activities</p>
         <iframe id="heatmapFrame" src="{{ heatmap_path }}" width="100%" height="800px">Loading...</iframe>
       </div>
-      <br>
 
     <!-- End Right Column -->
     </div>
@@ -157,9 +168,12 @@
 </div>
 <script>
           let myChart;
+          let effortChart;
           let activityData;
+          let effortData;
           let timeWindow = "w";
           let dataset = "hr";
+          let race = "5k";
           let activityTypes = ["all"];
           const datasetTitles = {
             "hr": "Average Heart Rate (bpm)",
@@ -194,6 +208,33 @@
             .then(data => {
               activityData = JSON.parse(data.data);
               updateChart();
+            })
+            .catch(error => {
+              console.error('There was an error with the request:', error);
+            });
+          }
+
+          function getEffortData() {
+            // AJAX call to Flask endpoint
+            fetch('/get_effort_data', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({"race": race})
+            })
+            .then(response => {
+              // Log the response content to inspect it
+              console.log("Response content:", response);
+
+              if (!response.ok) {
+                throw new Error('Network response was not ok');
+              }
+              return response.json();
+            })
+            .then(data => {
+              effortData = JSON.parse(data.data);
+              updateEffortChart();
             })
             .catch(error => {
               console.error('There was an error with the request:', error);
@@ -253,11 +294,63 @@
             }
           }
 
+          function updateEffortChart() {
+            labels = effortData[race]["labels"];
+            values = effortData[race]["values"];
+
+            if (effortChart){
+              var chartConfig = effortChart.config;
+              chartConfig.data.labels = labels;
+              chartConfig.data.datasets[0].data = values;
+              chartConfig.data.datasets[0].label = race;
+              chartConfig.options.plugins.title.text = race;
+              effortChart.update();
+            } else {
+              const chartData = {
+                labels: labels,
+                datasets: [
+                  {
+                    label: race,
+                    data: values.map(value => (value !== null ? value : NaN)), // Data received from Flask endpoint for Dataset 1
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1,
+                    hidden: false
+                  }
+                ]
+              };
+
+              const ctx2 = document.getElementById('canvas2').getContext('2d');
+              effortChart = new Chart(ctx2, {
+                type: 'line',
+                data: chartData,
+                options: {
+                  spanGaps: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    title: {
+                      display: true,
+                      text: race,
+                    }
+                  }
+                }
+              });
+            }
+          }
+
           function updateWindow(newTimeWindow) {
             timeWindow = newTimeWindow;
             document.querySelectorAll('.window').forEach(btn => btn.classList.remove('active'));
             document.getElementById(timeWindow).classList.add('active');
             updateChart();
+          }
+
+          function updateRace(name) {
+            race = name;
+            document.querySelectorAll('.race').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(race).classList.add('active');
+            getEffortData();
+            updateEffortChart();
           }
 
           function updateType(newActivityType) {
@@ -311,5 +404,6 @@
 
           // Initial chart display
           getData();
+          getEffortData();
         </script>
 {% endblock %}
