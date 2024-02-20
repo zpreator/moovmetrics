@@ -297,6 +297,7 @@
           function updateEffortChart() {
             labels = effortData[race]["labels"];
             values = effortData[race]["values"];
+            tips = effortData[race]["tips"];
 
             if (effortChart){
               var chartConfig = effortChart.config;
@@ -331,7 +332,50 @@
                     title: {
                       display: true,
                       text: race,
+                    },
+                    legend: {
+                      display: false
+                    },
+                    tooltip: {
+                      callbacks: {
+                        label: function(context) {
+                          var seconds = context.raw;
+                          var hours = Math.floor(seconds / 3600);
+                          var minutes = Math.floor((seconds % 3600) / 60);
+                          var seconds_remain = seconds % 60;
+                          var formattedTime = '';
+                          if (hours > 0) {
+                              formattedTime += hours + ':';
+                          }
+                          formattedTime += (minutes < 10 ? '0' + minutes : minutes) + ':' + (seconds_remain < 10 ? '0' + seconds_remain : seconds_remain);
+                          var dataIndex = context.dataIndex;
+                          var pace = tips[dataIndex];
+                          return " " + formattedTime + ",\n " + pace + " /mi";
+                        }
+                      }
                     }
+                  },
+                  scales: {
+                    y: {
+                      type: 'linear',
+                      ticks: {
+                        stepSize: 900,
+                        callback: function(value, index, values) {
+                          // Convert seconds to HH:mm format
+                          var hours = Math.floor(value / 3600);
+                          var minutes = Math.floor((value % 3600) / 60);
+                          
+                          var formattedTime = '';
+                          if (hours > 0) {
+                              formattedTime += hours + ':';
+                          }
+                          
+                          formattedTime += (minutes < 10 ? '0' : '') + minutes;
+                          
+                          return formattedTime;
+                        }
+                      }
+                    },
                   }
                 }
               });

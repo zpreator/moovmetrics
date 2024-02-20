@@ -322,8 +322,8 @@ def format_effort_data(races, race_filter=None):
         activities = sorted(race['activities'], key=lambda x: x.start_date_local)
         data[race['name']] = {
             "labels": [x.start_date_local.strftime("%b %d, %y") for x in activities],
-            "values": [(x.elapsed_time.seconds / 60) for x in activities],
-            "tips": [min2minsec(60 / float(unithelper.miles_per_hour(x.average_speed))) for x in race['activities']]
+            "values": [x.elapsed_time.seconds for x in activities],
+            "tips": [min2minsec(60 / float(unithelper.miles_per_hour(x.average_speed))) for x in activities]
         }
     return data
 
