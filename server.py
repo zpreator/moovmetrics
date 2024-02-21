@@ -292,25 +292,28 @@ def calculate_personal_bests(activities, limit=10):
 def get_race_efforts(activities):
     if len(activities) == 0:
         return []
-    races = list(RACES)
+    race_efforts = []
+    for race in RACES:
+        race_efforts.append({'name': race['name'], 'distance': race['distance']})
+
     for i, activity in enumerate(activities):
-        for j, race in enumerate(races):
-            if 'activities' not in race:
-                race['activities'] = []
-            if -10 < (float(activity.distance) - race['distance']) < 250:
-                if activity.id not in [x.id for x in race['activities']]:
-                    race['activities'].append(activity)
-    for race in races:
-        if len(race['activities']) > 0:
-            race['activity_best'] = min(race['activities'], key=lambda x: x.elapsed_time)
+        for j, race_effort in enumerate(race_efforts):
+            if 'activities' not in race_effort:
+                race_effort['activities'] = []
+            if -10 < (float(activity.distance) - race_effort['distance']) < 250:
+                if activity.id not in [x.id for x in race_effort['activities']]:
+                    race_effort['activities'].append(activity)
+    for race_effort in race_efforts:
+        if len(race_effort['activities']) > 0:
+            race_effort['activity_best'] = min(race_effort['activities'], key=lambda x: x.elapsed_time)
         else:
-            race['activity_best'] = None
-    for race in races:
-        if race['activity_best'] is not None:
-            speed = 60 / float(unithelper.miles_per_hour(race['activity_best'].average_speed))
-            race['frmt_speed'] = min2minsec(round(speed, 2))
-            race['frmt_time'] = format_time(race['activity_best'].elapsed_time)
-    return races
+            race_effort['activity_best'] = None
+    for race_effort in race_efforts:
+        if race_effort['activity_best'] is not None:
+            speed = 60 / float(unithelper.miles_per_hour(race_effort['activity_best'].average_speed))
+            race_effort['frmt_speed'] = min2minsec(round(speed, 2))
+            race_effort['frmt_time'] = format_time(race_effort['activity_best'].elapsed_time)
+    return race_efforts
 
 
 def format_effort_data(races, race_filter=None):
@@ -860,13 +863,13 @@ def get_data():
 
 @app.route("/get_effort_data", methods=['POST'])
 def get_effort_data():
-    race = request.get_json()['race']
+    race_name = request.get_json()['race']
     client.access_token = session['access_token']
     strava_athlete = client.get_athlete()
     activities = get_activities(strava_athlete)
     activities = [x for x in activities if x.type == "Run"]
-    races = get_race_efforts(activities)
-    data = format_effort_data(races, race)
+    race_efforts = get_race_efforts(activities)
+    data = format_effort_data(race_efforts, race_name)
     return jsonify({'data': json.dumps(data)})
 
 
@@ -925,7 +928,7 @@ def dashboard():
     heatmap_path = url_for("static", filename=relative_path)
     return render_template('dashboard.html', cow_path=cow_path, flask_env=FLASK_ENV, athlete=strava_athlete,
                            best_efforts=best_efforts, clubs=clubs, gear=gear, stats=stats, heatmap_path=heatmap_path,
-                           activity_types=activity_types, units=unithelper, races=RACES)
+                           activity_types=activity_types, units=unithelper, races=list(RACES))
 
 
 @app.route("/support")
