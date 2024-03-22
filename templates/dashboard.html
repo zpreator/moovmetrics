@@ -24,6 +24,24 @@
       overflow: hidden;
   }
 
+  .loading-spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    border-left-color: #333;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+
 </style>
 <!-- Page Container -->
 <div class="w3-margin-top" >
@@ -51,6 +69,7 @@
         </div>
 
         <div class="canvas-container">
+          <div class="loading-spinner" id="spinner-1"></div>
           <canvas id="canvas" style="height: 100%">Loading...</canvas>
         </div>
         <div class="chart-buttons datasets">
@@ -71,7 +90,18 @@
           <button class="chart-button race {% if race['name'] == '5k' %} active {% endif %}" id="{{race['name']}}" onclick="updateRace('{{race['name']}}')">{{race['name'] | title}}</button>
           {% endfor %}
         </div>
+        <div class="chart-buttons effort-filters">
+          <!-- <button class="chart-button effort-filter active" id="filter-full" onclick="updateEffortFilter('full')">Full Workout</button> -->
+          <button class="chart-button effort-filter active" id="filter-record" onclick="updateEffortFilter('record')">Records</button>
+          <button class="chart-button effort-filter" id="filter-all" onclick="updateEffortFilter('all')">All</button>
+          <!-- Add more buttons for different time windows -->
+        </div>
         <div class="canvas-container">
+          <div id="spinner-2">
+            <div class="loading-spinner"></div>
+            <p>This data will take some time, check back later!</p>
+            <p>You will not have to wait in the future, I'll remember all of your data 😊</p>
+          </div>
           <canvas id="canvas2" style="height: 100%">Loading...</canvas>
         </div>
       </div>
@@ -141,10 +171,15 @@
         </div>
       </div>
       <br>
-      <div class="w3-container w3-card w3-white w3-margin-bottom">
-        <h2 class="w3-text-grey w3-padding-16"><i class="fa fa-trophy fa-fw w3-margin-right w3-xxlarge w3-text-teal"></i>Race Efforts</h2>
-        <p>Your matching activities with the fastest time</p>
-        {% for best_effort in best_efforts %}
+      <div id="race-efforts-container" class="w3-container w3-card w3-white w3-margin-bottom">
+        <h2 class="w3-text-grey w3-padding-16"><i class="fa fa-trophy fa-fw w3-margin-right w3-xxlarge w3-text-teal"></i>Best Efforts</h2>
+        <p>Your best efforts from any run</p>
+        <div id="spinner-3">
+          <div class="loading-spinner"></div>
+          <p>This data will take some time, check back later!</p>
+          <p>You will not have to wait in the future, I'll remember all of your data 😊</p>
+        </div>
+        <!-- {% for best_effort in best_efforts %}
         {% if best_effort['activity_best'] != None %}
         <div class="w3-container">
           <h5 class="w3-opacity"><b>{{ best_effort['name'] | title() }} | {{ best_effort['activity_best'].name }} | {{ best_effort['activity_best'].start_date_local.strftime('%d/%m/%Y') }}</b></h5>
@@ -155,7 +190,7 @@
           <hr class="small-margin">
         </div>
         {% endif %}
-        {% endfor %}
+        {% endfor %} -->
       </div>
       <br>
 
@@ -171,6 +206,7 @@
           let effortChart;
           let activityData;
           let effortData;
+          let effortFilter = "record";
           let timeWindow = "w";
           let dataset = "hr";
           let race = "5k";
@@ -208,6 +244,7 @@
             .then(data => {
               activityData = JSON.parse(data.data);
               updateChart();
+              hide_spinner("spinner-1");
             })
             .catch(error => {
               console.error('There was an error with the request:', error);
@@ -221,7 +258,7 @@
               headers: {
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({"race": race})
+              body: JSON.stringify({"race": race, "effort_filter": effortFilter})
             })
             .then(response => {
               // Log the response content to inspect it
@@ -234,13 +271,40 @@
             })
             .then(data => {
               effortData = JSON.parse(data.data);
+              bestEffortsData = JSON.parse(data.best_efforts);
               updateEffortChart();
+              hide_spinner("spinner-2");
+              renderRaceEfforts(bestEffortsData);
+              hide_spinner("spinner-3");
             })
             .catch(error => {
               console.error('There was an error with the request:', error);
             });
           }
 
+          // Function to render race efforts in the HTML
+          function renderRaceEfforts(raceEfforts) {
+            const container = document.getElementById('race-efforts-container');
+            
+            raceEfforts.forEach(effort => {
+              if (effort.frmt_time !== null) {
+                const raceEffortDiv = document.createElement('div');
+                raceEffortDiv.classList.add('w3-container');
+
+                raceEffortDiv.innerHTML = `
+                  <h5 class="w3-opacity"><b>${effort.name} | ${effort.activity_name} | ${new Date(effort.start_date_local).toLocaleDateString()}</b></h5>
+                  <p><i class="fa fa-clock-o fa-fw w3-margin-right w3-text-teal"></i>${effort.frmt_time}
+                  <i class="fa fa-arrows-h fa-fw w3-margin-left w3-text-teal"></i>${effort.distance}
+                  <i class="fa fa-fast-forward fa-fw w3-margin-left w3-text-teal"></i>${effort.frmt_speed} /mi
+                  </p>
+                  <hr class="small-margin">
+                `;
+                
+                container.appendChild(raceEffortDiv);
+              }
+            });
+          }
+          
           // Function to update chart based on selected time window
           function updateChart() {
             //if (myChart) {
@@ -382,11 +446,23 @@
             }
           }
 
+          function hide_spinner(spinner_id){
+            document.getElementById(spinner_id).style.display = "none";
+          }
+
           function updateWindow(newTimeWindow) {
             timeWindow = newTimeWindow;
             document.querySelectorAll('.window').forEach(btn => btn.classList.remove('active'));
             document.getElementById(timeWindow).classList.add('active');
             updateChart();
+          }
+
+          function updateEffortFilter(newEffortFilter) {
+            effortFilter = newEffortFilter;
+            document.querySelectorAll('.effort-filter').forEach(btn => btn.classList.remove('active'));
+            document.getElementById("filter-" + effortFilter).classList.add('active');
+            getEffortData();
+            updateEffortChart();
           }
 
           function updateRace(name) {

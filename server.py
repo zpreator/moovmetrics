@@ -49,6 +49,8 @@ RACES = [
     {'name': 'marathon', 'distance': 21097.5*2}
 ]
 
+RUNNING = {}
+
 if 'STRAVA_CLIENT_ID' in os.environ:
     print('Found client id')
 if 'STRAVA_CLIENT_SECRET' in os.environ:
@@ -232,14 +234,14 @@ def get_cow_path():
     return url_for('static', filename=os.path.join('images', 'cow', filename))
 
 
-def fastest_segment_within_distance(df, races):
-    for race in races:
+def fastest_segment_within_distance(df, all_races):
+    for race in all_races:
         race['start_idx'] = 0
         race['fastest_time'] = None
         race['max_avg_speed'] = 0
 
     for end_idx in range(1, len(df)):
-        for race in races:
+        for race in all_races:
             segment_distance = df['distance'][end_idx] - df['distance'][race['start_idx']]
             if segment_distance >= race['distance']:
                 segment_time = df['time'][end_idx] - df['time'][race['start_idx']]
@@ -250,10 +252,40 @@ def fastest_segment_within_distance(df, races):
                     race['fastest_time'] = segment_time
 
                 race['start_idx'] += 1
-    return races
+    return all_races
 
 
-def calculate_personal_bests(activities, limit=10):
+# def get_all_race_efforts(activities):
+#     all_efforts = []
+#     for activity in activities:
+#         best_efforts = {"activity": activity}
+#         if activity.best_efforts is not None:
+#             for best_effort in activity.best_efforts:
+#                 elapsed_time = best_effort.elapsed_time
+#                 distance = best_effort.distance
+#                 best_efforts[get_race_name(distance)] = elapsed_time.seconds
+#             all_efforts.append(best_efforts)
+#     return all_efforts
+
+
+def get_all_race_efforts(strava_athlete, activities, batch_size=5):
+    activities = [x for x in activities if x.type == "Run"]
+    athlete_folder = os.path.join("static", "temp", str(strava_athlete.id))
+    efforts_path = os.path.join(athlete_folder, 'all_race_efforts.pkl')
+    all_efforts = []
+    if os.path.exists(efforts_path):
+        with open(efforts_path, 'rb') as file:
+            all_efforts = pickle.load(file)
+
+        new_activities = []
+        for activity in activities:
+            if activity.id not in [x["activity"].id for x in all_efforts]:
+                new_activities.append(activity)
+        if len(new_activities) == 0:
+            return all_efforts
+        else:
+            activities = new_activities
+
     types = [
         "time",
         "latlng",
@@ -262,30 +294,51 @@ def calculate_personal_bests(activities, limit=10):
         "temp",
     ]
 
-    all_efforts = []
-    races = list(RACES)
+    all_races = []
+    for race in RACES:
+        all_races.append({key: value for key, value in race.items()})
 
-    count = 0
-    for activity in tqdm(activities, total=limit):
-        if count >= limit:
-            break
-        count += 1
-        if activity.type == 'Run':
+    for i in tqdm(range(len(activities))):
+        if activities[i].type == 'Run':
             best_efforts = {}
-            streams = client.get_activity_streams(activity.id, types=types, resolution="medium")
+            streams = client.get_activity_streams(activities[i].id, types=types, resolution="medium")
             stream_data = {}
             for key, value in streams.items():
                 stream_data[key] = value.data
             df = pd.DataFrame(stream_data)
 
-            races = fastest_segment_within_distance(df, races)
-            results = {}
-            for race in races:
+            all_races = fastest_segment_within_distance(df, all_races)
+            results = {"activity": activities[i]}
+            for race in all_races:
                 results[race['name']] = race['fastest_time']
             all_efforts.append(results)
+            if i % batch_size == 0 and i > 0:
+                with open(efforts_path, 'wb') as file:
+                    pickle.dump(all_efforts, file)
+                time.sleep(30)
+    return all_efforts
 
-    best_efforts_df = pd.DataFrame(all_efforts).min()
-    list_of_dicts = [{'name': index, 'time': seconds_to_time(value)} for index, value in best_efforts_df.items()]
+def calculate_personal_bests(strava_athlete, activities):
+    all_efforts = get_all_race_efforts(strava_athlete, activities)
+    all_efforts_df = pd.DataFrame(all_efforts)
+    min_indices = all_efforts_df.drop(columns=["activity"]).idxmin()
+    list_of_dicts = []
+    for col in all_efforts_df.columns:
+        if col != "activity":
+            min_index = min_indices[col]
+            min_activity = all_efforts_df.at[min_index, "activity"]
+            time_seconds = all_efforts_df.at[min_index, col]
+            time_minutes = time_seconds / 60
+            miles = meters2miles(get_race_distance(col))
+            speed = min2minsec(round(time_minutes / miles, 2))
+            list_of_dicts.append({
+                "name": col.title(), 
+                "activity_name": min_activity.name, 
+                "start_date_local": min_activity.start_date_local.strftime("%b %d, %y"),
+                "frmt_speed": speed,
+                "frmt_time": seconds_to_time(time_seconds),
+                "distance": f"{round(miles, 2)} miles"
+            })
     return list_of_dicts
 
 
@@ -331,6 +384,62 @@ def format_effort_data(races, race_filter=None):
     return data
 
 
+def format_all_effort_data(all_efforts, race_name, effort_filter):
+    labels = []
+    values = []
+    tips = []
+    record = None
+    all_efforts = sorted(all_efforts, key=lambda x: x["activity"].start_date_local)
+    for effort in all_efforts:
+        label = effort["activity"].start_date_local.strftime("%b %d, %y")
+        if race_name in effort.keys():
+            time_seconds = effort[race_name]
+            if time_seconds is not None:
+                set_record = False
+                if record is None:
+                    record = time_seconds
+                    set_record = True
+                elif time_seconds < record:
+                    record = time_seconds
+                    set_record = True
+                
+                if (effort_filter == "record" and set_record) or effort_filter == "all":
+                    time_minutes = time_seconds / 60
+                    miles = meters2miles(get_race_distance(race_name))
+                    tip = min2minsec(time_minutes / miles)
+                    labels.append(label)
+                    values.append(int(time_seconds))
+                    tips.append(tip)
+    return {race_name: {"labels": labels, "values": values, "tips": tips}}
+        
+
+def meters2miles(meters):
+    return meters / 1609.34
+
+
+def get_advanced_activities(activities, strava_athlete, batch_size=5):
+    activities = [x for x in activities if x.type == "Run"]
+    athlete_folder = os.path.join("static", "temp", str(strava_athlete.id))
+    activities_path = os.path.join(athlete_folder, 'activities.pkl')
+    activities_temp_path = os.path.join(athlete_folder, 'activities_temp.pkl')
+    if os.path.exists(activities_temp_path):
+        with open(activities_temp_path, 'rb') as file:
+            temp_activities = pickle.load(file)
+        activities = list(temp_activities)
+    for i in tqdm(range(len(activities))):
+        if activities[i].best_efforts is None:
+            activities[i] = client.get_activity(activities[i].id)
+
+            if i % batch_size == 0:
+                with open(activities_temp_path, 'wb') as file:
+                    pickle.dump(activities, file)
+                time.sleep(30)
+
+    with open(activities_path, 'wb') as file:
+        pickle.dump(activities, file)
+    return activities
+
+
 def get_activities(strava_athlete, as_dicts=False, activity_types=None, after_date=None):
     athlete_folder = os.path.join("static", "temp", str(strava_athlete.id))
     activities_path = os.path.join(athlete_folder, 'activities.pkl')
@@ -353,6 +462,7 @@ def get_activities(strava_athlete, as_dicts=False, activity_types=None, after_da
             # Fetch the next set of activities
             activities = list(client.get_activities(limit=per_page, before=activities[-1].start_date, after=after_date))
             all_activities.extend(list(activities))
+
         with open(activities_path, 'wb') as file:
             pickle.dump(all_activities, file)
 
@@ -497,29 +607,7 @@ def get_trends(activities, activity_types='all'):
     return data
 
 
-def get_stats(activities, athlete):
-    # Because only run, bike and swim are supported, we have to calculate other total distances
-    # hike_count = 0
-    # hike_distance = 0.0
-    # for activity in activities:
-    #     if activity.type == 'Hike':
-    #         hike_count += 1
-    #         hike_distance += float(unithelper.miles(activity.distance))
-    # stats = {
-    #     'run': {
-    #         'count': athlete.stats.all_run_totals.count,
-    #         'distance': unithelper.miles(athlete.stats.all_run_totals.distance)
-    #     },
-    #     'bike': {
-    #         'count': athlete.stats.all_ride_totals.count,
-    #         'distance': unithelper.miles(athlete.stats.all_ride_totals.distance)
-    #     },
-    #     'hike': {
-    #         'count': hike_count,
-    #         'distance': hike_distance
-    #     }
-    # }
-
+def get_stats(activities):
     stats = {}
     for activity in activities:
         if activity.distance is not None and activity.distance > 0:
@@ -548,13 +636,13 @@ def seconds_to_time(seconds, calc_days=True, show_seconds=True):
     time_string = ""
 
     if days > 0:
-        time_string += f"{days}d "
+        time_string += f"{int(days)}d "
     if hours > 0 or days is None:
-        time_string += f"{hours}h "
+        time_string += f"{int(hours)}h "
     if minutes > 0:
-        time_string += f"{minutes}m "
+        time_string += f"{int(minutes)}m "
     if seconds > 0 or time_string == "" and show_seconds:
-        time_string += f"{seconds}s"
+        time_string += f"{int(seconds)}s"
 
     return time_string.strip()
 
@@ -578,6 +666,11 @@ def get_race_name(distance):
             return race['name']
     return f"{distance} meters"
 
+def get_race_distance(name):
+    for race in RACES:
+        if race["name"] == name:
+            return race["distance"]
+    return None
 
 def get_sports_bar_graph(df):
     # Sports bar graph
@@ -864,13 +957,27 @@ def get_data():
 @app.route("/get_effort_data", methods=['POST'])
 def get_effort_data():
     race_name = request.get_json()['race']
+    effort_filter = request.get_json()["effort_filter"]
     client.access_token = session['access_token']
     strava_athlete = client.get_athlete()
-    activities = get_activities(strava_athlete)
-    activities = [x for x in activities if x.type == "Run"]
-    race_efforts = get_race_efforts(activities)
-    data = format_effort_data(race_efforts, race_name)
-    return jsonify({'data': json.dumps(data)})
+    if strava_athlete.id in RUNNING.keys():
+        status = RUNNING[strava_athlete.id]
+        if status == "running":
+            return jsonify({'data': "still running"})
+        else:
+            RUNNING[strava_athlete.id] = "running"
+    else:
+        RUNNING[strava_athlete.id] = "running"
+    try:
+        activities = get_activities(strava_athlete)
+        # a_activities = get_advanced_activities(activities, strava_athlete)
+        activities = [x for x in activities if x.type == "Run"]
+        race_efforts = get_all_race_efforts(strava_athlete, activities)
+        data = format_all_effort_data(race_efforts, race_name, effort_filter)
+        best_efforts = calculate_personal_bests(strava_athlete, activities)
+    finally:
+        RUNNING[strava_athlete.id] = "stopped"
+    return jsonify({'data': json.dumps(data), "best_efforts": json.dumps(best_efforts)})
 
 
 @app.route("/year_in_review")
@@ -886,6 +993,7 @@ def year_in_review():
     images_folder = url_for("static", filename=relative_path)
     image_names = [os.path.join(images_folder, f"image_{x}.png") for x in range(1, 4)]
     return render_template('year_in_review.html', cow_path=get_cow_path(), flask_env=FLASK_ENV, athlete=strava_athlete, image_names=image_names)
+
 
 
 @app.route("/dashboard")
@@ -908,7 +1016,7 @@ def dashboard():
     clubs = client.get_athlete_clubs()
     gear = get_gear(activities)
     # trends = get_trends(activities)
-    stats = get_stats(activities, strava_athlete)
+    stats = get_stats(activities)
 
     text_path = os.path.join(athlete_folder, 'num.txt')
 
