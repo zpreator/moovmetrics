@@ -1,5 +1,7 @@
 Flask
 flask-caching
+flask-sqlalchemy
+flask-migrate
 stravalib
 python-dotenv
 polyline

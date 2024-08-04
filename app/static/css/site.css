@@ -42,6 +42,13 @@ body {
     display: none; /* Hide buttons on mobile */
   }
 
+  .profile-section {
+    display: none;
+  }
+  .profile-button {
+    display: block;
+  }
+
   .hamburger {
       display: block; /* Display hamburger menu */
   }
@@ -154,7 +161,7 @@ a, button {
 }
 
 /* Button container styles */
-.chart-buttons {
+.chart-buttons5 {
     display: flex;
     align-items: center;
     margin-bottom: 20px; /* Add some margin if needed */
@@ -163,6 +170,38 @@ a, button {
     -webkit-overflow-scrolling: touch; /* Enable smooth scrolling on iOS devices */
     width: 100%; /* Ensure the container takes up the full width of its parent */
 }
+
+/* Inner container for scrollable buttons */
+.chart-buttons {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px; /* Add some margin if needed */
+  overflow-x: auto; /* Enable horizontal scrolling */
+  white-space: nowrap; /* Prevent buttons from wrapping onto new lines */
+  -webkit-overflow-scrolling: touch; /* Enable smooth scrolling on iOS devices */
+  width: 100%; /* Ensure the container takes up the full width of its parent */
+  padding-right: 50px; /* Create space for the gradient */
+}
+
+/* Outer container to hold the gradient */
+.chart-buttons-container {
+  position: relative;
+  width: 100%;
+  overflow: hidden; /* Prevent overflow to ensure gradient stays fixed */
+}
+
+/* Gradient overlay for the right side */
+.chart-buttons-container::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 50px; /* Adjust the width as needed */
+  height: 100%;
+  pointer-events: none; /* Ensure the gradient doesn't interfere with button clicks */
+  background: linear-gradient(to left, rgb(255, 255, 255), rgba(25, 148, 78, 0)); /* Adjust colors as needed */
+}
+
 
 .types, .datasets {
   justify-content: left;

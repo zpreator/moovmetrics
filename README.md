@@ -1,15 +1,14 @@
-# stravapp
+# MoovMetrics
 
 Strava companion app to explore deeper analysis including:
 - Heatmap of activities
 - Personal bests
-- Targeted trends
+- Trends
 - more to come
 
-[Dev](http://stravapp-dev-99f4f17c9e2f.herokuapp.com/dashboard)
-[Prod](http://stravapp-prod-f3bda259aecb.herokuapp.com/dashboard)
+[moovmetrics](http://www.moovmetrics.com)
 
-# Installation
+# Development Installation
 
 ## Clone this repository
 ```commandline

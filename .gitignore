@@ -4,3 +4,5 @@
 .idea
 temp
 .DS_Store
+*.pyc
+*.db
