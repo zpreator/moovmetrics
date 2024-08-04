@@ -1,6 +1,8 @@
 *.env
-*.png
-*.jpg
+# *.png
+# *.jpg
 .idea
 temp
 .DS_Store
+*.pyc
+*.db

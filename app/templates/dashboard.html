@@ -1,0 +1,522 @@
+{% extends 'layout.html' %}
+
+{% block body %}
+<style>
+  .profile-button {
+    display: none;
+  }
+@media (max-width: 600px) {
+      .profile-section {
+        display: none;
+      }
+      .profile-button {
+        display: block;
+      }
+      }
+
+  .background-img {
+      width: 100%;
+  }
+
+  .avatar-container {
+        width: 100%;
+        background-color: #c19078;
+        position: relative;
+    }
+
+    .circle {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 33.33%; /* 1/3 of the width */
+        height: 0;
+        padding-bottom: 33.33%; /* Maintain aspect ratio to create a circle */
+        border-radius: 50%;
+        overflow: hidden;
+    }
+
+    .circle img.avatar {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 100%;
+        height: auto;
+        transform: translate(-50%, -50%);
+    }
+    
+  .loading-spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    border-left-color: #333;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+
+</style>
+<!-- Page Container -->
+<div class="w3-margin-top" >
+  <!-- The Grid -->
+  <div class="w3-row-padding">
+    <!-- Right Column -->
+    <div class="w3-third">
+      <div class="w3-white w3-text-grey w3-card-4">
+        <div class="w3-display-container">
+          <div class="avatar-container">
+              <img src="/static/images/topo.png" class="background-img" alt="background">
+
+              <div class="circle">
+                  <img src="{{ athlete.profile }}" class="avatar" alt="avatar">
+              </div>
+          </div>
+          <div class="w3-display-bottomleft w3-container w3-text-white">
+            <h2>{{ athlete.firstname }} {{ athlete.lastname }}</h2>
+          </div>
+        </div><br>
+        <div class="w3-container profile-button">
+          <div class="w3-container chart-buttons" style="justify-content: center;">
+            <a href="/profile_page" class="profile-button chart-button">Personal Stats</a>
+            <a href="/activities_page" class="profile-button chart-button">Activities</a>
+            <a href="/best_efforts_page" class="profile-button chart-button">Best Efforts</a>
+          </div>
+          
+          <br>
+        </div>
+        <div class="w3-container profile-section">
+
+          <!-- Stats section-->
+          <p class="w3-large w3-text-theme"><b><i class="fa fa-bar-chart fa-fw w3-margin-right w3-text-teal"></i>Stats</b></p>
+          {% for sport in stats %}
+          <div class="w3-container list-items">
+            <h5 class="w3-opacity" style="margin-bottom: 5px; margin-top: 0px;"><b>{{ sport | title }}</b></h5>
+            <div style="display: flex; justify-content: space-between;">
+                <p class="small-margin">{{ stats[sport]['count'] }} activities</p>
+                <p class="small-margin" style="text-align: right;">{{ stats[sport]['distance'] | round(2)}} miles</p>
+            </div>
+            <hr class="small-margin">
+          </div>
+          {% endfor %}
+          <br>
+
+          <!-- Gear Section -->
+          <div style="margin-bottom: 20px;">
+            <p class="w3-large w3-text-theme"><b><i class="fa fa-tags fa-fw w3-margin-right w3-text-teal"></i>Gear</b></p>
+            {% for gear_item in gear %}
+            <div class="w3-container">
+              <div style="display: flex; justify-content: space-between;">
+                <h5 class="w3-opacity"><b>{{ gear_item['name'] }}</b></h5>
+                <p style="text-align: right; padding-top: 8px;">{{ gear_item['distance']}} miles</p>
+              </div>
+              <hr class="small-margin">
+            </div>
+            {% endfor %}
+          </div>
+
+          <!-- Groups Section-->
+          <p class="w3-large"><b><i class="fa fa-users fa-fw w3-margin-right w3-text-teal"></i>Groups</b></p>
+          {% for club in clubs %}
+          <div class="w3-container">
+            <div style="display: flex; justify-content: space-between;">
+              <h5 class="w3-opacity"><b>{{ club.name }}</b></h5>
+              <p style="text-align: right; padding-top: 8px;">{{ club.member_count }} Members</p>
+            </div>
+            <hr class="small-margin">
+          </div>
+          {% endfor %}
+
+          <br>
+        </div>
+      </div>
+      <br>
+
+    </div>
+
+    <!-- Left Column -->
+    <div class="w3-twothird">
+
+      <!-- Trends Chart -->
+      <div class="w3-container w3-card w3-white w3-margin-bottom">
+        <h2 class="w3-text-grey w3-padding-16"><i class="fa fa-line-chart fa-fw w3-margin-right w3-xxlarge w3-text-teal"></i>Trends</h2>
+        <div class="chart-buttons-container">
+          <div class="chart-buttons types">
+            <button class="chart-button type active" id="all" onclick="updateType('all')">All</button>
+            {% for activity_type in activity_types %}
+            <button class="chart-button type" id="{{activity_type}}" onclick="updateType('{{activity_type}}')">{{activity_type | title }}</button>
+            {% endfor %}
+
+          </div>
+        </div>
+        <div class="chart-buttons-container">
+          <div class="chart-buttons windows">
+            <button class="chart-button window active" id="w" onclick="updateWindow('w')">W</button>
+            <button class="chart-button window" id="m" onclick="updateWindow('m')">M</button>
+            <button class="chart-button window" id="6m" onclick="updateWindow('6m')">6M</button>
+            <button class="chart-button window" id="y" onclick="updateWindow('y')">Y</button>
+            <!-- Add more buttons for different time windows -->
+          </div>
+        </div>
+
+        <div class="canvas-container">
+          <div class="loading-spinner" id="spinner-1"></div>
+          <canvas id="canvas" style="height: 100%">Loading...</canvas>
+        </div>
+        <div class="chart-buttons-container">
+          <div class="chart-buttons datasets">
+            <button class="chart-button dataset active" id="hr" onclick="updateDataset('hr')">Heart Rate</button>
+            <button class="chart-button dataset" id="avg_speed" onclick="updateDataset('avg_speed')">Speed</button>
+            <button class="chart-button dataset" id="kudos" onclick="updateDataset('kudos')">Kudos</button>
+            <button class="chart-button dataset" id="vo2_max" onclick="updateDataset('vo2_max')">VO2 Max</button>
+            <button class="chart-button dataset" id="pr_count" onclick="updateDataset('pr_count')">PRs</button>
+            <button class="chart-button dataset" id="distance" onclick="updateDataset('distance')">Distance</button>
+            <!-- Add more buttons for different time windows -->
+          </div>
+        </div>
+      </div>
+
+      <div class="w3-container w3-card w3-white w3-margin-bottom">
+        <h2>Activity Map</h2>
+        <p>See a heatmap of all your activities. Use the filter tool to select specific activities</p>
+        <iframe id="heatmapFrame" src="{{ heatmap_path }}" width="100%" height="800px">Loading...</iframe>
+      </div>
+    </div>
+    
+  <!-- End Grid -->
+  </div>
+
+  <!-- End Page Container -->
+</div>
+<script>
+          let myChart;
+          let effortChart;
+          let activityData;
+          let effortData;
+          let effortFilter = "record";
+          let timeWindow = "w";
+          let dataset = "hr";
+          let race = "5k";
+          let activityTypes = ["all"];
+          const datasetTitles = {
+            "hr": "Average Heart Rate (bpm)",
+            "avg_speed": "Average Speed (mph)",
+            "kudos": "Kudos",
+            "vo2_max": "VO2 Max *estimate",
+            "pr_count": "PRs Per Activity",
+            "distance": "Activity Distance (miles)"
+          }
+          var today = new Date();
+          var minDate = new Date(today);
+          minDate.setDate(today.getDate() - 7);
+
+          function getData() {
+            // AJAX call to Flask endpoint
+            fetch('/get_data', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({"activity_types": activityTypes})
+            })
+            .then(response => {
+              // Log the response content to inspect it
+              console.log("Response content:", response);
+
+              if (!response.ok) {
+                throw new Error('Network response was not ok');
+              }
+              return response.json();
+            })
+            .then(data => {
+              activityData = JSON.parse(data.data);
+              updateChart();
+              hide_spinner("spinner-1");
+            })
+            .catch(error => {
+              console.error('There was an error with the request:', error);
+            });
+          }
+
+          function getEffortData() {
+            // AJAX call to Flask endpoint
+            fetch('/get_effort_data', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({"race": race, "effort_filter": effortFilter})
+            })
+            .then(response => {
+              // Log the response content to inspect it
+              console.log("Response content:", response);
+
+              if (!response.ok) {
+                throw new Error('Network response was not ok');
+              }
+              return response.json();
+            })
+            .then(data => {
+              effortData = JSON.parse(data.data);
+              bestEffortsData = JSON.parse(data.best_efforts);
+              updateEffortChart();
+              hide_spinner("spinner-2");
+              renderRaceEfforts(bestEffortsData);
+              hide_spinner("spinner-3");
+            })
+            .catch(error => {
+              console.error('There was an error with the request:', error);
+            });
+          }
+
+          // Function to render race efforts in the HTML
+          function renderRaceEfforts(raceEfforts) {
+            const container = document.getElementById('race-efforts-container');
+            while (container.firstChild) {
+              container.removeChild(container.firstChild);
+            }
+            
+            raceEfforts.forEach(effort => {
+              if (effort.frmt_time !== null) {
+                const raceEffortDiv = document.createElement('div');
+                raceEffortDiv.classList.add('w3-container');
+
+                raceEffortDiv.innerHTML = `
+                  <h5 class="w3-opacity"><b>${effort.name} | ${effort.activity_name} | ${new Date(effort.start_date_local).toLocaleDateString()}</b></h5>
+                  <p><i class="fa fa-clock-o fa-fw w3-margin-right w3-text-teal"></i>${effort.frmt_time}
+                  <i class="fa fa-arrows-h fa-fw w3-margin-left w3-text-teal"></i>${effort.distance}
+                  <i class="fa fa-fast-forward fa-fw w3-margin-left w3-text-teal"></i>${effort.frmt_speed} /mi
+                  </p>
+                  <hr class="small-margin">
+                `;
+                
+                container.appendChild(raceEffortDiv);
+              }
+            });
+          }
+          
+          // Function to update chart based on selected time window
+          function updateChart() {
+            let title;
+            let units;
+            title = activityData[timeWindow]["title"];
+            units = activityData["units"][dataset];
+            labels = activityData[timeWindow]["dates"];
+            values = activityData[timeWindow]["values"][dataset];
+
+            if (myChart){
+              var chartConfig = myChart.config;
+              chartConfig.data.labels = labels;
+              chartConfig.data.datasets[0].data = values;
+              chartConfig.data.datasets[0].label = datasetTitles[dataset];
+              chartConfig.options.plugins.title.text = title;
+              myChart.update();
+            } else {
+              const chartData = {
+                labels: labels,
+                datasets: [
+                  {
+                    label: datasetTitles[dataset],
+                    data: values.map(value => (value !== null ? value : NaN)), // Data received from Flask endpoint for Dataset 1
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1,
+                    hidden: false
+                  }
+                ]
+              };
+
+              const ctx = document.getElementById('canvas').getContext('2d');
+              myChart = new Chart(ctx, {
+                type: 'line',
+                data: chartData,
+                options: {
+                  spanGaps: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    title: {
+                      display: true,
+                      text: title,
+                    }
+                  }
+                }
+              });
+            }
+          }
+
+          function updateEffortChart() {
+            labels = effortData[race]["labels"];
+            values = effortData[race]["values"];
+            tips = effortData[race]["tips"];
+
+            if (effortChart){
+              var chartConfig = effortChart.config;
+              chartConfig.data.labels = labels;
+              chartConfig.data.datasets[0].data = values;
+              chartConfig.data.datasets[0].label = race;
+              chartConfig.options.plugins.title.text = race;
+              effortChart.update();
+            } else {
+              const chartData = {
+                labels: labels,
+                datasets: [
+                  {
+                    label: race,
+                    data: values.map(value => (value !== null ? value : NaN)), // Data received from Flask endpoint for Dataset 1
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1,
+                    hidden: false
+                  }
+                ]
+              };
+
+              const ctx2 = document.getElementById('canvas2').getContext('2d');
+              effortChart = new Chart(ctx2, {
+                type: 'line',
+                data: chartData,
+                options: {
+                  spanGaps: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    title: {
+                      display: true,
+                      text: race,
+                    },
+                    legend: {
+                      display: false
+                    },
+                    tooltip: {
+                      callbacks: {
+                        label: function(context) {
+                          var seconds = context.raw;
+                          var hours = Math.floor(seconds / 3600);
+                          var minutes = Math.floor((seconds % 3600) / 60);
+                          var seconds_remain = seconds % 60;
+                          var formattedTime = '';
+                          if (hours > 0) {
+                              formattedTime += hours + ':';
+                          }
+                          formattedTime += (minutes < 10 ? '0' + minutes : minutes) + ':' + (seconds_remain < 10 ? '0' + seconds_remain : seconds_remain);
+                          var dataIndex = context.dataIndex;
+                          var pace = tips[dataIndex];
+                          return " " + formattedTime + ",\n " + pace + " /mi";
+                        }
+                      }
+                    }
+                  },
+                  scales: {
+                    y: {
+                      type: 'linear',
+                      ticks: {
+                        stepSize: 900,
+                        callback: function(value, index, values) {
+                          // Convert seconds to HH:mm format
+                          var hours = Math.floor(value / 3600);
+                          var minutes = Math.floor((value % 3600) / 60);
+                          
+                          var formattedTime = '';
+                          if (hours > 0) {
+                              formattedTime += hours + ':';
+                          }
+                          
+                          formattedTime += (minutes < 10 ? '0' : '') + minutes;
+                          
+                          return formattedTime;
+                        }
+                      }
+                    },
+                  }
+                }
+              });
+            }
+          }
+
+          function hide_spinner(spinner_id){
+            document.getElementById(spinner_id).style.display = "none";
+          }
+
+          function updateWindow(newTimeWindow) {
+            timeWindow = newTimeWindow;
+            document.querySelectorAll('.window').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(timeWindow).classList.add('active');
+            updateChart();
+          }
+
+          function updateEffortFilter(newEffortFilter) {
+            effortFilter = newEffortFilter;
+            document.querySelectorAll('.effort-filter').forEach(btn => btn.classList.remove('active'));
+            document.getElementById("filter-" + effortFilter).classList.add('active');
+            getEffortData();
+            updateEffortChart();
+          }
+
+          function updateRace(name) {
+            race = name;
+            document.querySelectorAll('.race').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(race).classList.add('active');
+            getEffortData();
+            updateEffortChart();
+          }
+
+          function updateType(newActivityType) {
+            if (newActivityType == "all"){
+              document.querySelectorAll('.type').forEach(btn => btn.classList.remove('active'));
+              activityTypes = ["all"];
+            } else {
+              document.getElementById("all").classList.remove('active');
+              let index = activityTypes.indexOf("all");
+              if (activityTypes.includes("all")) {
+                activityTypes.splice(index, 1);
+              }
+            }
+            
+            if (document.getElementById(newActivityType).classList.contains("active")) {
+              document.getElementById(newActivityType).classList.remove('active');
+              let index = activityTypes.indexOf(newActivityType);
+              if (activityTypes.includes(newActivityType)) {
+                activityTypes.splice(index, 1);
+              }
+            } else {
+              document.getElementById(newActivityType).classList.add('active');
+              if (!activityTypes.includes(newActivityType)) {
+                activityTypes.push(newActivityType);
+              }
+            }
+            
+            if (activityTypes.length == 0) {
+              activityTypes = ["all"];
+              document.getElementById("all").classList.add('active');
+            }
+            
+            getData();
+            updateChart();
+          }
+
+          function updateDataset(newDataset) {
+            dataset = newDataset;
+            document.querySelectorAll('.dataset').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(dataset).classList.add('active');
+            updateChart();
+          }
+
+          // Function to toggle dataset visibility
+          function toggleDataset(index) {
+              myChart.data.datasets.forEach((dataset, i) => {
+                  dataset.hidden = (i !== index) ? true : false;
+              });
+              myChart.update();
+          }
+
+          // Initial chart display
+          getData();
+          getEffortData();
+        </script>
+{% endblock %}

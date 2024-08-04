@@ -1,0 +1,100 @@
+{% extends 'layout.html' %}
+
+{% block body %}
+<style>
+  .background-img {
+      width: 100%;
+  }
+
+    .avatar-container {
+        width: 100%;
+        background-color: #c19078;
+        position: relative;
+    }
+
+    .circle {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 33.33%; /* 1/3 of the width */
+        height: 0;
+        padding-bottom: 33.33%; /* Maintain aspect ratio to create a circle */
+        border-radius: 50%;
+        overflow: hidden;
+    }
+
+    .circle img.avatar {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 100%;
+        height: auto;
+        transform: translate(-50%, -50%);
+    }
+</style>
+<!-- Page Container -->
+<div class="w3-margin-top" >
+    <!-- The Grid -->
+    <div class="w3-row-padding">
+        <div class="w3-white w3-text-grey w3-card-4">
+            <div class="w3-display-container">
+              <div class="avatar-container">
+                  <img src="/static/images/topo.png" class="background-img" alt="background">
+    
+                  <div class="circle">
+                      <img src="{{ athlete.profile }}" class="avatar" alt="avatar">
+                  </div>
+              </div>
+              <div class="w3-display-bottomleft w3-container w3-text-white">
+                <h2>{{ athlete.firstname }} {{ athlete.lastname }}</h2>
+              </div>
+            </div><br>
+            <div class="w3-container">
+    
+              <!-- Stats section-->
+              <p class="w3-large w3-text-theme"><b><i class="fa fa-bar-chart fa-fw w3-margin-right w3-text-teal"></i>Stats</b></p>
+              {% for sport in stats %}
+              <div class="w3-container list-items">
+                <h5 class="w3-opacity" style="margin-bottom: 5px; margin-top: 0px;"><b>{{ sport | title }}</b></h5>
+                <div style="display: flex; justify-content: space-between;">
+                    <p class="small-margin">{{ stats[sport]['count'] }} activities</p>
+                    <p class="small-margin" style="text-align: right;">{{ stats[sport]['distance'] | round(2)}} miles</p>
+                </div>
+                <hr class="small-margin">
+              </div>
+              {% endfor %}
+              <br>
+    
+              <!-- Gear Section -->
+              <div style="margin-bottom: 20px;">
+                <p class="w3-large w3-text-theme"><b><i class="fa fa-tags fa-fw w3-margin-right w3-text-teal"></i>Gear</b></p>
+                {% for gear_item in gear %}
+                <div class="w3-container">
+                  <div style="display: flex; justify-content: space-between;">
+                    <h5 class="w3-opacity"><b>{{ gear_item['name'] }}</b></h5>
+                    <p style="text-align: right; padding-top: 8px;">{{ gear_item['distance']}} miles</p>
+                  </div>
+                  <hr class="small-margin">
+                </div>
+                {% endfor %}
+              </div>
+    
+              <!-- Groups Section-->
+              <p class="w3-large"><b><i class="fa fa-users fa-fw w3-margin-right w3-text-teal"></i>Groups</b></p>
+              {% for club in clubs %}
+              <div class="w3-container">
+                <div style="display: flex; justify-content: space-between;">
+                  <h5 class="w3-opacity"><b>{{ club.name }}</b></h5>
+                  <p style="text-align: right; padding-top: 8px;">{{ club.member_count }} Members</p>
+                </div>
+                <hr class="small-margin">
+              </div>
+              {% endfor %}
+    
+              <br>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
