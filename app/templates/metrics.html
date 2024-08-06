@@ -55,22 +55,29 @@
         <div class="w3-container w3-card w3-white w3-margin-bottom">
             <h2>Charts</h2>  
             <div class="w3-half">
-                
+                {% if not (hr_data is not defined or hr_data|length == 2) %}
                 <div class="w3-container" style="height: 150px; margin-top: 0px; margin-bottom: 0px">
                     <canvas id="hr" style="height: 100%"></canvas>
                 </div>
+                {% endif %}
+                {% if not (pace_data is not defined or pace_data|length == 2) %}
                 <div class="w3-container" style="height: 150px; margin-top: 0px; margin-bottom: 0px">
                     <canvas id="pace" style="height: 100%"></canvas>
                 </div>
+                {% endif %}
+                {% if not (elevation_data is not defined or elevation_data|length == 2) %}
                 <div class="w3-container" style="height: 150px; margin-top: 0px; margin-bottom: 0px">
                     <canvas id="elevation" style="height: 100%"></canvas>
                 </div>
+                {% endif %}
             </div>
+            {% if not (splits_data is not defined or splits_data|length == 2) %}
             <div class="w3-half">
                 <div class="w3-container" style="height: 450px;">
                   <canvas id="splits" style="height: 100%"></canvas>
                 </div>
             </div>
+            {% endif %}
         </div>
         {% if heatmap_path %}
         <div class="w3-container w3-card w3-white">

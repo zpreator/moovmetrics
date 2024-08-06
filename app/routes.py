@@ -906,6 +906,15 @@ def metrics(activity_id):
     elevation_data = [entry.value for entry in altitude_stream]
     pace_data = [entry.value for entry in velocity_stream]
 
+    # Fix stream data if applicable
+    #   some non gps streams have double the data.
+    half = int(len(time_data) / 2)
+    if all([time_data[x] == time_data[x + half] for x in range(half)]):
+        time_data = time_data[:half]
+        heartrate_data = heartrate_data[:half]
+        elevation_data = elevation_data[:half]
+        pace_data = pace_data[:half]
+        
     heatmap_path = None
     if activity.map != '':
         relative_path = os.path.join('temp', str(session["user_id"]), f'{activity.strava_id}.html')
@@ -939,7 +948,7 @@ def metrics(activity_id):
             })
     if len(best_efforts_formatted) == 0:
         best_efforts_formatted = None
-        
+
     # Extracting time and heart rate data
     # time_data = streams['time'].data
     # pace_data = streams['velocity_smooth'].data
