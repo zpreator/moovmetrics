@@ -892,7 +892,9 @@ def metrics(activity_id):
     # ]
     activity = get_activities([activity_id])[0]
     splits = get_splits_for_activity(activity.strava_id)
-    gear = client.get_gear(activity.gear_id)
+    gear = None
+    if activity.gear:
+        gear = client.get_gear(activity.gear_id)
 
     # streams = client.get_activity_streams(activity.id, types=types, resolution="medium")
     altitude_stream = get_stream_data_for_activity(activity.strava_id, data_type="altitude")
@@ -904,11 +906,12 @@ def metrics(activity_id):
     elevation_data = [entry.value for entry in altitude_stream]
     pace_data = [entry.value for entry in velocity_stream]
 
-
-    relative_path = os.path.join('temp', str(session["user_id"]), f'{activity.strava_id}.html')
-    save_path = os.path.join('app', 'static', relative_path)
-    heatmap_path = url_for("static", filename=relative_path)
-    utils.generate_map([activity], save_path=save_path, filter=False)
+    heatmap_path = None
+    if activity.map != '':
+        relative_path = os.path.join('temp', str(session["user_id"]), f'{activity.strava_id}.html')
+        save_path = os.path.join('app', 'static', relative_path)
+        heatmap_path = url_for("static", filename=relative_path)
+        utils.generate_map([activity], save_path=save_path, filter=False)
 
     # Calculate best efforts
     # best_efforts = []
@@ -934,7 +937,9 @@ def metrics(activity_id):
                 'distance': utils.get_race_name(distance),
                 'pace': utils.min2minsec(round(pace, 2))
             })
-
+    if len(best_efforts_formatted) == 0:
+        best_efforts_formatted = None
+        
     # Extracting time and heart rate data
     # time_data = streams['time'].data
     # pace_data = streams['velocity_smooth'].data
@@ -942,25 +947,39 @@ def metrics(activity_id):
     # heart_rate_values = streams['heartrate'].data
 
     # Prepare data for JavaScript
-    heart_rate_json = json.dumps({
-        'time': time_data,
-        'values': heartrate_data
-    })
-    pace_json = json.dumps({
-        'time': time_data,
-        'values': [float(unithelper.miles_per_hour(x)) for x in pace_data]
-    })
-    elevation_json = json.dumps({
-        'time': time_data,
-        'values': [int(unithelper.feet(x)) for x in elevation_data]
-    })
-
-    splits_json = json.dumps({
-        # 'miles': [f"{float(int(x.split_num)-1)} - {round(utils.meters2miles(x.distance) + (int(x.split_num) - 1), 2)}" for x in splits],
-        'miles': [f"{utils.get_split_number(x.distance, x.split_num)}" for x in splits],
-        'speed': [utils.mps2mph(x.average_speed) for x in splits],
-        'tips': [f"{utils.min2minsec(utils.mps2mpm(x.average_speed))} /mi" for x in splits]
-    })
+    if not any(heartrate_data):
+        heart_rate_json = json.dumps({})
+    else:
+        heart_rate_json = json.dumps({
+            'time': time_data,
+            'values': heartrate_data
+        })
+    
+    if not any(pace_data):
+        pace_json = json.dumps({})
+    else:
+        pace_json = json.dumps({
+            'time': time_data,
+            'values': [float(unithelper.miles_per_hour(x)) for x in pace_data]
+        })
+    
+    if not any(elevation_data):
+        elevation_json = json.dumps({})
+    else:
+        elevation_json = json.dumps({
+            'time': time_data,
+            'values': [int(unithelper.feet(x)) for x in elevation_data]
+        })
+    
+    if len(splits) == 0:
+        splits_json = json.dumps({})
+    else:
+        splits_json = json.dumps({
+            # 'miles': [f"{float(int(x.split_num)-1)} - {round(utils.meters2miles(x.distance) + (int(x.split_num) - 1), 2)}" for x in splits],
+            'miles': [f"{utils.get_split_number(x.distance, x.split_num)}" for x in splits],
+            'speed': [utils.mps2mph(x.average_speed) for x in splits],
+            'tips': [f"{utils.min2minsec(utils.mps2mpm(x.average_speed))} /mi" for x in splits]
+        })
 
     stats = [
         {"name": "Average Speed", "units": "/mi", "value": utils.min2minsec(round(utils.mps2mpm(activity.average_speed), 2))},
@@ -970,10 +989,14 @@ def metrics(activity_id):
         {"name": "Max Heart Rate", "units": "bpm", "value": activity.max_heartrate},
         {"name": "Kudos", "units": "", "value": activity.kudos_count}
     ]
-    gear_item = {
-        "name": gear.name, 
-        "distance": float(unithelper.miles(gear.distance))
-    }
+    stats = [x for x in stats if x["value"] is not None and x["value"] != "0:00" and x["value"] != 0]
+    
+    gear_item = None
+    if gear:
+        gear_item = {
+            "name": gear.name, 
+            "distance": float(unithelper.miles(gear.distance))
+        }
     return render_template('metrics.html', cow_path=utils.get_cow_path(), flask_env=FLASK_ENV, activity=activity, best_efforts=best_efforts_formatted,
                            hr_data=heart_rate_json, pace_data=pace_json, elevation_data=elevation_json,
                            splits_data=splits_json, heatmap_path=heatmap_path, stats=stats, gear_item=gear_item, athlete=strava_athlete)

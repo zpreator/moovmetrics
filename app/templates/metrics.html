@@ -21,6 +21,7 @@
               {% endfor %}
           </div>
           <br>
+          {% if best_efforts %}
           <div class="w3-container">
               <p class="w3-large w3-text-theme"><b><i class="fa fa-trophy fa-fw w3-margin-right w3-text-teal"></i>Best Efforts</b></p>
               {% for best_effort in best_efforts %}
@@ -33,7 +34,9 @@
               </div>
               {% endfor %}
           </div>
+          {% endif %}
           <br>
+          {% if gear_item %}
           <div class="w3-container">
             <p class="w3-large w3-text-theme"><b><i class="fa fa-tags fa-fw w3-margin-right w3-text-teal"></i>Gear</b></p>
             <div class="w3-container">
@@ -44,6 +47,7 @@
               <hr class="small-margin">
             </div>
           </div>
+          {% endif %}
       </div>
       <br>
     </div>
@@ -68,10 +72,12 @@
                 </div>
             </div>
         </div>
+        {% if heatmap_path %}
         <div class="w3-container w3-card w3-white">
           <h2>Activity Map</h2>
           <iframe id="heatmapFrame" src="{{ heatmap_path }}" width="100%" height="400px">Loading...</iframe>
         </div>
+        {% endif %}
     </div>
   </div>
 <script>
@@ -89,6 +95,10 @@
         { color: 'red', max: maxHeartRate }
     ];
  console.log(splitData.tips);
+
+ function isEmpty(obj) {
+  return Object.keys(obj).length === 0;
+}
 
 // Function to convert milliseconds to "HH:mm" format
 function formatTime(seconds) {
@@ -209,11 +219,18 @@ function lineChart(canvasId, data, borderColor, backgroundColor, xLabel, yLabel,
     });
 }
 
-lineChart("hr", hrData, 'rgba(255, 99, 132)', 'rgba(255, 99, 132, 0.2)', '', 'Heart Rate (BPM)', 'Heart Rate', 'Charts');
-lineChart("pace", paceData, 'rgba(255, 159, 64)', 'rgba(255, 159, 64, 0.2)', '', 'Pace (MPH)', 'Pace', '');
-lineChart("elevation", elevationData, 'rgba(153, 102, 255)', 'rgba(153, 102, 255, 0.2)', 'Time', 'Elevation (ft)', 'Elevation', '');
+if (!isEmpty(hrData)){
+  lineChart("hr", hrData, 'rgba(255, 99, 132)', 'rgba(255, 99, 132, 0.2)', '', 'Heart Rate (BPM)', 'Heart Rate', 'Charts');
+}
+if (!isEmpty(paceData)){
+  lineChart("pace", paceData, 'rgba(255, 159, 64)', 'rgba(255, 159, 64, 0.2)', '', 'Pace (MPH)', 'Pace', '');
+}
+if (!isEmpty(elevationData)){
+  lineChart("elevation", elevationData, 'rgba(153, 102, 255)', 'rgba(153, 102, 255, 0.2)', 'Time', 'Elevation (ft)', 'Elevation', '');
+}
 
-const ctx2 = document.getElementById('splits').getContext('2d');
+if (!isEmpty(splitData)){
+  const ctx2 = document.getElementById('splits').getContext('2d');
   const splitChart = new Chart(ctx2, {
     type: 'bar',
     data: {
@@ -288,5 +305,6 @@ const ctx2 = document.getElementById('splits').getContext('2d');
 
     }
 });
+}
 </script>
 {% endblock %}
