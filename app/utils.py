@@ -129,7 +129,12 @@ def mps2mph(value):
     
 def mps2mpm(value):
     """ Meters per second to minutes per mile"""
-    return 26.8224 / value
+    if value == 0:
+        return 0
+    elif value:
+        return 26.8224 / value
+    else:
+        return None
 
 def meters2feet(value):
     return value * 3.2808
