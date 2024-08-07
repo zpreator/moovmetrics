@@ -1080,6 +1080,9 @@ def dashboard():
     athlete_folder = os.path.join("app", "static", "temp", str(strava_athlete.id))
     os.makedirs(athlete_folder, exist_ok=True)
     activities = get_activities()
+
+    top_images = utils.get_top_images(activities)
+
     # activity_types = list(set([x.type.lower() for x in activities]))
     type_counts = Counter(x.type.lower() for x in activities)
     activity_types = [x for x, _ in type_counts.most_common()]
@@ -1110,7 +1113,7 @@ def dashboard():
     heatmap_path = url_for("static", filename=relative_path)
     return render_template('dashboard.html', cow_path=cow_path, flask_env=FLASK_ENV, athlete=strava_athlete,
                            clubs=clubs, gear=gear, stats=stats, heatmap_path=heatmap_path,
-                           activity_types=activity_types, units=unithelper, races=list(RACES))
+                           activity_types=activity_types, units=unithelper, races=list(RACES), images=top_images)
 
 
 @app.route("/support")
