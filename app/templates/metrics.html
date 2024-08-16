@@ -9,6 +9,18 @@
           <div class="w3-container">
             <h2>{{ activity.name }}</h2>
             <br>
+            <!-- <div class="chart-buttons-container">
+              <div class="chart-buttons">
+                
+                {% for image in images %}
+                <img src="{{ image['url'] }}" alt="Image 1">
+                {% endfor %}
+              </div>
+            </div> -->
+            <div class="w3-container">
+              <img src="{{image_url}}" style="width: 100%;" alt="Activity Image">
+            </div>
+            <br>
             <p class="w3-large w3-text-theme"><b><i class="fa fa-bar-chart fa-fw w3-margin-right w3-text-teal"></i>Activity Stats</b></p>
               {% for stat in stats %}
               <div class="w3-container">

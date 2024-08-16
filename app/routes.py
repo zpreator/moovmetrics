@@ -949,6 +949,8 @@ def metrics(activity_id):
     if len(best_efforts_formatted) == 0:
         best_efforts_formatted = None
 
+    image_url = utils.get_activity_image(activity.strava_id)
+
     # Extracting time and heart rate data
     # time_data = streams['time'].data
     # pace_data = streams['velocity_smooth'].data
@@ -1007,7 +1009,7 @@ def metrics(activity_id):
             "distance": float(unithelper.miles(gear.distance))
         }
     return render_template('metrics.html', cow_path=utils.get_cow_path(), flask_env=FLASK_ENV, activity=activity, best_efforts=best_efforts_formatted,
-                           hr_data=heart_rate_json, pace_data=pace_json, elevation_data=elevation_json,
+                           hr_data=heart_rate_json, pace_data=pace_json, elevation_data=elevation_json, image_url=image_url,
                            splits_data=splits_json, heatmap_path=heatmap_path, stats=stats, gear_item=gear_item, athlete=strava_athlete)
 
 
@@ -1080,6 +1082,9 @@ def dashboard():
     athlete_folder = os.path.join("app", "static", "temp", str(strava_athlete.id))
     os.makedirs(athlete_folder, exist_ok=True)
     activities = get_activities()
+
+    top_images = utils.get_top_images(activities)
+
     # activity_types = list(set([x.type.lower() for x in activities]))
     type_counts = Counter(x.type.lower() for x in activities)
     activity_types = [x for x, _ in type_counts.most_common()]
@@ -1110,7 +1115,7 @@ def dashboard():
     heatmap_path = url_for("static", filename=relative_path)
     return render_template('dashboard.html', cow_path=cow_path, flask_env=FLASK_ENV, athlete=strava_athlete,
                            clubs=clubs, gear=gear, stats=stats, heatmap_path=heatmap_path,
-                           activity_types=activity_types, units=unithelper, races=list(RACES))
+                           activity_types=activity_types, units=unithelper, races=list(RACES), images=top_images)
 
 
 @app.route("/support")
