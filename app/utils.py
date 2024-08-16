@@ -92,6 +92,10 @@ def get_top_images(activities, top_n=4):
             break
     return urls
 
+def get_activity_image(activity_id):
+    activity = client.get_activity(activity_id)
+    return activity.photos.primary.urls["600"]
+
 def get_cow_path():
     """ Gets a random cow image to show in the header """
     cow_folder = os.path.join('app', 'static', 'images', 'cow')
