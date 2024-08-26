@@ -17,9 +17,11 @@
                 {% endfor %}
               </div>
             </div> -->
+            {% if image_url %}
             <div class="w3-container">
               <img src="{{image_url}}" style="width: 100%;" alt="Activity Image">
             </div>
+            {% endif %}
             <br>
             <p class="w3-large w3-text-theme"><b><i class="fa fa-bar-chart fa-fw w3-margin-right w3-text-teal"></i>Activity Stats</b></p>
               {% for stat in stats %}

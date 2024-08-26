@@ -937,6 +937,7 @@ def metrics(activity_id):
     #         'pace': utils.min2minsec(round(pace, 2))
     #     })
     best_efforts = get_best_efforts_for_activity(activity.strava_id)
+    print(f"Best efforts type: {type(best_efforts[0])}")
     # Format Best Efforts
     best_efforts_formatted = []
     for best_effort in best_efforts:
