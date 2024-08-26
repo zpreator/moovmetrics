@@ -350,10 +350,11 @@ def _update_best_efforts_database(strava_id, all_races):
         distances = [entry.value for entry in stream_data_entries]
         if len(times) == 0 or len(distances) == 0:
             return None
-        best_efforts = _get_best_efforts_from_data(distances, times, all_races)
+        best_effort_dicts = _get_best_efforts_from_data(distances, times, all_races)
 
         # Record the best efforts in the database
-        for best_effort_item in best_efforts:
+        best_efforts = []
+        for best_effort_item in best_effort_dicts:
             best_effort = BestEffort(
                 activity_id=strava_id,
                 race_name=best_effort_item["name"],
@@ -361,6 +362,7 @@ def _update_best_efforts_database(strava_id, all_races):
                 elapsed_time=best_effort_item["fastest_time"]
             )
             db.session.add(best_effort)
+            best_efforts.append(best_effort)
         db.session.commit()
         logging.info(f"Best Effort data successfully fetched and stored for activity: {strava_id}")
         return best_efforts

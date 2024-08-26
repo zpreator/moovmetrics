@@ -94,7 +94,9 @@ def get_top_images(activities, top_n=4):
 
 def get_activity_image(activity_id):
     activity = client.get_activity(activity_id)
-    return activity.photos.primary.urls["600"]
+    if activity.photos.primary:
+        return activity.photos.primary.urls["600"]
+    return None
 
 def get_cow_path():
     """ Gets a random cow image to show in the header """
