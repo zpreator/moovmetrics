@@ -204,7 +204,10 @@ function lineChart(canvasId, data, borderColor, backgroundColor, xLabel, yLabel,
                             // Calculate the length of the label
                             const labelLength = value.toString().length;
                             const spaces = (n) => " ".repeat(n);
-                            let padding = (4 - labelLength) * 2
+                            let padding = (4 - labelLength) * 2;
+                            if (padding < 0){
+                              padding = 0;
+                            }
                             value = spaces(padding) + value;
                             return value;
                         }

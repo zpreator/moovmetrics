@@ -171,26 +171,29 @@ def calculate_personal_bests(all_efforts):
     # Loop through the groups to get the minimum
     personal_bests = []
     for distance, efforts in grouped_objects:
-        # Filter out efforts with no elapsed time
-        valid_efforts = [x for x in efforts if x.elapsed_time is not None]
-        if valid_efforts:
-            # Get the best effort
-            best_effort = min(valid_efforts, key=lambda x: x.elapsed_time)
+        try:
+            # Filter out efforts with no elapsed time
+            valid_efforts = [x for x in efforts if x.elapsed_time is not None]
+            if valid_efforts:
+                # Get the best effort
+                best_effort = min(valid_efforts, key=lambda x: x.elapsed_time)
 
-            # Formatting for the final display
-            time_seconds = best_effort.elapsed_time
-            time_minutes = time_seconds / 60
-            miles = meters2miles(distance)
-            speed = min2minsec(round(time_minutes / miles, 2))
-            personal_bests.append({
-                "name": best_effort.race_name.title(), 
-                "activity_name": best_effort.activity.name,
-                "activity_id": best_effort.activity.id,
-                "start_date_local": best_effort.activity.start_date_local.strftime("%b %d, %y"),
-                "frmt_speed": speed,
-                "frmt_time": seconds_to_time(time_seconds),
-                "distance": f"{round(miles, 2)} miles"
-            })
+                # Formatting for the final display
+                time_seconds = best_effort.elapsed_time
+                time_minutes = time_seconds / 60
+                miles = meters2miles(distance)
+                speed = min2minsec(round(time_minutes / miles, 2))
+                personal_bests.append({
+                    "name": best_effort.race_name.title(), 
+                    "activity_name": best_effort.activity.name,
+                    "activity_id": best_effort.activity.id,
+                    "start_date_local": best_effort.activity.start_date_local.strftime("%b %d, %y"),
+                    "frmt_speed": speed,
+                    "frmt_time": seconds_to_time(time_seconds),
+                    "distance": f"{round(miles, 2)} miles"
+                })
+        except Exception as e:
+            logger.error(f"Something went wrong in calculate_personal_bests: {e}")
     return personal_bests
 
 def meters2miles(meters):
@@ -203,11 +206,14 @@ def get_gear(activities):
             gear_ids.add(activity.gear_id)
     gear = []
     for gear_id in gear_ids:
-        gear_item = client.get_gear(gear_id)
-        distance = None
-        if gear_item.distance:
-            distance = unithelper.miles(gear_item.distance)
-        gear.append({'name': gear_item.name, 'distance': int(distance)})
+        try:
+            gear_item = client.get_gear(gear_id)
+            distance = None
+            if gear_item.distance:
+                distance = unithelper.miles(gear_item.distance)
+            gear.append({'name': gear_item.name, 'distance': int(distance)})
+        except stravalib.exc.ObjectNotFound:
+            pass
     return gear
 
 

@@ -801,7 +801,7 @@ def profile_page():
     if not authenticated:
         return redirect(url_for('index'))
     strava_athlete = get_user()
-    activities = get_activities()
+    activities = get_activities(strava_athlete.id)
     clubs = client.get_athlete_clubs()
     gear = utils.get_gear(activities)
     # trends = get_trends(activities)
@@ -823,7 +823,7 @@ def activities_page():
     if not authenticated:
         return redirect(url_for('index'))
     strava_athlete = get_user()
-    activities = get_activities()
+    activities = get_activities(strava_athlete.id)
     activities_list = []
     for activity in activities:
         if activity.distance > 0:
@@ -890,18 +890,21 @@ def metrics(activity_id):
     #     "temp",
     #     "velocity_smooth"
     # ]
-    activity = get_activities([activity_id])[0]
+    activity = get_activities(strava_athlete.id, [activity_id])[0]
     splits = get_splits_for_activity(activity.strava_id)
     gear = None
-    if activity.gear:
-        gear = client.get_gear(activity.gear_id)
+    if activity.gear_id:
+        try:
+            gear = client.get_gear(activity.gear_id)
+        except stravalib.exc.ObjectNotFound:
+            pass
 
     # streams = client.get_activity_streams(activity.id, types=types, resolution="medium")
     altitude_stream = get_stream_data_for_activity(activity.strava_id, data_type="altitude")
     heartrate_stream = get_stream_data_for_activity(activity.strava_id, data_type="heartrate")
     velocity_stream = get_stream_data_for_activity(activity.strava_id, data_type="velocity_smooth")
 
-    time_data = [entry.time for entry in heartrate_stream]
+    time_data = [entry.time for entry in velocity_stream]
     heartrate_data = [entry.value for entry in heartrate_stream]
     elevation_data = [entry.value for entry in altitude_stream]
     pace_data = [entry.value for entry in velocity_stream]
@@ -992,15 +995,19 @@ def metrics(activity_id):
             'tips': [f"{utils.min2minsec(utils.mps2mpm(x.average_speed))} /mi" for x in splits]
         })
 
-    stats = [
-        {"name": "Average Speed", "units": "/mi", "value": utils.min2minsec(round(utils.mps2mpm(activity.average_speed), 2))},
-        {"name": "Average Heart Rate", "units": "bpm", "value": int(activity.average_heartrate)},
-        {"name": "Elevation Gained", "units": "ft", "value": round(utils.meters2feet(activity.total_elevation_gain), 2)},
-        {"name": "Max Speed", "units": "/mi", "value": utils.min2minsec(round(utils.mps2mpm(activity.max_speed), 2))},
-        {"name": "Max Heart Rate", "units": "bpm", "value": activity.max_heartrate},
-        {"name": "Kudos", "units": "", "value": activity.kudos_count}
-    ]
-    stats = [x for x in stats if x["value"] is not None and x["value"] != "0:00" and x["value"] != 0]
+    stats = []
+    if activity.average_speed:
+        stats.append({"name": "Average Speed", "units": "/mi", "value": utils.min2minsec(round(utils.mps2mpm(activity.average_speed), 2))})
+    if activity.average_heartrate:
+        stats.append({"name": "Average Heart Rate", "units": "bpm", "value": int(activity.average_heartrate)})
+    if activity.total_elevation_gain:
+        stats.append({"name": "Elevation Gained", "units": "ft", "value": round(utils.meters2feet(activity.total_elevation_gain), 2)})
+    if activity.max_speed:
+        stats.append({"name": "Max Speed", "units": "/mi", "value": utils.min2minsec(round(utils.mps2mpm(activity.max_speed), 2))})
+    if activity.max_heartrate:
+        stats.append({"name": "Max Heart Rate", "units": "bpm", "value": activity.max_heartrate})
+    if activity.kudos_count is not None:
+        stats.append({"name": "Kudos", "units": "", "value": activity.kudos_count})
     
     gear_item = None
     if gear:
@@ -1017,12 +1024,18 @@ def metrics(activity_id):
 def get_data():
     activity_types = request.get_json()["activity_types"]
     client.access_token = session['access_token']
-    activities = get_activities()
+    strava_athlete = get_user()
+    if not strava_athlete:
+        raise Exception(f"Could not get user")
+    activities = get_activities(strava_athlete.id)
     data = get_trends(activities, activity_types=activity_types)
     return jsonify({'data': json.dumps(data)})
 
 @app.route("/get_effort_data", methods=['POST'])
 def get_effort_data():
+    strava_athlete = get_user()
+    if not strava_athlete:
+        raise Exception(f"Could not get user")
     race_name = request.get_json()['race']
     effort_filter = request.get_json()["effort_filter"]
     client.access_token = session['access_token']
@@ -1038,10 +1051,10 @@ def get_effort_data():
     success = False
     try:
         logger.info("Getting best efforts")
-        activities = get_activities()
+        activities = get_activities(strava_athlete.id)
         # a_activities = get_advanced_activities(activities, strava_athlete)
         activities = [x for x in activities if x.type == "Run"]
-        all_best_efforts = get_all_best_efforts(activities=activities)
+        all_best_efforts = get_all_best_efforts(strava_athlete.id, activities=activities)
         data = format_all_effort_data(all_best_efforts, race_name, effort_filter)
         best_efforts = utils.calculate_personal_bests(all_best_efforts)
         success = True
@@ -1081,7 +1094,8 @@ def dashboard():
         return redirect(url_for("index"))
     athlete_folder = os.path.join("app", "static", "temp", str(strava_athlete.id))
     os.makedirs(athlete_folder, exist_ok=True)
-    activities = get_activities()
+
+    activities = get_activities(strava_athlete.id)
 
     top_images = utils.get_top_images(activities)
 
