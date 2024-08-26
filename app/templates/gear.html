@@ -1,0 +1,93 @@
+{% extends 'layout.html' %}
+
+{% block body %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script> <!-- Add this line -->
+
+<!-- The Grid -->
+<div class="w3-row-padding">
+    <!--     Left Column -->
+    <div class="w3-third">
+        <div class="w3-container w3-card w3-white">
+            <div class="w3-container">
+                {% for gear_item in gear %}
+                <p>{{ gear_item["name"] }} - {{ gear_item["distance"] }}</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="w3-twothird">
+        <div class="w3-container w3-card w3-white">
+            <div class="w3-container">
+                <canvas id="lineChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    const predefinedColors = [
+            '#FF6384', // Red
+            '#36A2EB', // Blue
+            '#FFCE56', // Yellow
+            '#4BC0C0', // Teal
+            '#9966FF', // Purple
+            '#FF9F40', // Orange
+            '#E7E9ED', // Light Gray
+            '#4D4D4D'  // Dark Gray
+        ];
+
+    async function fetchLineData() {
+        const response = await fetch('/get_gear_data');
+        const jsonData = await response.json();
+        return jsonData.lines;
+    }
+
+    async function createLineChart() {
+        const lines = await fetchLineData();
+
+        const datasets = lines.map((line, index) => ({
+            label: line.label,
+            data: line.data,
+            borderColor: predefinedColors[index % predefinedColors.length], // Use colors in sequence
+            fill: false
+        }));
+
+        const ctx = document.getElementById('lineChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                datasets: datasets
+            },
+            options: {
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: 'day'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Time'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Distance (mi)'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true
+                    }
+                }
+            }
+        });
+    }
+
+    // Initialize the chart
+    createLineChart();
+</script>
+{% endblock %}

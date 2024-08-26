@@ -210,6 +210,29 @@ def get_gear(activities):
         gear.append({'name': gear_item.name, 'distance': int(distance)})
     return gear
 
+def get_gear_distances(activities):
+    rev_activities = list(activities)
+    rev_activities.reverse()
+    gear_distances = {}
+    gear_data = {}
+    for activity in rev_activities:
+        if activity.gear_id:
+            if activity.gear_id not in gear_data:
+                gear_data[activity.gear_id] = []
+                gear_distances[activity.gear_id] = 0
+            gear_distances[activity.gear_id] += activity.distance
+            gear_data[activity.gear_id].append({
+                "x": activity.start_date_local.isoformat(), 
+                "y": meters2miles(gear_distances[activity.gear_id])
+            })
+    lines = []
+    for gear_id, data in gear_data.items():
+        gear_item = client.get_gear(gear_id)
+        gear_name = gear_item.name
+        lines.append({
+            "label": gear_name, 
+            "data": data})
+    return lines
 
 def calculate_VO2_max(activity):
     """

@@ -1052,6 +1052,23 @@ def get_effort_data():
         RUNNING[session["user_id"]] = "stopped"
     return jsonify({'data': json.dumps(data), "best_efforts": json.dumps(best_efforts), "success": success})
 
+@app.route('/get_gear_data')
+def get_gear_data():
+    activities = get_activities()
+    lines = utils.get_gear_distances(activities)
+    data = {
+        "lines": lines
+    }
+    return jsonify(data)
+
+@app.route("/gear_page")
+def gear_page():
+    authenticated = authenticate()
+    if not authenticated:
+        return redirect(url_for('index'))
+    activities = get_activities()
+    gear = utils.get_gear(activities)
+    return render_template("gear.html", cow_path=utils.get_cow_path(), flask_env=FLASK_ENV, gear=gear)
 
 # @app.route("/year_in_review")
 # def year_in_review():
