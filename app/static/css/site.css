@@ -1,0 +1,233 @@
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh; /* Make sure the body covers the full viewport height */
+  margin: 0;
+}
+
+.container {
+    text-align: center;
+    margin-top: 50px;
+    flex: 1;
+}
+
+.footer {
+  flex-shrink: 0; /* Prevent footer from shrinking */
+  /* Footer styles */
+}
+
+.title-section {
+  background-color: black;
+  color: white;
+  padding: 40px;
+}
+.title {
+  font-size: 60px;
+}
+.logo {
+  max-width: 200px; /* Adjust size as needed */
+}
+@media screen and (max-width: 700) {
+  .title {
+    text-align: center;
+  }
+  .logo {
+    display: block;
+    margin: 0 auto;
+  }
+  .section {
+    width: 100%; /* Set width to 100% for vertical stacking */
+  }
+  .left-buttons, .right-buttons {
+    display: none; /* Hide buttons on mobile */
+  }
+
+  .profile-section {
+    display: none;
+  }
+  .profile-button {
+    display: block;
+  }
+
+  .hamburger {
+      display: block; /* Display hamburger menu */
+  }
+
+  /* Show buttons in dropdown when hamburger is clicked */
+  .left-buttons.show, .right-buttons.show {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    top: 50px; /* Adjust as needed based on your design */
+    background-color: #444;
+    z-index: 1;
+  }
+}
+
+.jumbotron {
+            background-image: url("/static/background.jpg"); /* Replace with your image */
+            background-size: cover;
+            color: #fff;
+            min-height: 800;
+            text-align: center;
+            padding: 100px 0;
+        }
+        .stats {
+            margin-top: 30px;
+        }
+        .stats h2 {
+            margin-bottom: 20px;
+        }
+
+.section-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-around;
+    align-items: flex-start;
+}
+
+.section {
+    width: 30%; /* Adjust the width as needed */
+    padding: 20px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    margin: 10px;
+}
+
+
+/* Navbar styles */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #333;
+    color: white;
+    padding: 10px;
+}
+
+.left-buttons {
+    display: flex;
+}
+
+.right-buttons {
+    display: flex;
+}
+
+/* Button styles */
+a, button {
+    text-decoration: none;
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    cursor: pointer;
+}
+
+/* Hamburger menu styles */
+.hamburger {
+    display: none; /* Hide by default on larger screens */
+}
+
+
+/* Ribbon styles */
+.ribbon {
+    width: 100%;
+    background-color: orange;
+    text-align: center;
+    z-index: 2;
+}
+
+.ribbon-link {
+    text-decoration: none;
+    color: white;
+    font-weight: bold;
+}
+
+/* Button styles */
+.chart-button {
+    padding: 8px 16px;
+    margin: 5px;
+    border: none;
+    border-radius: 5px;
+    background-color: #f0f0f0;
+    color: #333;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    white-space: nowrap;
+}
+
+.chart-button.active {
+    background-color: #007bff;
+    color: #fff;
+}
+
+/* Button container styles */
+.chart-buttons5 {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px; /* Add some margin if needed */
+    overflow-x: auto; /* Enable horizontal scrolling */
+    white-space: nowrap; /*Prevent buttons from wrapping onto new lines */
+    -webkit-overflow-scrolling: touch; /* Enable smooth scrolling on iOS devices */
+    width: 100%; /* Ensure the container takes up the full width of its parent */
+}
+
+/* Inner container for scrollable buttons */
+.chart-buttons {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px; /* Add some margin if needed */
+  overflow-x: auto; /* Enable horizontal scrolling */
+  white-space: nowrap; /* Prevent buttons from wrapping onto new lines */
+  -webkit-overflow-scrolling: touch; /* Enable smooth scrolling on iOS devices */
+  width: 100%; /* Ensure the container takes up the full width of its parent */
+  padding-right: 50px; /* Create space for the gradient */
+}
+
+/* Outer container to hold the gradient */
+.chart-buttons-container {
+  position: relative;
+  width: 100%;
+  overflow: hidden; /* Prevent overflow to ensure gradient stays fixed */
+}
+
+/* Gradient overlay for the right side */
+.chart-buttons-container::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 50px; /* Adjust the width as needed */
+  height: 100%;
+  pointer-events: none; /* Ensure the gradient doesn't interfere with button clicks */
+  background: linear-gradient(to left, rgb(255, 255, 255), rgba(25, 148, 78, 0)); /* Adjust colors as needed */
+}
+
+
+.types, .datasets {
+  justify-content: left;
+}
+
+.windows {
+  justify-content: center;
+}
+
+.canvas-container {
+    height: 400px;
+}
+
+.avatar {
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.list-items {
+  margin-top: 5px; 
+  margin-bottom: 5px; 
+  padding-top: 5px; 
+  padding-bottom: 5px;
+}
+
+.small-margin {
+  margin-top: 0px;
+  margin-bottom: 0px;
+}

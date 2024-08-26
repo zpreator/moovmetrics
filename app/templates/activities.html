@@ -1,0 +1,117 @@
+{% extends 'layout.html' %}
+
+{% block body %}
+<style>
+        /* Custom styles */
+        .tile {
+            width: 100%;
+            height: 100%;
+            margin: 10px;
+            padding-left: 20px;
+            padding-right: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+            position: relative;
+        }
+
+        /* Date on the left side */
+        .date-marker {
+            position: fixed;
+            left: calc(50% - 280px);
+            top: 50%;
+            transform: translateY(-50%);
+            writing-mode: vertical-rl;
+            text-align: center;
+            background-color: #f3f3f3;
+            padding: 8px 5px;
+            border-radius: 5px;
+            font-size: 20px;
+            z-index: 999; /* Ensure visibility */
+            transition: opacity 0.3s ease-in-out;
+        }
+
+
+        /* Media query for mobile responsiveness */
+        @media screen and (max-width: 768px) {
+            .tile {
+                width: 100%;
+            }
+            .date-marker {
+                left: calc(50% - 280px);
+            }
+
+        }
+
+        .activities {
+            max-width: 500px;
+            margin: auto;
+        }
+    </style>
+<div class="activities">
+    <div class="w3-center">
+        <h1>Activities</h1>
+        <div class="timeline">
+            {% for activity in activities %}
+                <div class="tile">
+                    <a href="{{ url_for('metrics', activity_id=activity['id']) }}">
+                        <div style="display: flex; justify-content: space-between; margin: 0px;">
+                            <h3 style="margin-top: 0px;">{{ activity['name'] }}</h3>
+                            <p style="margin-bottom: 0px; text-align: right">{{ activity['date'].strftime('%a %b %d, %Y') }}</p>
+                        </div>
+                        <p style="margin-top: 0px; text-align: left">{{ activity['frmt_details'] }}</h3>
+                        <!-- Add other details as needed -->
+                    </a>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div class="date-marker" id="dateMarker">2023 December</div>
+
+<script>
+        let year;
+        let month;
+        function updateMarkers() {
+            const dateMarker = document.getElementById('dateMarker');
+            const tiles = document.querySelectorAll('.tile');
+
+            let topTileIndex = 0;
+            let topTileOffset = Number.MAX_VALUE;
+
+            tiles.forEach((tile, index) => {
+                const rect = tile.getBoundingClientRect();
+                const offset = Math.abs(rect.top);
+
+                if (offset < topTileOffset) {
+                    topTileOffset = offset;
+                    topTileIndex = index;
+                }
+            });
+
+            const topTile = tiles[topTileIndex];
+            const topTileDate = topTile.querySelector('p').textContent;
+            const parts = topTileDate.split(' ');
+            // const topTileYear = new Date(topTileDate).getFullYear();
+            // const topTileMonth = new Date(topTileDate).toLocaleString('default', { month: 'long' });
+            const topTileYear = parts[3];
+            const topTileMonth = parts[1];
+
+            // Hide the marker temporarily while changing the content
+            if (year !== topTileYear || month !== topTileMonth){
+                dateMarker.style.opacity = 0;
+                setTimeout(() => {
+                    dateMarker.textContent = topTileYear + " " + topTileMonth;
+                    dateMarker.style.opacity = 1;
+                }, 300); // Same duration as the transition in CSS
+                year = topTileYear;
+                month = topTileMonth;
+            }
+            console.log(topTileIndex);
+        }
+
+        window.addEventListener('scroll', updateMarkers);
+        window.addEventListener('load', updateMarkers);
+    </script>
+{% endblock %}

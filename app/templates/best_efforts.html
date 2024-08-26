@@ -1,0 +1,328 @@
+{% extends 'layout.html' %}
+
+{% block body %}
+<style>
+    .activity-link {
+        text-decoration: none; /* Remove underline from link */
+        color: inherit; /* Inherit text color */
+        display: block; /* Make the link block-level to cover the entire content */
+    }
+
+    .loading-spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    border-left-color: #333;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+</style>
+<!-- Page Container -->
+<div class="w3-margin-top" >
+    <!-- The Grid -->
+    <div class="w3-row-padding">
+        <!-- Left Column -->
+        <div class="w3-twothird">
+            <div class="w3-container w3-card w3-white w3-margin-bottom">
+                <h2 class="w3-text-grey w3-padding-16"><i class="fa fa-line-chart fa-fw w3-margin-right w3-xxlarge w3-text-teal"></i>Running Efforts</h2>
+                <div class="chart-buttons-container">
+                    <div class="chart-buttons races">
+                    {% for race in races %}
+                    <button class="chart-button race {% if race['name'] == '5k' %} active {% endif %}" id="{{race['name']}}" onclick="updateRace('{{race['name']}}')">{{race['name'] | title}}</button>
+                    {% endfor %}
+                    </div>
+                </div>
+                <div class="chart-buttons effort-filters">
+                  <!-- <button class="chart-button effort-filter active" id="filter-full" onclick="updateEffortFilter('full')">Full Workout</button> -->
+                  <button class="chart-button effort-filter active" id="filter-record" onclick="updateEffortFilter('record')">Records</button>
+                  <button class="chart-button effort-filter" id="filter-all" onclick="updateEffortFilter('all')">All</button>
+                  <!-- Add more buttons for different time windows -->
+                </div>
+                <div class="canvas-container">
+                  <div id="spinner-2">
+                    <div class="loading-spinner"></div>
+                    <p>This data will take some time, check back later!</p>
+                    <p>You will not have to wait in the future, I'll remember all of your data 😊</p>
+                  </div>
+                  <canvas id="canvas2" style="height: 100%">Loading...</canvas>
+                </div>
+              </div>
+              <br>
+        </div>
+        <br>
+
+        <!-- Right column -->
+        <div class="w3-third">
+            <div class="w3-container w3-card w3-white w3-margin-bottom">
+                <h2 class="w3-text-grey w3-padding-16"><i class="fa fa-trophy fa-fw w3-margin-right w3-xxlarge w3-text-teal"></i>Best Efforts</h2>
+                <p>Your best efforts from any run</p>
+                <div id="spinner-3">
+                  <div class="loading-spinner"></div>
+                  <p>This data will take some time, check back later!</p>
+                  <p>You will not have to wait in the future, I'll remember all of your data 😊</p>
+                </div>
+                <div id="race-efforts-container">
+        
+                </div>
+                <!-- {% for best_effort in best_efforts %}
+                {% if best_effort['activity_best'] != None %}
+                <div class="w3-container">
+                  <h5 class="w3-opacity"><b>{{ best_effort['name'] | title() }} | {{ best_effort['activity_best'].name }} | {{ best_effort['activity_best'].start_date_local.strftime('%d/%m/%Y') }}</b></h5>
+                  <p><i class="fa fa-clock-o fa-fw w3-margin-right w3-text-teal"></i>{{ best_effort['frmt_time'] }}
+                     <i class="fa fa-arrows-h fa-fw w3-margin-left w3-text-teal"></i>{{ units.miles(best_effort['activity_best'].distance) | round(2)}}s
+                     <i class="fa fa-fast-forward fa-fw w3-margin-left w3-text-teal"></i>{{ best_effort['frmt_speed'] }} /mi
+                    </p>
+                  <hr class="small-margin">
+                </div>
+                {% endif %}
+                {% endfor %} -->
+              </div>
+        </div>
+    <!-- End Grid -->
+    </div>
+
+  <!-- End Page Container -->
+</div>
+<script>
+    let effortChart;
+    let effortData;
+    let effortFilter = "record";
+    let race = "5k";
+    function getEffortData() {
+        // AJAX call to Flask endpoint
+        fetch('/get_effort_data', {
+            method: 'POST',
+            headers: {
+            'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({"race": race, "effort_filter": effortFilter})
+        })
+        .then(response => {
+            // Log the response content to inspect it
+            console.log("Response content:", response);
+
+            if (!response.ok) {
+            throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            effortData = JSON.parse(data.data);
+            bestEffortsData = JSON.parse(data.best_efforts);
+            updateEffortChart();
+            hide_spinner("spinner-2");
+            renderRaceEfforts(bestEffortsData);
+            hide_spinner("spinner-3");
+        })
+        .catch(error => {
+            console.error('There was an error with the request:', error);
+        });
+    }
+
+    // Function to render race efforts in the HTML
+    function renderRaceEfforts(raceEfforts) {
+        const container = document.getElementById('race-efforts-container');
+        while (container.firstChild) {
+            container.removeChild(container.firstChild);
+        }
+        
+        raceEfforts.forEach(effort => {
+            if (effort.frmt_time !== null) {
+            const raceEffortDiv = document.createElement('div');
+            raceEffortDiv.classList.add('w3-container');
+
+            raceEffortDiv.innerHTML = `
+                <a href="/metrics/${effort.activity_id}" class="activity-link">
+                <h5 class="w3-opacity"><b>${effort.name} | ${effort.activity_name} | ${new Date(effort.start_date_local).toLocaleDateString()}</b></h5>
+                <p><i class="fa fa-clock-o fa-fw w3-margin-right w3-text-teal"></i>${effort.frmt_time}
+                <i class="fa fa-arrows-h fa-fw w3-margin-left w3-text-teal"></i>${effort.distance}
+                <i class="fa fa-fast-forward fa-fw w3-margin-left w3-text-teal"></i>${effort.frmt_speed} /mi
+                </p>
+                <hr class="small-margin">
+                </a>
+            `;
+            
+            container.appendChild(raceEffortDiv);
+            }
+        });
+    }
+
+    function updateEffortChart() {
+        labels = effortData[race]["labels"];
+        values = effortData[race]["values"];
+        tips = effortData[race]["tips"];
+
+        if (effortChart){
+            var chartConfig = effortChart.config;
+            chartConfig.data.labels = labels;
+            chartConfig.data.datasets[0].data = values;
+            chartConfig.data.datasets[0].label = race;
+            chartConfig.options.plugins.title.text = race;
+            effortChart.update();
+        } else {
+            const chartData = {
+            labels: labels,
+            datasets: [
+                {
+                label: race,
+                data: values.map(value => (value !== null ? value : NaN)), // Data received from Flask endpoint for Dataset 1
+                backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1,
+                hidden: false
+                }
+            ]
+            };
+
+            const ctx2 = document.getElementById('canvas2').getContext('2d');
+            effortChart = new Chart(ctx2, {
+            type: 'line',
+            data: chartData,
+            options: {
+                spanGaps: true,
+                maintainAspectRatio: false,
+                plugins: {
+                title: {
+                    display: true,
+                    text: race,
+                },
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                    label: function(context) {
+                        var seconds = context.raw;
+                        var hours = Math.floor(seconds / 3600);
+                        var minutes = Math.floor((seconds % 3600) / 60);
+                        var seconds_remain = seconds % 60;
+                        var formattedTime = '';
+                        if (hours > 0) {
+                            formattedTime += hours + ':';
+                        }
+                        formattedTime += (minutes < 10 ? '0' + minutes : minutes) + ':' + (seconds_remain < 10 ? '0' + seconds_remain : seconds_remain);
+                        var dataIndex = context.dataIndex;
+                        var pace = tips[dataIndex];
+                        return " " + formattedTime + ",\n " + pace + " /mi";
+                    }
+                    }
+                }
+                },
+                scales: {
+                y: {
+                    type: 'linear',
+                    ticks: {
+                    stepSize: 900,
+                    callback: function(value, index, values) {
+                        // Convert seconds to HH:mm format
+                        var hours = Math.floor(value / 3600);
+                        var minutes = Math.floor((value % 3600) / 60);
+                        
+                        var formattedTime = '';
+                        if (hours > 0) {
+                            formattedTime += hours + ':';
+                        }
+                        
+                        formattedTime += (minutes < 10 ? '0' : '') + minutes;
+                        
+                        return formattedTime;
+                    }
+                    }
+                },
+                }
+            }
+            });
+        }
+    }
+
+    function hide_spinner(spinner_id){
+        document.getElementById(spinner_id).style.display = "none";
+    }
+
+    function updateWindow(newTimeWindow) {
+        timeWindow = newTimeWindow;
+        document.querySelectorAll('.window').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(timeWindow).classList.add('active');
+        updateChart();
+    }
+
+    function updateEffortFilter(newEffortFilter) {
+        effortFilter = newEffortFilter;
+        document.querySelectorAll('.effort-filter').forEach(btn => btn.classList.remove('active'));
+        document.getElementById("filter-" + effortFilter).classList.add('active');
+        getEffortData();
+        updateEffortChart();
+    }
+
+    function updateRace(name) {
+        race = name;
+        document.querySelectorAll('.race').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(race).classList.add('active');
+        getEffortData();
+        updateEffortChart();
+    }
+
+    function updateType(newActivityType) {
+        if (newActivityType == "all"){
+            document.querySelectorAll('.type').forEach(btn => btn.classList.remove('active'));
+            activityTypes = ["all"];
+        } else {
+            document.getElementById("all").classList.remove('active');
+            let index = activityTypes.indexOf("all");
+            if (activityTypes.includes("all")) {
+            activityTypes.splice(index, 1);
+            }
+        }
+        
+        if (document.getElementById(newActivityType).classList.contains("active")) {
+            document.getElementById(newActivityType).classList.remove('active');
+            let index = activityTypes.indexOf(newActivityType);
+            if (activityTypes.includes(newActivityType)) {
+            activityTypes.splice(index, 1);
+            }
+        } else {
+            document.getElementById(newActivityType).classList.add('active');
+            if (!activityTypes.includes(newActivityType)) {
+            activityTypes.push(newActivityType);
+            }
+        }
+        
+        if (activityTypes.length == 0) {
+            activityTypes = ["all"];
+            document.getElementById("all").classList.add('active');
+        }
+        
+        getData();
+        updateChart();
+    }
+
+    function updateDataset(newDataset) {
+        dataset = newDataset;
+        document.querySelectorAll('.dataset').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(dataset).classList.add('active');
+        updateChart();
+    }
+
+    // Function to toggle dataset visibility
+    function toggleDataset(index) {
+        myChart.data.datasets.forEach((dataset, i) => {
+            dataset.hidden = (i !== index) ? true : false;
+        });
+        myChart.update();
+    }
+
+    // Initial chart display
+    getEffortData();
+
+
+</script>
+{% endblock %}
