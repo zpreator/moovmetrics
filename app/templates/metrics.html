@@ -9,6 +9,18 @@
           <div class="w3-container">
             <h2>{{ activity.name }}</h2>
             <br>
+            <!-- <div class="chart-buttons-container">
+              <div class="chart-buttons">
+                
+                {% for image in images %}
+                <img src="{{ image['url'] }}" alt="Image 1">
+                {% endfor %}
+              </div>
+            </div> -->
+            <div class="w3-container">
+              <img src="{{image_url}}" style="width: 100%;" alt="Activity Image">
+            </div>
+            <br>
             <p class="w3-large w3-text-theme"><b><i class="fa fa-bar-chart fa-fw w3-margin-right w3-text-teal"></i>Activity Stats</b></p>
               {% for stat in stats %}
               <div class="w3-container">
@@ -21,6 +33,7 @@
               {% endfor %}
           </div>
           <br>
+          {% if best_efforts %}
           <div class="w3-container">
               <p class="w3-large w3-text-theme"><b><i class="fa fa-trophy fa-fw w3-margin-right w3-text-teal"></i>Best Efforts</b></p>
               {% for best_effort in best_efforts %}
@@ -33,6 +46,7 @@
               </div>
               {% endfor %}
           </div>
+          {% endif %}
           <br>
           {% if gear_item %}
           <div class="w3-container">
@@ -53,27 +67,36 @@
         <div class="w3-container w3-card w3-white w3-margin-bottom">
             <h2>Charts</h2>  
             <div class="w3-half">
-                
+                {% if not (hr_data is not defined or hr_data|length == 2) %}
                 <div class="w3-container" style="height: 150px; margin-top: 0px; margin-bottom: 0px">
                     <canvas id="hr" style="height: 100%"></canvas>
                 </div>
+                {% endif %}
+                {% if not (pace_data is not defined or pace_data|length == 2) %}
                 <div class="w3-container" style="height: 150px; margin-top: 0px; margin-bottom: 0px">
                     <canvas id="pace" style="height: 100%"></canvas>
                 </div>
+                {% endif %}
+                {% if not (elevation_data is not defined or elevation_data|length == 2) %}
                 <div class="w3-container" style="height: 150px; margin-top: 0px; margin-bottom: 0px">
                     <canvas id="elevation" style="height: 100%"></canvas>
                 </div>
+                {% endif %}
             </div>
+            {% if not (splits_data is not defined or splits_data|length == 2) %}
             <div class="w3-half">
                 <div class="w3-container" style="height: 450px;">
                   <canvas id="splits" style="height: 100%"></canvas>
                 </div>
             </div>
+            {% endif %}
         </div>
+        {% if heatmap_path %}
         <div class="w3-container w3-card w3-white">
           <h2>Activity Map</h2>
           <iframe id="heatmapFrame" src="{{ heatmap_path }}" width="100%" height="400px">Loading...</iframe>
         </div>
+        {% endif %}
     </div>
   </div>
 <script>
@@ -91,6 +114,10 @@
         { color: 'red', max: maxHeartRate }
     ];
  console.log(splitData.tips);
+
+ function isEmpty(obj) {
+  return Object.keys(obj).length === 0;
+}
 
 // Function to convert milliseconds to "HH:mm" format
 function formatTime(seconds) {
@@ -214,11 +241,18 @@ function lineChart(canvasId, data, borderColor, backgroundColor, xLabel, yLabel,
     });
 }
 
-lineChart("hr", hrData, 'rgba(255, 99, 132)', 'rgba(255, 99, 132, 0.2)', '', 'Heart Rate (BPM)', 'Heart Rate', 'Charts');
-lineChart("pace", paceData, 'rgba(255, 159, 64)', 'rgba(255, 159, 64, 0.2)', '', 'Pace (MPH)', 'Pace', '');
-lineChart("elevation", elevationData, 'rgba(153, 102, 255)', 'rgba(153, 102, 255, 0.2)', 'Time', 'Elevation (ft)', 'Elevation', '');
+if (!isEmpty(hrData)){
+  lineChart("hr", hrData, 'rgba(255, 99, 132)', 'rgba(255, 99, 132, 0.2)', '', 'Heart Rate (BPM)', 'Heart Rate', 'Charts');
+}
+if (!isEmpty(paceData)){
+  lineChart("pace", paceData, 'rgba(255, 159, 64)', 'rgba(255, 159, 64, 0.2)', '', 'Pace (MPH)', 'Pace', '');
+}
+if (!isEmpty(elevationData)){
+  lineChart("elevation", elevationData, 'rgba(153, 102, 255)', 'rgba(153, 102, 255, 0.2)', 'Time', 'Elevation (ft)', 'Elevation', '');
+}
 
-const ctx2 = document.getElementById('splits').getContext('2d');
+if (!isEmpty(splitData)){
+  const ctx2 = document.getElementById('splits').getContext('2d');
   const splitChart = new Chart(ctx2, {
     type: 'bar',
     data: {
@@ -293,5 +327,6 @@ const ctx2 = document.getElementById('splits').getContext('2d');
 
     }
 });
+}
 </script>
 {% endblock %}

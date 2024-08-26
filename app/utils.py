@@ -82,6 +82,19 @@ def generate_map(activities, save_path, filter=True):
     # Save map to an HTML file or render it in the template
     m.save(save_path)
 
+def get_top_images(activities, top_n=4):
+    urls = []
+    for activity in activities:
+        full_activity = client.get_activity(activity.strava_id)
+        if full_activity.photos.primary:
+            urls.append({"url": full_activity.photos.primary.urls["600"], "id": activity.id})
+        if len(urls) == top_n:
+            break
+    return urls
+
+def get_activity_image(activity_id):
+    activity = client.get_activity(activity_id)
+    return activity.photos.primary.urls["600"]
 
 def get_cow_path():
     """ Gets a random cow image to show in the header """
@@ -129,7 +142,12 @@ def mps2mph(value):
     
 def mps2mpm(value):
     """ Meters per second to minutes per mile"""
-    return 26.8224 / value
+    if value == 0:
+        return 0
+    elif value:
+        return 26.8224 / value
+    else:
+        return None
 
 def meters2feet(value):
     return value * 3.2808

@@ -2,7 +2,7 @@ Flask
 flask-caching
 flask-sqlalchemy
 flask-migrate
-stravalib
+stravalib==1.6
 python-dotenv
 polyline
 folium
