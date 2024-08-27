@@ -45,25 +45,24 @@
 <div class="w3-row-padding">
     <!--     Left Column -->
     <div class="w3-third">
-        <div class="w3-container w3-card w3-white">
+        <div class="w3-container w3-card w3-white w3-margin-bottom">
+            <h2>👟 Total Shoe Distances</h2>
             <div class="w3-container" style="height: 500px;">
-                <h2>👟 Total Shoe Distances</h2>
-                <!-- {% for gear_item in gear %}
-                <p>{{ gear_item["name"] }} - {{ gear_item["distance"] }}</p>
-                {% endfor %} -->
-                <canvas id="distanceChart" style="height: 100%;"></canvas>
+                <div class="loading-spinner" id="spinner-1"></div>
+                <canvas id="distanceChart" style="height: 100%;">Loading...</canvas>
             </div>
+            <br>
         </div>
     </div>
 
     <div class="w3-twothird">
-        <div class="w3-container w3-card w3-white">
+        <div class="w3-container w3-card w3-white w3-margin-bottom">
+            <h2>👟 Cumulative Shoe Distances</h2>
             <div class="w3-container">
-                <h2>👟 Cumulative Shoe Distances</h2>
-                <canvas id="shoeChart"></canvas>
-                <div id="checkboxes"></div>
-                <!-- <canvas id="lineChart" width="400" height="200"></canvas> -->
+                <div class="loading-spinner" id="spinner-2"></div>
+                <canvas id="shoeChart">Loading...</canvas>
             </div>
+            <div id="checkboxes"></div>
         </div>
     </div>
 </div>
@@ -100,6 +99,10 @@
         return jsonData.lines;
     }
 
+    function hide_spinner(spinner_id){
+    document.getElementById(spinner_id).style.display = "none";
+    }
+    
     async function createLineChart() {
         const lines = await fetchLineData();
 
@@ -177,6 +180,7 @@
 
             checkboxesDiv.appendChild(checkboxWrapper);
         });
+        hide_spinner("spinner-2");
     }
 
     async function createDistanceChart() {
@@ -206,7 +210,7 @@
                 }]
             },
             options: {
-                responsive: true,
+                spanGaps: true,
                 maintainAspectRatio: false,
                 indexAxis: 'y',
                 plugins: {
@@ -239,6 +243,7 @@
                 
             }
         });
+        hide_spinner("spinner-1");
     }
 
     // Initialize the distance chart
