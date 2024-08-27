@@ -24,17 +24,17 @@ def get_user():
         _update_user_database(strava_athlete)
         return strava_athlete
 
-def get_activities(ids=None):
+def get_activities(user_id, ids=None):
     """Fetch activities from the database, updating it if necessary.
     
     Returns:
         List
     """
     if ids is None:
-        _update_activities_database()
-        return Activity.query.order_by(Activity.start_date_local.desc()).all()
+        _update_activities_database(user_id)
+        return Activity.query.filter_by(user_id=user_id).order_by(Activity.start_date_local.desc()).all()
     else:
-        return [Activity.query.filter_by(id=id).first() for id in ids]
+        return [Activity.query.filter_by(id=id, user_id=user_id).first() for id in ids]
     
 def get_stream_data_for_activity(strava_id, data_type):
     """Fetch stream data for an activity, updating the db if necessary.
@@ -62,7 +62,7 @@ def _update_splits_segments(strava_id):
     _update_splits_database(strava_id, strava_activity)
     _update_segments_database(strava_id, strava_activity)
 
-def get_all_best_efforts(activities=None, batch_size=5):
+def get_all_best_efforts(user_id, activities=None, batch_size=5):
     """ Gets all the effort data for all the activities.
     
     The rate limit is avoided by waiting for 30 seconds each batch_size number
@@ -85,9 +85,9 @@ def get_all_best_efforts(activities=None, batch_size=5):
             time.sleep(30)
     return all_best_efforts
 
-def _get_most_recent_activity_start_date():
+def _get_most_recent_activity_start_date(user_id):
     """Retrieve the most recent activity start date from the database."""
-    most_recent_activity = Activity.query.order_by(Activity.start_date_local.desc()).first()
+    most_recent_activity = Activity.query.filter_by(user_id=user_id).order_by(Activity.start_date_local.desc()).first()
     if most_recent_activity:
         return most_recent_activity.start_date_local
     else:
@@ -107,20 +107,17 @@ def get_new_activities(after_date):
         logging.error(f"Error fetching new activities: {e}")
         return []
 
-def _update_activities_database():
+def _update_activities_database(user_id):
     """Add new activities to the database."""
-    user = get_user()
-    if not user:
-        raise Exception(f"Could not get user")
-    existing_activity_ids = {int(activity.strava_id) for activity in Activity.query.all()}
-    after_date = _get_most_recent_activity_start_date()
+    existing_activity_ids = {int(activity.strava_id) for activity in Activity.query.filter_by(user_id=user_id)}
+    after_date = _get_most_recent_activity_start_date(user_id)
     new_activities = get_new_activities(after_date)
     for activity in new_activities:
         if activity.id not in existing_activity_ids:
             try:
                 new_activity = Activity(
                     strava_id=activity.id,
-                    user_id=user.id,
+                    user_id=user_id,
                     achievement_count=activity.achievement_count,
                     # athlete=activity.athlete,
                     athlete_count=activity.athlete_count,
@@ -312,9 +309,18 @@ def _update_user_database(athlete):
         return
     
     try:
+        username = athlete.username
+        if not username:
+            username = ""
+            if athlete.firstname:
+                username += athlete.firstname
+            if athlete.lastname:
+                username += athlete.lastname[0].capitalize()
+            if username == "":
+                username = str(athlete.id)
         new_athlete = User(
             strava_id=athlete.id,
-            username=athlete.username,
+            username=username,
             email=athlete.email
         )
         db.session.add(new_athlete)
@@ -342,10 +348,13 @@ def _update_best_efforts_database(strava_id, all_races):
         stream_data_entries = get_stream_data_for_activity(strava_id, data_type="distance")
         times = [entry.time for entry in stream_data_entries]
         distances = [entry.value for entry in stream_data_entries]
-        best_efforts = _get_best_efforts_from_data(distances, times, all_races)
+        if len(times) == 0 or len(distances) == 0:
+            return None
+        best_effort_dicts = _get_best_efforts_from_data(distances, times, all_races)
 
         # Record the best efforts in the database
-        for best_effort_item in best_efforts:
+        best_efforts = []
+        for best_effort_item in best_effort_dicts:
             best_effort = BestEffort(
                 activity_id=strava_id,
                 race_name=best_effort_item["name"],
@@ -353,6 +362,7 @@ def _update_best_efforts_database(strava_id, all_races):
                 elapsed_time=best_effort_item["fastest_time"]
             )
             db.session.add(best_effort)
+            best_efforts.append(best_effort)
         db.session.commit()
         logging.info(f"Best Effort data successfully fetched and stored for activity: {strava_id}")
         return best_efforts
