@@ -1068,7 +1068,8 @@ def get_effort_data():
 
 @app.route('/get_gear_data')
 def get_gear_data():
-    activities = get_activities()
+    athlete = get_user()
+    activities = get_activities(athlete.id)
     lines = utils.get_gear_distances(activities)
     data = {
         "lines": lines
@@ -1080,7 +1081,8 @@ def gear_page():
     authenticated = authenticate()
     if not authenticated:
         return redirect(url_for('index'))
-    activities = get_activities()
+    athlete = get_user()
+    activities = get_activities(athlete.id)
     gear = utils.get_gear(activities)
     return render_template("gear.html", cow_path=utils.get_cow_path(), flask_env=FLASK_ENV, gear=gear)
 

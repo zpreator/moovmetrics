@@ -1,18 +1,57 @@
 {% extends 'layout.html' %}
 
 {% block body %}
+<style>
+    .checkbox-label {
+        display: flex;
+        align-items: center;
+        margin-bottom: 5px;
+    }
+    .custom-checkbox {
+        appearance: none;
+        width: 20px;
+        height: 20px;
+        margin-right: 10px;
+        cursor: pointer;
+        border: 2px solid;
+        border-radius: 4px;
+    }
+    .custom-checkbox:checked {
+        background-color: currentColor;
+    }
+    .checkbox-label label {
+        margin-left: 5px;
+    }
+
+    /* Container for checkboxes */
+    #checkboxes {
+        display: grid;
+        grid-template-columns: 1fr; /* Single column by default */
+        gap: 10px; /* Space between checkbox items */
+    }
+
+    /* Two-column layout on larger screens */
+    @media (min-width: 768px) {
+        #checkboxes {
+            grid-template-columns: 1fr 1fr; /* Two columns */
+        }
+    }
+</style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script> <!-- Add this line -->
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
 
 <!-- The Grid -->
 <div class="w3-row-padding">
     <!--     Left Column -->
     <div class="w3-third">
         <div class="w3-container w3-card w3-white">
-            <div class="w3-container">
-                {% for gear_item in gear %}
+            <div class="w3-container" style="height: 500px;">
+                <h2>👟 Total Shoe Distances</h2>
+                <!-- {% for gear_item in gear %}
                 <p>{{ gear_item["name"] }} - {{ gear_item["distance"] }}</p>
-                {% endfor %}
+                {% endfor %} -->
+                <canvas id="distanceChart" style="height: 100%;"></canvas>
             </div>
         </div>
     </div>
@@ -20,22 +59,40 @@
     <div class="w3-twothird">
         <div class="w3-container w3-card w3-white">
             <div class="w3-container">
-                <canvas id="lineChart" width="400" height="200"></canvas>
+                <h2>👟 Cumulative Shoe Distances</h2>
+                <canvas id="shoeChart"></canvas>
+                <div id="checkboxes"></div>
+                <!-- <canvas id="lineChart" width="400" height="200"></canvas> -->
             </div>
         </div>
     </div>
 </div>
 <script>
+    let shoeChart;
     const predefinedColors = [
-            '#FF6384', // Red
-            '#36A2EB', // Blue
-            '#FFCE56', // Yellow
-            '#4BC0C0', // Teal
-            '#9966FF', // Purple
-            '#FF9F40', // Orange
-            '#E7E9ED', // Light Gray
-            '#4D4D4D'  // Dark Gray
-        ];
+        '#FF6384', // Red
+        '#36A2EB', // Blue
+        '#FFCE56', // Yellow
+        '#4BC0C0', // Teal
+        '#9966FF', // Purple
+        '#FF9F40', // Orange
+        '#E7E9ED', // Light Gray
+        '#4D4D4D'  // Dark Gray
+    ];
+
+    // Function to convert hex color to rgba with transparency
+    function hexToRgba(hex, alpha = 0.3) {
+        // Remove the hash at the start if it's there
+        hex = hex.replace(/^#/, '');
+
+        // Parse the hex color
+        let r = parseInt(hex.substring(0, 2), 16);
+        let g = parseInt(hex.substring(2, 4), 16);
+        let b = parseInt(hex.substring(4, 6), 16);
+
+        // Return the rgba color
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
 
     async function fetchLineData() {
         const response = await fetch('/get_gear_data');
@@ -53,8 +110,8 @@
             fill: false
         }));
 
-        const ctx = document.getElementById('lineChart').getContext('2d');
-        new Chart(ctx, {
+        const ctx = document.getElementById('shoeChart').getContext('2d');
+        shoeChart = new Chart(ctx, {
             type: 'line',
             data: {
                 datasets: datasets
@@ -75,19 +132,121 @@
                         title: {
                             display: true,
                             text: 'Distance (mi)'
-                        }
+                        },
+                        type: 'logarithmic',
                     }
                 },
                 plugins: {
+                    title: {
+                      display: false,
+                      text: "Cumulative Shoe Distances",
+                    },
                     legend: {
-                        display: true
+                        display: false
                     }
                 }
             }
         });
+
+        // Generate custom checkboxes
+        const checkboxesDiv = document.getElementById('checkboxes');
+        shoeChart.data.datasets.forEach((dataset, index) => {
+            const checkboxWrapper = document.createElement('div');
+            checkboxWrapper.className = 'checkbox-label';
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'custom-checkbox';
+            checkbox.style.borderColor = dataset.borderColor;
+            checkbox.style.color = dataset.borderColor;
+            // Auto-check the first half of the items
+            // if (index < shoeChart.data.datasets.length / 2) {
+            //     checkbox.checked = true;
+            // }
+            checkbox.checked = true;
+            checkbox.addEventListener('change', () => {
+                const meta = shoeChart.getDatasetMeta(index);
+                meta.hidden = !meta.hidden;
+                shoeChart.update();
+            });
+            checkboxWrapper.appendChild(checkbox);
+
+            const label = document.createElement('label');
+            label.textContent = dataset.label;
+            checkboxWrapper.appendChild(label);
+
+            checkboxesDiv.appendChild(checkboxWrapper);
+        });
     }
+
+    async function createDistanceChart() {
+        const lines = await fetchLineData();
+
+        // Extract the last data point from each line for the distance
+        const distances = lines.map(line => {
+            const lastPoint = line.data[line.data.length - 1];
+            return lastPoint.y || lastPoint; // Assuming the data has {x, y} format
+        });
+
+        const labels = lines.map(line => line.label);
+        
+        // Convert predefinedColors to rgba with 30% opacity
+        const transparentColors = predefinedColors.map(color => hexToRgba(color, 0.3));
+
+        const ctx = document.getElementById('distanceChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: distances,
+                    backgroundColor: transparentColors,
+                    borderColor: predefinedColors,
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        ticks: {
+                            font: {
+                                size: 14,
+                                weight: 'bold'
+                            },
+                            color: 'black',
+                            padding: 20, // Add padding between labels
+                            autoSkip: false, // Prevent skipping labels
+                            mirror: true
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Distance (mi)'
+                        },
+                        beginAtZero: true
+                    },
+                    
+                },
+                
+            }
+        });
+    }
+
+    // Initialize the distance chart
+    createDistanceChart();
+
 
     // Initialize the chart
     createLineChart();
+
 </script>
 {% endblock %}

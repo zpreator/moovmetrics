@@ -236,11 +236,12 @@ def get_gear_distances(activities):
     lines = []
     for gear_id, data in gear_data.items():
         gear_item = client.get_gear(gear_id)
-        gear_name = gear_item.name
-        lines.append({
-            "label": gear_name, 
-            "data": data})
-    return lines
+        if gear_item.frame_type != 3:
+            gear_name = gear_item.name
+            lines.append({
+                "label": gear_name, 
+                "data": data})
+    return sorted(lines, key=lambda x: x["data"][-1]["y"], reverse=True)
 
 def calculate_VO2_max(activity):
     """
