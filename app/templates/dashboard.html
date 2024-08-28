@@ -122,15 +122,8 @@
             <h2>{{ athlete.firstname }} {{ athlete.lastname }}</h2>
           </div>
         </div>
-        <div class="image-container">
-          {% for image in images %}
-          <div class="image-wrapper">
-            <a href="/metrics/{{ image['id']}}">
-              <img src="{{ image['url'] }}" alt="Image 1">
-            </a>
-          </div>
-          
-          {% endfor %}
+        <div class="image-container" id="image-container">
+          <div class="loading-spinner" id="spinner-image"></div>
         </div>
         <br>
         <div class="w3-container profile-button">
@@ -138,6 +131,7 @@
             <a href="/profile_page" class="profile-button chart-button">Personal Stats</a>
             <a href="/activities_page" class="profile-button chart-button">Activities</a>
             <a href="/best_efforts_page" class="profile-button chart-button">Best Efforts</a>
+            <a href="/gear_page" class="profile-button chart-button">Gear Stats</a>
           </div>
           
           <br>
@@ -146,44 +140,24 @@
 
           <!-- Stats section-->
           <p class="w3-large w3-text-theme"><b><i class="fa fa-bar-chart fa-fw w3-margin-right w3-text-teal"></i>Stats</b></p>
-          {% for sport in stats %}
-          <div class="w3-container list-items">
-            <h5 class="w3-opacity" style="margin-bottom: 5px; margin-top: 0px;"><b>{{ sport | title }}</b></h5>
-            <div style="display: flex; justify-content: space-between;">
-                <p class="small-margin">{{ stats[sport]['count'] }} activities</p>
-                <p class="small-margin" style="text-align: right;">{{ stats[sport]['distance'] | round(2)}} miles</p>
-            </div>
-            <hr class="small-margin">
+          <div id="sports-container">
+            <div class="loading-spinner" id="spinner-sports"></div>
           </div>
-          {% endfor %}
           <br>
 
           <!-- Gear Section -->
           <div style="margin-bottom: 20px;">
             <p class="w3-large w3-text-theme"><b><i class="fa fa-tags fa-fw w3-margin-right w3-text-teal"></i>Gear</b></p>
-            {% for gear_item in gear %}
-            <div class="w3-container">
-              <div style="display: flex; justify-content: space-between;">
-                <h5 class="w3-opacity"><b>{{ gear_item['name'] }}</b></h5>
-                <p style="text-align: right; padding-top: 8px;">{{ gear_item['distance']}} miles</p>
-              </div>
-              <hr class="small-margin">
+            <div id="gear-container">
+              <div class="loading-spinner" id="spinner-gear"></div>
             </div>
-            {% endfor %}
           </div>
 
           <!-- Groups Section-->
           <p class="w3-large"><b><i class="fa fa-users fa-fw w3-margin-right w3-text-teal"></i>Groups</b></p>
-          {% for club in clubs %}
-          <div class="w3-container">
-            <div style="display: flex; justify-content: space-between;">
-              <h5 class="w3-opacity"><b>{{ club.name }}</b></h5>
-              <p style="text-align: right; padding-top: 8px;">{{ club.member_count }} Members</p>
-            </div>
-            <hr class="small-margin">
+          <div id="clubs-container">
+            <div class="loading-spinner" id="spinner-clubs"></div>
           </div>
-          {% endfor %}
-
           <br>
         </div>
       </div>
@@ -203,6 +177,9 @@
             {% for activity_type in activity_types %}
             <button class="chart-button type" id="{{activity_type}}" onclick="updateType('{{activity_type}}')">{{activity_type | title }}</button>
             {% endfor %}
+            <div id="activityTypeButtons">
+              <!-- Buttons will be dynamically inserted here -->
+            </div>
 
           </div>
         </div>
@@ -233,11 +210,16 @@
         </div>
       </div>
 
+      <!-- <div class="w3-container w3-card w3-white w3-margin-bottom">
+        <h2>Activity Map</h2>
+        <p>See a heatmap of all your activities. Use the filter tool to select specific activities</p>
+        <iframe id="heatmapFrame" src="" width="100%" height="800px">Loading...</iframe>
+      </div> -->
       <div class="w3-container w3-card w3-white w3-margin-bottom">
         <h2>Activity Map</h2>
         <p>See a heatmap of all your activities. Use the filter tool to select specific activities</p>
-        <iframe id="heatmapFrame" src="{{ heatmap_path }}" width="100%" height="800px">Loading...</iframe>
-      </div>
+        <iframe id="heatmapFrame" src="" width="100%" height="800px">Loading...</iframe>
+    </div>
     </div>
     
   <!-- End Grid -->
@@ -356,6 +338,7 @@
           function updateChart() {
             let title;
             let units;
+
             title = activityData[timeWindow]["title"];
             units = activityData["units"][dataset];
             labels = activityData[timeWindow]["dates"];
@@ -565,8 +548,198 @@
               myChart.update();
           }
 
-          // Initial chart display
-          getData();
-          getEffortData();
+          async function loadImageData() {
+            try {
+              const response = await fetch('/get_image_data');  // Replace '/your-route' with the actual route URL
+              const data = await response.json();
+
+              // Get the container where the images will be appended
+              const imageContainer = document.getElementById('image-container');
+              // Loop through the images and create the HTML elements
+              data.urls.forEach(image => {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'image-wrapper';
+
+                    const link = document.createElement('a');
+                    link.href = `/metrics/${image.id}`; // Assuming each image has an 'id' field
+
+                    const img = document.createElement('img');
+                    img.src = image.url;
+                    img.alt = 'Image'; // You can customize the alt text
+
+                    // Append the elements to the container
+                    link.appendChild(img);
+                    wrapper.appendChild(link);
+                    imageContainer.appendChild(wrapper);
+                });
+                hide_spinner("spinner-image");
+            } catch (error) {
+                console.error('Error getting image info:', error);
+            }
+            
+          }
+          
+          async function loadProfileData() {
+            try {
+                // Fetch the JSON data from the route
+                const response = await fetch('/get_profile_data');  // Replace '/your-route' with the actual route URL
+                const data = await response.json();
+
+                const sportsContainer = document.getElementById('sports-container');
+                const gearContainer = document.getElementById('gear-container');
+                const clubsContainer = document.getElementById('clubs-container');
+
+                // Loop through the stats and create the HTML elements
+                Object.keys(data.stats).forEach(sport => {
+                    const sportData = data.stats[sport];
+
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'w3-container list-items';
+
+                    const header = document.createElement('h5');
+                    header.className = 'w3-opacity';
+                    header.style.marginBottom = '5px';
+                    header.style.marginTop = '0px';
+                    header.innerHTML = `<b>${sport.charAt(0).toUpperCase() + sport.slice(1)}</b>`;
+                    wrapper.appendChild(header);
+
+                    const flexContainer = document.createElement('div');
+                    flexContainer.style.display = 'flex';
+                    flexContainer.style.justifyContent = 'space-between';
+
+                    const activities = document.createElement('p');
+                    activities.className = 'small-margin';
+                    activities.textContent = `${sportData.count} activities`;
+                    flexContainer.appendChild(activities);
+
+                    const distance = document.createElement('p');
+                    distance.className = 'small-margin';
+                    distance.style.textAlign = 'right';
+                    distance.textContent = `${sportData.distance.toFixed(0)} miles`;
+                    flexContainer.appendChild(distance);
+
+                    wrapper.appendChild(flexContainer);
+
+                    const hr = document.createElement('hr');
+                    hr.className = 'small-margin';
+                    wrapper.appendChild(hr);
+
+                    sportsContainer.appendChild(wrapper);
+                });
+                hide_spinner("spinner-sports");
+
+                // Loop through the gear items and create the HTML elements
+                data.gear.forEach(gearItem => {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'w3-container';
+
+                    const flexContainer = document.createElement('div');
+                    flexContainer.style.display = 'flex';
+                    flexContainer.style.justifyContent = 'space-between';
+
+                    const name = document.createElement('h5');
+                    name.className = 'w3-opacity';
+                    name.innerHTML = `<b>${gearItem.name}</b>`;
+                    flexContainer.appendChild(name);
+
+                    const distance = document.createElement('p');
+                    distance.style.textAlign = 'right';
+                    distance.style.paddingTop = '8px';
+                    distance.textContent = `${gearItem.distance} miles`;
+                    flexContainer.appendChild(distance);
+
+                    wrapper.appendChild(flexContainer);
+
+                    const hr = document.createElement('hr');
+                    hr.className = 'small-margin';
+                    wrapper.appendChild(hr);
+
+                    gearContainer.appendChild(wrapper);
+                });
+                hide_spinner("spinner-gear");
+
+                // Loop through the clubs and create the HTML elements
+                data.clubs.forEach(club => {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'w3-container';
+
+                    const flexContainer = document.createElement('div');
+                    flexContainer.style.display = 'flex';
+                    flexContainer.style.justifyContent = 'space-between';
+
+                    const name = document.createElement('h5');
+                    name.className = 'w3-opacity';
+                    name.innerHTML = `<b>${club.name}</b>`;
+                    flexContainer.appendChild(name);
+
+                    const memberCount = document.createElement('p');
+                    memberCount.style.textAlign = 'right';
+                    memberCount.style.paddingTop = '8px';
+                    memberCount.textContent = `${club.member_count} Members`;
+                    flexContainer.appendChild(memberCount);
+
+                    wrapper.appendChild(flexContainer);
+
+                    const hr = document.createElement('hr');
+                    hr.className = 'small-margin';
+                    wrapper.appendChild(hr);
+
+                    clubsContainer.appendChild(wrapper);
+                });
+                hide_spinner("spinner-clubs");
+            } catch (error) {
+                console.error('Error getting profile info:', error);
+            }
+        }
+
+        async function loadHeatmap() {
+            try {
+                // Fetch the JSON data from the route
+                const response = await fetch('/get_heatmap'); // Replace with the actual route URL
+                const data = await response.json();
+
+                // Update the iframe's src attribute with the heatmap path
+                const heatmapFrame = document.getElementById('heatmapFrame');
+                heatmapFrame.src = data.heatmap_path;
+            } catch (error) {
+                console.error('Error loading heatmap:', error);
+            }
+        }
+
+        async function loadActivityTypes() {
+            try {
+                // Fetch the JSON data from the route
+                const response = await fetch('/get_activity_types'); // Replace with the actual route URL
+                const data = await response.json();
+
+                // Get the container element where buttons will be added
+                const buttonContainer = document.getElementById('activityTypeButtons');
+
+                // Clear any existing buttons (optional, based on your needs)
+                buttonContainer.innerHTML = '';
+
+                // Loop through the activity types and create buttons
+                data.activity_types.forEach(activity_type => {
+                    const button = document.createElement('button');
+                    button.className = 'chart-button type';
+                    button.id = activity_type;
+                    button.innerText = activity_type.charAt(0).toUpperCase() + activity_type.slice(1); // Capitalize first letter
+                    button.onclick = () => updateType(activity_type); // Attach the onclick event
+
+                    // Append the button to the container
+                    buttonContainer.appendChild(button);
+                });
+            } catch (error) {
+                console.error('Error loading activity types:', error);
+            }
+        }
+        
+        loadImageData();
+        loadActivityTypes();
+        loadProfileData();
+        loadHeatmap();
+        // Initial chart display
+        getData();
+        // getEffortData();
         </script>
 {% endblock %}
