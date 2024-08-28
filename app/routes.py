@@ -1032,6 +1032,17 @@ def get_data():
     data = get_trends(activities, activity_types=activity_types)
     return jsonify({'data': json.dumps(data)})
 
+@app.route("/get_activity_types")
+def get_activity_types():
+    strava_athlete = get_user()
+    activities = get_activities(strava_athlete.id)
+
+    activity_types = list(set([x.type.lower() for x in activities]))
+    type_counts = Counter(x.type.lower() for x in activities)
+    activity_types = [x for x, _ in type_counts.most_common()]
+    return jsonify({"activity_types": activity_types})
+
+
 @app.route("/get_effort_data", methods=['POST'])
 def get_effort_data():
     strava_athlete = get_user()
@@ -1100,37 +1111,31 @@ def gear_page():
 #     image_names = [os.path.join(images_folder, f"image_{x}.png") for x in range(1, 4)]
 #     return render_template('year_in_review.html', cow_path=get_cow_path(), flask_env=FLASK_ENV, athlete=strava_athlete, image_names=image_names)
 
+@app.route('/get_profile_data')
+def get_profile_data():
+    athlete = get_user()
+    activities = get_activities(athlete.id)
+    stats = utils.get_stats(activities)
+    gear = utils.get_gear(activities)
+    clubs = client.get_athlete_clubs()
+    clubs = [{"name": x.name, "member_count": x.member_count} for x in clubs]
+    return jsonify({"stats": stats,
+                    "gear": gear,
+                    "clubs": clubs})
 
+@app.route('/get_image_data')
+def get_image_data():
+    athlete = get_user()
+    activities = get_activities(athlete.id)
+    top_images = utils.get_top_images(activities)
+    return jsonify({"urls": top_images})
 
-@app.route("/dashboard")
-def dashboard():
-    # authenticated = utils.refresh(client, session)
-    # if not authenticated:
-    #     return redirect(url_for('index'))
-    # client.access_token = session['access_token']
-    # strava_athlete = client.get_athlete()
+@app.route('/get_heatmap')
+def get_heatmap():
     strava_athlete = get_user()
-    if not strava_athlete:
-        return redirect(url_for("index"))
     athlete_folder = os.path.join("app", "static", "temp", str(strava_athlete.id))
     os.makedirs(athlete_folder, exist_ok=True)
-
     activities = get_activities(strava_athlete.id)
-
-    top_images = utils.get_top_images(activities)
-
-    # activity_types = list(set([x.type.lower() for x in activities]))
-    type_counts = Counter(x.type.lower() for x in activities)
-    activity_types = [x for x, _ in type_counts.most_common()]
-
-    # best_efforts = calculate_personal_bests(activities)
-    cow_path = utils.get_cow_path()
-    # best_efforts = get_race_efforts(activities)
-    clubs = client.get_athlete_clubs()
-    gear = utils.get_gear(activities)
-    # trends = get_trends(activities)
-    stats = utils.get_stats(activities)
-
     text_path = os.path.join(athlete_folder, 'num.txt')
 
     num = -1
@@ -1147,9 +1152,47 @@ def dashboard():
             file.write(str(len(activities)))
         utils.generate_map(activities, save_path)
     heatmap_path = url_for("static", filename=relative_path)
-    return render_template('dashboard.html', cow_path=cow_path, flask_env=FLASK_ENV, athlete=strava_athlete,
-                           clubs=clubs, gear=gear, stats=stats, heatmap_path=heatmap_path,
-                           activity_types=activity_types, units=unithelper, races=list(RACES), images=top_images)
+    return jsonify({"heatmap_path": heatmap_path})
+
+@app.route("/dashboard")
+def dashboard():
+    strava_athlete = get_user()
+    if not strava_athlete:
+        return redirect(url_for("index"))
+    # athlete_folder = os.path.join("app", "static", "temp", str(strava_athlete.id))
+    # os.makedirs(athlete_folder, exist_ok=True)
+
+    # activities = get_activities(strava_athlete.id)
+
+    # activity_types = list(set([x.type.lower() for x in activities]))
+    # type_counts = Counter(x.type.lower() for x in activities)
+    # activity_types = [x for x, _ in type_counts.most_common()]
+
+    # best_efforts = calculate_personal_bests(activities)
+    # best_efforts = get_race_efforts(activities)
+    # clubs = client.get_athlete_clubs()
+    # gear = utils.get_gear(activities)
+    # trends = get_trends(activities)
+    # stats = utils.get_stats(activities)
+
+    # text_path = os.path.join(athlete_folder, 'num.txt')
+
+    # num = -1
+    # if os.path.exists(text_path):
+    #     with open(text_path, 'r') as file:
+    #         try:
+    #             num = int(file.read())
+    #         except:
+    #             print('There was a problem reading the number')
+    # relative_path = os.path.join('temp', str(strava_athlete.id), 'heatmap.html')
+    # save_path = os.path.join('app', 'static', relative_path)
+    # if num < len(activities):
+    #     with open(text_path, 'w') as file:
+    #         file.write(str(len(activities)))
+    #     utils.generate_map(activities, save_path)
+    # heatmap_path = url_for("static", filename=relative_path)
+    return render_template('dashboard.html', cow_path=utils.get_cow_path(), flask_env=FLASK_ENV, athlete=strava_athlete,
+                           races=list(RACES))
 
 
 @app.route("/support")
