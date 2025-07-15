@@ -7,14 +7,30 @@ import time
 
 logger = logging.getLogger("moovmetrics")
 
+# def get_strava_athlete():
+#     authenticated = authenticate()
+#     if not authenticated:
+#         return None
+#     client.access_token = session['access_token']
+#     strava_athlete = client.get_athlete()
+#     return strava_athlete
+
 def get_strava_athlete():
     authenticated = authenticate()
     if not authenticated:
         return None
-    client.access_token = session['access_token']
-    strava_athlete = client.get_athlete()
-    return strava_athlete
-
+    if 'strava_athlete' not in session:
+        client.access_token = session.get('access_token')
+        strava_athlete = client.get_athlete()
+        session['strava_athlete'] = strava_athlete.to_dict()
+    athlete = session['strava_athlete']
+    # Wrap dict in a simple object for attribute access
+    class AthleteObj:
+        def __init__(self, d):
+            self.__dict__ = d
+    if isinstance(athlete, dict):
+        return AthleteObj(athlete)
+    return athlete
 
 def authenticate():
     """ Refreshes the current strava token

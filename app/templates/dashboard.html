@@ -5,14 +5,14 @@
   .profile-button {
     display: none;
   }
-@media (max-width: 600px) {
-      .profile-section {
-        display: none;
-      }
-      .profile-button {
-        display: block;
-      }
-      }
+  @media (max-width: 600px) {
+    .profile-section {
+      display: none;
+    }
+    .profile-button {
+      display: block;
+    }
+  }
 
   .background-img {
       width: 100%;
@@ -100,9 +100,210 @@
       display: block; /* Remove any space below the image (for inline images) */
   }
 
-
-
+  .checkbox-label {
+      display: flex;
+      align-items: center;
+      margin-bottom: 5px;
+  }
+  .custom-checkbox {
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      margin-right: 10px;
+      cursor: pointer;
+      border: 2px solid;
+      border-radius: 4px;
+  }
+  .custom-checkbox:checked {
+      background-color: currentColor;
+  }
+  .checkbox-label label {
+      margin-left: 5px;
+  }
+  #checkboxes {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+  }
+  @media (min-width: 768px) {
+      #checkboxes {
+          grid-template-columns: 1fr 1fr;
+      }
+  }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script> 
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+<script>
+// --- Shared Data Fetching for Gear Data ---
+let gearDataCache = null;
+let gearDataPromise = null;
+async function getGearData() {
+    if (gearDataCache) return gearDataCache;
+    if (!gearDataPromise) {
+        gearDataPromise = fetch('/get_gear_data')
+            .then(response => response.json())
+            .then(jsonData => {
+                gearDataCache = jsonData;
+                return jsonData;
+            });
+    }
+    return gearDataPromise;
+}
+
+// --- Gear Bar Chart JS ---
+const predefinedColors = [
+    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#E7E9ED', '#4D4D4D'
+];
+function hexToRgba(hex, alpha = 0.3) {
+    hex = hex.replace(/^#/, '');
+    let r = parseInt(hex.substring(0, 2), 16);
+    let g = parseInt(hex.substring(2, 4), 16);
+    let b = parseInt(hex.substring(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+async function fetchLineData() {
+    const jsonData = await getGearData();
+    return jsonData.lines;
+}
+function hide_spinner(spinner_id){
+    var el = document.getElementById(spinner_id);
+    if (el) el.style.display = "none";
+}
+async function createDistanceChart() {
+    const lines = await fetchLineData();
+    const distances = lines.map(line => {
+        const lastPoint = line.data[line.data.length - 1];
+        return lastPoint.y || lastPoint;
+    });
+    const labels = lines.map(line => line.label);
+    const transparentColors = predefinedColors.map(color => hexToRgba(color, 0.3));
+    const ctx = document.getElementById('distanceChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: distances,
+                backgroundColor: transparentColors,
+                borderColor: predefinedColors,
+                borderWidth: 1
+            }]
+        },
+        options: {
+            spanGaps: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            plugins: { legend: { display: false } },
+            scales: {
+                y: {
+                    ticks: {
+                        font: { size: 14, weight: 'bold' },
+                        color: 'black',
+                        padding: 20,
+                        autoSkip: false,
+                        mirror: true
+                    }
+                },
+                x: {
+                    title: { display: true, text: 'Distance (mi)' },
+                    beginAtZero: true
+                },
+            },
+        }
+    });
+    hide_spinner("spinner-1-gear");
+}
+// --- End Gear Bar Chart JS ---
+
+// --- Cumulative Shoe Distances Chart JS ---
+async function fetchShoeData() {
+    const jsonData = await getGearData();
+    return jsonData.lines;
+}
+async function createShoeChart() {
+    const lines = await fetchShoeData();
+    const datasets = lines.map((line, index) => ({
+        label: line.label,
+        data: line.data,
+        borderColor: predefinedColors[index % predefinedColors.length],
+        fill: false
+    }));
+    const ctx = document.getElementById('shoeChart').getContext('2d');
+    window.shoeChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            datasets: datasets
+        },
+        options: {
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        unit: 'day'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Time'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Distance (mi)'
+                    },
+                    type: 'logarithmic',
+                }
+            },
+            plugins: {
+                title: {
+                  display: false,
+                  text: "Cumulative Shoe Distances",
+                },
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+    renderShoeCheckboxes(lines);
+    hide_spinner("spinner-2-gear");
+}
+function renderShoeCheckboxes(lines) {
+    const checkboxesDiv = document.getElementById('checkboxes');
+    checkboxesDiv.innerHTML = '';
+    lines.forEach((line, index) => {
+        const checkboxWrapper = document.createElement('div');
+        checkboxWrapper.className = 'checkbox-label';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'custom-checkbox';
+        checkbox.style.borderColor = predefinedColors[index % predefinedColors.length];
+        checkbox.style.color = predefinedColors[index % predefinedColors.length];
+        checkbox.checked = true;
+        checkbox.addEventListener('change', () => {
+            const meta = window.shoeChartInstance.getDatasetMeta(index);
+            meta.hidden = !meta.hidden;
+            window.shoeChartInstance.update();
+        });
+        checkboxWrapper.appendChild(checkbox);
+
+        const label = document.createElement('label');
+        label.textContent = line.label;
+        checkboxWrapper.appendChild(label);
+
+        checkboxesDiv.appendChild(checkboxWrapper);
+    });
+}
+// --- End Cumulative Shoe Distances Chart JS ---
+
+window.addEventListener('DOMContentLoaded', function() {
+    createDistanceChart();
+    createShoeChart();
+});
+</script>
+
 <!-- Page Container -->
 <div class="w3-margin-top" >
   <!-- The Grid -->
@@ -113,7 +314,6 @@
         <div class="w3-display-container">
           <div class="avatar-container">
               <img src="/static/images/topo.png" class="background-img" alt="background">
-
               <div class="circle">
                   <img src="{{ athlete.profile }}" class="avatar" alt="avatar">
               </div>
@@ -126,33 +326,24 @@
           <div class="loading-spinner" id="spinner-image"></div>
         </div>
         <br>
-        <div class="w3-container profile-button">
-          <div class="w3-container chart-buttons" style="justify-content: center;">
-            <a href="/profile_page" class="profile-button chart-button">Personal Stats</a>
-            <a href="/activities_page" class="profile-button chart-button">Activities</a>
-            <a href="/best_efforts_page" class="profile-button chart-button">Best Efforts</a>
-            <a href="/gear_page" class="profile-button chart-button">Gear Stats</a>
-          </div>
-          
-          <br>
-        </div>
+        <br>
         <div class="w3-container profile-section">
-
           <!-- Stats section-->
           <p class="w3-large w3-text-theme"><b><i class="fa fa-bar-chart fa-fw w3-margin-right w3-text-teal"></i>Stats</b></p>
           <div id="sports-container">
             <div class="loading-spinner" id="spinner-sports"></div>
           </div>
           <br>
-
-          <!-- Gear Section -->
+          <!-- Gear Bar Chart Section -->
           <div style="margin-bottom: 20px;">
             <p class="w3-large w3-text-theme"><b><i class="fa fa-tags fa-fw w3-margin-right w3-text-teal"></i>Gear</b></p>
-            <div id="gear-container">
-              <div class="loading-spinner" id="spinner-gear"></div>
-            </div>
-          </div>
+            
+                <div class="w3-container" style="height: 500px;">
+                    <div class="loading-spinner" id="spinner-1-gear"></div>
+                    <canvas id="distanceChart" style="height: 100%;">Loading...</canvas>
+                </div>
 
+          </div>
           <!-- Groups Section-->
           <p class="w3-large"><b><i class="fa fa-users fa-fw w3-margin-right w3-text-teal"></i>Groups</b></p>
           <div id="clubs-container">
@@ -162,14 +353,12 @@
         </div>
       </div>
       <br>
-
     </div>
 
     <!-- Left Column -->
     <div class="w3-twothird">
-
       <!-- Trends Chart -->
-      <div class="w3-container w3-card w3-white w3-margin-bottom">
+      <div class="w3-container w3-card w3-white w3-margin-bottom" style="margin-bottom: 32px;">
         <h2 class="w3-text-grey w3-padding-16"><i class="fa fa-line-chart fa-fw w3-margin-right w3-xxlarge w3-text-teal"></i>Trends</h2>
         <div class="chart-buttons-container">
           <div class="chart-buttons types">
@@ -209,17 +398,21 @@
           </div>
         </div>
       </div>
-
-      <!-- <div class="w3-container w3-card w3-white w3-margin-bottom">
-        <h2>Activity Map</h2>
-        <p>See a heatmap of all your activities. Use the filter tool to select specific activities</p>
-        <iframe id="heatmapFrame" src="" width="100%" height="800px">Loading...</iframe>
-      </div> -->
+      <!-- Cumulative Shoe Distances Chart -->
+      <div class="w3-container w3-card w3-white w3-margin-bottom" style="margin-bottom: 32px;">
+        <h2>Cumulative Gear Distances</h2>
+        <div class="w3-container">
+            <div class="loading-spinner" id="spinner-2-gear"></div>
+            <canvas id="shoeChart">Loading...</canvas>
+        </div>
+        <div id="checkboxes"></div>
+      </div>
+      <!-- Activity Map -->
       <div class="w3-container w3-card w3-white w3-margin-bottom">
         <h2>Activity Map</h2>
         <p>See a heatmap of all your activities. Use the filter tool to select specific activities</p>
         <iframe id="heatmapFrame" src="" width="100%" height="800px">Loading...</iframe>
-    </div>
+      </div>
     </div>
     
   <!-- End Grid -->
@@ -561,7 +754,7 @@
                     wrapper.className = 'image-wrapper';
 
                     const link = document.createElement('a');
-                    link.href = `/metrics/${image.id}`; // Assuming each image has an 'id' field
+                    // link.href = `/metrics/${image.id}`; // Assuming each image has an 'id' field
 
                     const img = document.createElement('img');
                     img.src = image.url;
@@ -586,13 +779,14 @@
                 const data = await response.json();
 
                 const sportsContainer = document.getElementById('sports-container');
-                const gearContainer = document.getElementById('gear-container');
+                // const gearContainer = document.getElementById('gear-container');
                 const clubsContainer = document.getElementById('clubs-container');
 
-                // Loop through the stats and create the HTML elements
-                Object.keys(data.stats).forEach(sport => {
-                    const sportData = data.stats[sport];
+                // Sort stats by activity count descending
+                const sortedStats = Object.entries(data.stats).sort((a, b) => b[1].count - a[1].count);
 
+                // Loop through the stats and create the HTML elements
+                sortedStats.forEach(([sport, sportData]) => {
                     const wrapper = document.createElement('div');
                     wrapper.className = 'w3-container list-items';
 
@@ -629,34 +823,34 @@
                 hide_spinner("spinner-sports");
 
                 // Loop through the gear items and create the HTML elements
-                data.gear.forEach(gearItem => {
-                    const wrapper = document.createElement('div');
-                    wrapper.className = 'w3-container';
+                // data.gear.forEach(gearItem => {
+                //     const wrapper = document.createElement('div');
+                //     wrapper.className = 'w3-container';
 
-                    const flexContainer = document.createElement('div');
-                    flexContainer.style.display = 'flex';
-                    flexContainer.style.justifyContent = 'space-between';
+                //     const flexContainer = document.createElement('div');
+                //     flexContainer.style.display = 'flex';
+                //     flexContainer.style.justifyContent = 'space-between';
 
-                    const name = document.createElement('h5');
-                    name.className = 'w3-opacity';
-                    name.innerHTML = `<b>${gearItem.name}</b>`;
-                    flexContainer.appendChild(name);
+                //     const name = document.createElement('h5');
+                //     name.className = 'w3-opacity';
+                //     name.innerHTML = `<b>${gearItem.name}</b>`;
+                //     flexContainer.appendChild(name);
 
-                    const distance = document.createElement('p');
-                    distance.style.textAlign = 'right';
-                    distance.style.paddingTop = '8px';
-                    distance.textContent = `${gearItem.distance} miles`;
-                    flexContainer.appendChild(distance);
+                //     const distance = document.createElement('p');
+                //     distance.style.textAlign = 'right';
+                //     distance.style.paddingTop = '8px';
+                //     distance.textContent = `${gearItem.distance} miles`;
+                //     flexContainer.appendChild(distance);
 
-                    wrapper.appendChild(flexContainer);
+                //     wrapper.appendChild(flexContainer);
 
-                    const hr = document.createElement('hr');
-                    hr.className = 'small-margin';
-                    wrapper.appendChild(hr);
+                //     const hr = document.createElement('hr');
+                //     hr.className = 'small-margin';
+                //     wrapper.appendChild(hr);
 
-                    gearContainer.appendChild(wrapper);
-                });
-                hide_spinner("spinner-gear");
+                //     gearContainer.appendChild(wrapper);
+                // });
+                // hide_spinner("spinner-gear");
 
                 // Loop through the clubs and create the HTML elements
                 data.clubs.forEach(club => {
@@ -741,5 +935,6 @@
         // Initial chart display
         getData();
         // getEffortData();
+        createDistanceChart();
         </script>
 {% endblock %}

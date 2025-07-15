@@ -22,6 +22,14 @@ body {
     background-image: url('/static/images/topo.png'); /* Replace 'path/to/your/image.jpg' with the path to your image */
     background-size: contain; /* Cover the entire background */
   }
+.title-section {
+    margin-top: 50px; /* Default for desktop */
+}
+@media (max-width: 600px) {
+  .title-section {
+    margin-top: 44px; /* Match mobile navbar height */
+  }
+}
 </style>
 
 <!-- Navbar -->
@@ -31,38 +39,28 @@ body {
       <!-- <i class="fa fa-bars"></i> -->
       <img src="{{ url_for('static', filename='images/cow-head.ico') }}" alt="Logo" height="20px">
     </a>
-    {% if athlete %}
-    <a class="w3-bar-item w3-button w3-padding-large w3-hide-medium w3-hide-large w3-right" href="/profile_page" title="Toggle Navigation Menu">
-        
-      Welcome {{athlete.firstname}}
-      <img src="{{ athlete.profile }}" class="avatar" alt="Logo" height="20px">
-    </a>
-    {% endif %}
+    
     <!-- <a href="/dashboard" class="w3-bar-item w3-button w3-padding-large"><img src="{{ url_for('static', filename='images/cow-head.ico') }}" alt="Logo" height="20px"></a> -->
     <a href="/dashboard" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Dashboard</a>
-    <a href="/activities_page" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Activities</a>
-    <a href="/best_efforts_page" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Best Efforts</a>
-    <a href="/gear_page" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Gear</a>
-    <!-- <a href="/year_in_review" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Year in Review</a> -->
-    <!-- <a href="/game" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Cow Cardio</a> -->
     {% if flask_env == 'dev' %}
     <p class="w3-bar-item w3-button w3-padding-large w3-hide-small">Dev</p>
     {% endif %}
 
       <a href="/logout" class="w3-bar-item w3-button w3-padding-large w3-hide-small w3-right">Logout</a>
-      <a href="/support" class="w3-bar-item w3-button w3-padding-large w3-hide-small w3-right">Support Me</a>
+      <!-- BuyMeACoffee Button -->
+      <span class="w3-bar-item w3-hide-small w3-right" style="height:46px;display:flex;align-items:center;background:black;padding:0;">
+        <script type="text/javascript" src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js" data-name="bmc-button" data-slug="darthpreator" data-color="#000000" data-emoji="🍕"  data-font="Cookie" data-text="Buy me a pizza" data-outline-color="#000000" data-font-color="#ffffff" data-coffee-color="#FFDD00" ></script>
+      </span>
   </div>
 </div>
 
 <!-- Navbar on small screens (remove the onclick attribute if you want the navbar to always show on top of the content when clicking on the links) -->
 <div id="navDemo" class="w3-bar-block w3-black w3-hide w3-hide-large w3-hide-medium w3-top" style="margin-top:46px">
   <a href="/dashboard" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Dashboard</a>
-  <a href="/activities_page" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Activities</a>
-  <a href="/best_efforts_page" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Best Efforts</a>
-  <a href="/gear_page" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Gear</a>
-  <!-- <a href="/year_in_review" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Year in Review</a> -->
-  <!-- <a href="/game" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Cow Cardio</a> -->
-  <a href="/support" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Support Me</a>
+  <!-- BuyMeACoffee Button for mobile -->
+  <span class="w3-bar-item" style="background:black;padding:0;display:block;text-align:left;">
+    <script type="text/javascript" src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js" data-name="bmc-button" data-slug="darthpreator" data-color="#000000" data-emoji="🍕"  data-font="Cookie" data-text="Buy me a pizza" data-outline-color="#000000" data-font-color="#ffffff" data-coffee-color="#FFDD00" ></script>
+  </span>
   <a href="/logout" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Logout</a>
 </div>
 
