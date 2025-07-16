@@ -191,13 +191,6 @@ def get_heatmap():
     heatmap_path = url_for("static", filename=relative_path)
     return jsonify({"heatmap_path": heatmap_path})
 
-# --- END: Dashboard and API endpoints ---
-
-@app.route("/support")
-def support():
-    cow_path = utils.get_cow_path()
-    return render_template('support.html', cow_path=cow_path, flask_env=FLASK_ENV)
-
 
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 5001))
