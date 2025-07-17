@@ -1,8 +1,42 @@
-{% extends 'layout.html' %}
+{% extends "layout.html" %}
 
 {% block body %}
-<div class="container">
-    <h1>Click to Login with Strava</h1>
-    <p><a class="btn btn-lg" href="{{ url_for('strava_login') }}" role="button"><img src="/static/images/ConnectWithStrava.png" border="0" /></a></p>
-</div>
+<section class="landing-hero">
+  <div class="hero-content">
+    <h1 class="hero-title">🔥 Unlock Your Fitness Potential</h1>
+    <p class="hero-subtitle">AI-powered insights for smarter training. Connect with Strava or sign up to get started.</p>
+    <div class="login-container">
+      <form class="login-form" method="POST" action="/login">
+        <input type="email" name="email" placeholder="Type your email..." required>
+        <button type="submit" class="btn btn-primary">Get Started</button>
+      </form>
+      <div class="or-divider">or</div>
+      <form class="login-form" method="GET" action="/login/strava">
+        <button type="submit" class="btn btn-strava">Continue with Strava</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+<section class="gallery-section-vertical">
+  <h2 class="gallery-title">See What You Can Do</h2>
+  <div class="gallery-vertical">
+    <div class="gallery-item-vertical">
+      <img src="https://placehold.co/400x220/23272b/fff?text=AI+Training+Insights" alt="Chart Example 1">
+      <p>AI Training Insights</p>
+    </div>
+    <div class="gallery-item-vertical">
+      <img src="https://placehold.co/400x220/23272b/fff?text=Custom+Training+Calendar" alt="Calendar Example 1">
+      <p>Custom Training Calendar</p>
+    </div>
+    <div class="gallery-item-vertical">
+      <img src="https://placehold.co/400x220/23272b/fff?text=Performance+Trends" alt="Chart Example 2">
+      <p>Performance Trends</p>
+    </div>
+    <div class="gallery-item-vertical">
+      <img src="https://placehold.co/400x220/23272b/fff?text=Personalized+Plans" alt="Calendar Example 2">
+      <p>Personalized Plans</p>
+    </div>
+  </div>
+</section>
 {% endblock %}
