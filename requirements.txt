@@ -10,3 +10,7 @@ pandas
 tqdm
 matplotlib
 seaborn
+openai
+pydantic
+reportlab
+weasyprint

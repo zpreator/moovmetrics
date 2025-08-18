@@ -1,0 +1,261 @@
+{% extends "layout.html" %}
+
+{% block body %}
+<section class="content-section">
+  <div class="card-container">
+    <h1 class="page-title">Welcome to Your Fitness Journey</h1>
+    <p class="page-subtitle">Let's get to know you so we can build your personalized training plan.</p>
+    
+    {% if error %}
+    <div class="alert alert-danger">
+      <strong>Error:</strong> {{ error }}
+    </div>
+    {% endif %}
+    
+    {% if success and plan %}
+    <div class="alert alert-success">
+      <strong>Success!</strong> Your training plan has been generated!
+    </div>
+    {% endif %}
+    
+    <form class="form-container" method="POST" action="/recommendation" id="trainingForm">
+      <div class="form-group">
+        <label for="goal">What is your primary fitness goal?</label>
+        <select class="form-input" name="goal" id="goal" required>
+          <option value="">Select a goal</option>
+          <option value="run">Run a race</option>
+          <option value="cycle">Improve cycling</option>
+          <option value="triathlon">Complete a triathlon</option>
+          <option value="general">General fitness</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="experience">How would you describe your experience level?</label>
+        <select class="form-input" name="experience" id="experience" required>
+          <option value="">Select experience</option>
+          <option value="beginner">Beginner</option>
+          <option value="intermediate">Intermediate</option>
+          <option value="advanced">Advanced</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="days">How many days per week can you train?</label>
+        <input class="form-input" type="number" name="days" id="days" min="1" max="7" required>
+      </div>
+      <button type="submit" class="form-button btn btn-primary" id="submitBtn">
+        <span id="btnText">Get My Plan</span>
+        <span id="loadingSpinner" class="loading-spinner" style="display: none;">
+        </span>
+      </button>
+    </form>
+    
+    <div class="schedule-container">
+      <h2>Your Recommended Schedule</h2>
+      <div class="schedule-content">
+        {% if plan %}
+          <h3>{{ plan.title }}</h3>
+          <p><strong>Duration:</strong> {{ plan.duration_weeks }} weeks</p>
+          <p><strong>Goal:</strong> {{ plan.goal }}</p>
+          {% if plan.notes %}
+            <p><strong>Notes:</strong> {{ plan.notes }}</p>
+          {% endif %}
+          
+          <h4>Workout Schedule:</h4>
+          <div class="workout-list">
+            {% for workout in plan.workouts %}
+            <div class="workout-item">
+              <strong>Week {{ workout.week }}, {{ workout.day_of_week }}:</strong> {{ workout.workout_type }}
+              {% if workout.distance_km %}
+                <br><em>Distance: {{ workout.distance_km }} km</em>
+              {% endif %}
+              {% if workout.duration_minutes %}
+                <br><em>Duration: {{ workout.duration_minutes }} minutes</em>
+              {% endif %}
+              {% if workout.pace %}
+                <br><em>Pace: {{ workout.pace }}</em>
+              {% endif %}
+              {% if workout.notes %}
+                <br><em>Notes: {{ workout.notes }}</em>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p><em>Your personalized plan will appear here after you complete the questionnaire.</em></p>
+        {% endif %}
+      </div>
+      <div class="button-group">
+        {% if plan %}
+        <a href="{{ url_for('download_pdf') }}" class="btn btn-primary">Download as PDF</a>
+        {% else %}
+        <button class="btn btn-secondary" disabled>Download as PDF</button>
+        {% endif %}
+        <button class="btn btn-secondary" disabled>Add to Calendar (coming soon)</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+.alert {
+  padding: 10px;
+  margin: 10px 0;
+  border-radius: 4px;
+}
+
+.alert-success {
+  background-color: #d4edda;
+  border: 1px solid #c3e6cb;
+  color: #155724;
+}
+
+.alert-danger {
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+}
+
+.workout-list {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  padding: 10px;
+  border-radius: 4px;
+  background-color: #f8f9fa;
+}
+
+.workout-item {
+  padding: 12px;
+  margin: 8px 0;
+  border-left: 4px solid #007bff;
+  background-color: #2c3e50;
+  color: #ffffff;
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  transition: transform 0.2s ease;
+}
+
+.workout-item:hover {
+  transform: translateX(2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.workout-item strong {
+  color: #3498db;
+  font-size: 1.1em;
+}
+
+.workout-item em {
+  color: #bdc3c7;
+  font-style: normal;
+  display: block;
+  margin-top: 4px;
+}
+
+.button-group {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  text-decoration: none;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.btn-primary {
+  background-color: #007bff;
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #0056b3;
+}
+
+.btn-secondary {
+  background-color: #6c757d;
+  color: white;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.loading-spinner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #ffffff;
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top: 3px solid #ffffff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.form-button:disabled {
+  opacity: 0.8;
+  cursor: not-allowed;
+  background-color: #6c757d !important;
+}
+
+.form-button:disabled:hover {
+  background-color: #6c757d !important;
+}
+</style>
+
+<script>
+document.getElementById('trainingForm').addEventListener('submit', function(e) {
+    const submitBtn = document.getElementById('submitBtn');
+    const btnText = document.getElementById('btnText');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    
+    // Check if form is valid before showing loading state
+    const form = e.target;
+    if (!form.checkValidity()) {
+        return; // Let browser handle validation
+    }
+    
+    // Show loading state immediately
+    submitBtn.disabled = true;
+    btnText.style.display = 'none';
+    loadingSpinner.style.display = 'inline-flex';
+    
+    // Force a repaint to ensure the loading state is visible
+    submitBtn.offsetHeight;
+    
+    console.log('Loading state activated');
+});
+
+// Reset loading state if there's an error and page doesn't reload
+window.addEventListener('load', function() {
+    const submitBtn = document.getElementById('submitBtn');
+    const btnText = document.getElementById('btnText');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    
+    if (submitBtn && submitBtn.disabled) {
+        console.log('Resetting button state on page load');
+        submitBtn.disabled = false;
+        btnText.style.display = 'inline';
+        loadingSpinner.style.display = 'none';
+    }
+});
+</script>
+{% endblock %}

@@ -24,11 +24,15 @@
       <span class="logo-text">Moov Metrics</span>
     </a>
     <div class="navbar-links">
+      {% if not session.get('access_token') %}
       <button class="btn btn-login navbar-login-toggle" type="button">Login</button>
       <div class="navbar-login-options" style="display:none;">
         <a href="/login/strava" class="btn btn-strava"><i class="fa fa-bolt"></i> Login with Strava</a>
         <a href="/login" class="btn btn-primary">Login with Email</a>
       </div>
+      {% else %}
+      <a href="/logout" class="btn btn-logout">Logout</a>
+      {% endif %}
     </div>
   </div>
 </nav>
