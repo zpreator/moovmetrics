@@ -1,3 +1,4 @@
+import time
 import json
 import logging
 import os
@@ -11,7 +12,7 @@ from flask import g, jsonify, redirect, render_template, request, session, url_f
 import app.utils as utils
 from app.auth import authenticate
 from app import RACES, app, client
-from app.data import get_activities, get_user
+from app.data import get_activities, get_user, get_races, get_all_best_efforts
 from app.graph import get_trends
 from app.llm import (
     generate_training_plan,
@@ -29,6 +30,18 @@ if os.path.exists("settings.env"):
 FLASK_ENV = os.environ.get("FLASK_ENV", "dev")
 
 RUNNING = {}
+
+
+def should_update_activities():
+    last_fetch = session.get("last_activities_fetch")
+    now = int(time.time())
+    # 2 hours = 7200 seconds
+    if not last_fetch or now - last_fetch > 7200:
+        session["last_activities_fetch"] = now
+        print("Fetching new activities from Strava")
+        return True
+    print("Using cached activities")
+    return False
 
 
 @app.errorhandler(Exception)
@@ -49,7 +62,7 @@ def index():
     try:
         authenticated = authenticate()
         if authenticated:
-            return redirect(url_for("dashboard"))
+            return redirect(url_for("mainapp"))
         return render_template(
             "index.html", flask_env=FLASK_ENV, cow_path=utils.get_cow_path()
         )
@@ -79,27 +92,165 @@ def signup():
 
 @app.route("/login/strava")
 def strava_login():
-    return redirect(url_for("mainapp"))
+    """Login the current user using the strava callback service"""
+    # Create a unique state for each user session
+    session["state"] = str(uuid4())
 
+    # Redirect user to Strava authorization URL
+    redirect_uri = url_for("strava_callback", _external=True)
+    url = client.authorization_url(
+        client_id=os.getenv("STRAVA_CLIENT_ID"),
+        redirect_uri=redirect_uri,
+        state=session["state"],
+        approval_prompt="auto",
+    )
 
-# --- BEGIN: Dashboard and API endpoints for one-page app ---
+    # Debugging statements
+    logger.info(f"Here is the redirect: {redirect_uri}")
+    logger.info(f"Here is the url: {url}")
+    return redirect(url)
 
 
 # Main app page with questionnaire
 @app.route("/mainapp", methods=["GET"])
 def mainapp():
-    return render_template("mainapp.html")
+    # Get success/error messages from session
+    success = session.pop("success_plan", False)
+    error = session.pop("error_message", None)
+
+    # Get training plan from session if it exists
+    plan = None
+    if success and "current_training_plan" in session:
+        plan = deserialize_training_plan(session["current_training_plan"])
+
+    return render_template(
+        "mainapp.html", athlete=get_user(), success=success, plan=plan, error=error
+    )
 
 
 # Handle questionnaire submission (placeholder)
 @app.route("/recommendation", methods=["POST"])
 def recommendation():
+    # Handle reset request
+    if request.form.get("reset"):
+        # Clear the current plan and success flag
+        session.pop("current_training_plan", None)
+        session.pop("success_plan", None)
+        session.modified = True
+        return redirect(url_for("mainapp"))
+
     try:
+        # Check if connected to Strava
+        athlete = get_user()
+        strava_context = None
+        if athlete:
+            strava_context = "Strava Stats:\n"
+            activities = get_activities(athlete.id)
+            stats = utils.get_stats(activities)
+            for key, value in stats.items():
+                strava_context += f"{key}: Total count: {value['count']}, Total distance: {value['distance']} miles\n"
+
+            races = get_races(None)
+            if races:
+                # Get race stats
+                longest_race = max(races, key=lambda x: x.distance if x.distance else 0)
+                fastest_race = min(
+                    races,
+                    key=lambda x: (
+                        x.elapsed_time.total_seconds() / (x.distance)
+                        if x.distance and x.elapsed_time
+                        else float("inf")
+                    ),
+                )
+
+                def race_analysis(race) -> str:
+                    analysis = ""
+                    if race.distance:
+                        distance_miles = (
+                            race.distance * 0.621371 / 1000
+                        )  # Convert m to miles
+                        pace_min_per_mile = (
+                            race.elapsed_time.total_seconds() / 60 / distance_miles
+                        )
+                        analysis += f"{race.name} ({distance_miles:.1f} miles), Pace: {pace_min_per_mile:.2f} min/mile, Date: {race.start_date_local.strftime('%Y-%m-%d')}"
+                        if race.average_heartrate:
+                            analysis += (
+                                f", Average HR: {race.average_heartrate:.0f} bpm\n"
+                            )
+                        else:
+                            analysis += "\n"
+                    else:
+                        return ""
+                    return analysis
+
+                # Add detailed race analysis to context
+                strava_context += "\nRace Analysis:\n"
+                strava_context += f"Longest Race: {race_analysis(longest_race)}"
+                strava_context += f"Fastest Race: {race_analysis(fastest_race)}"
+                strava_context += f"Most Recent Race: {race_analysis(races[0])}"
+
+                strava_context += "\nRace History (Most Recent):\n"
+                for race in races[:5]:  # They should already be sorted by date
+                    strava_context += race_analysis(race)
+
+                strava_context += "\nRecent Activities:\n"
+                for activity in activities[:10]:
+                    strava_context += race_analysis(activity)
+
         # Get form data
+        goal_type = request.form.get("goal_type")
+
+        # Initialize goal description
+        goal_description = ""
+        if goal_type == "race":
+            race_distance = request.form.get("race_distance")
+            if race_distance == "custom":
+                # Handle custom distance
+                distance_value = request.form.get("custom_distance_value")
+                distance_unit = request.form.get("custom_distance_unit")
+                if not distance_value:
+                    raise ValueError("Please enter a distance for your custom race")
+                goal_description = (
+                    f"Training for a {distance_value} {distance_unit} race"
+                )
+            else:
+                # Map predefined distances to descriptions
+                distance_mapping = {
+                    "5k": "5K race (3.1 miles)",
+                    "10k": "10K race (6.2 miles)",
+                    "half": "Half Marathon (13.1 miles)",
+                    "marathon": "Marathon (26.2 miles)",
+                    "50k": "50K ultramarathon (31 miles)",
+                    "50m": "50 Mile ultramarathon",
+                    "100k": "100K ultramarathon (62 miles)",
+                    "100m": "100 Mile ultramarathon",
+                }
+                goal_description = f"Training for a {distance_mapping.get(race_distance, race_distance)}"
+
+            # Add race date
+            race_date = request.form.get("race_date")
+            if race_date:
+                goal_description += f" on {race_date}"
+
+        elif goal_type == "injury":
+            injury_desc = request.form.get("injury_description")
+            goal_description = f"Recovering from injury: {injury_desc}"
+        elif goal_type == "improvement":
+            goal_description = "Improving running pace and performance"
+        elif goal_type == "maintenance":
+            goal_description = "Maintaining running fitness"
+        elif goal_type == "other":
+            goal_description = request.form.get(
+                "goal_description", "Custom running goal"
+            )
+
+        # Build form data dictionary
         form_data = {
-            "goal": request.form.get("goal"),
+            "sport": "running",  # Hardcoded as we're focusing on running only
+            "goal": goal_description,
             "experience": request.form.get("experience"),
-            "days": request.form.get("days"),
+            "intensity": request.form.get("intensity"),
+            "start_date": request.form.get("start_date"),
         }
 
         # Check if we should use cached plan (for testing)
@@ -107,7 +258,9 @@ def recommendation():
         print(f"Using dummy plan: {use_dummy}")
 
         # Generate training plan using LLM
-        training_plan = generate_training_plan(form_data, use_dummy=use_dummy)
+        training_plan = generate_training_plan(
+            form_data, strava_context, use_dummy=use_dummy
+        )
 
         # For now, just print the results
         print("Generated Training Plan:")
@@ -132,12 +285,15 @@ def recommendation():
 
         # Store the training plan in session for PDF generation using proper serialization
         session["current_training_plan"] = serialize_training_plan(training_plan)
+        session.modified = True
+        session["success_plan"] = True  # Flag to show success message and plan
 
-        return render_template("mainapp.html", success=True, plan=training_plan)
+        return redirect(url_for("mainapp"))
 
     except Exception as e:
         print(f"Error generating training plan: {e}")
-        return render_template("mainapp.html", error=str(e))
+        session["error_message"] = str(e)
+        return redirect(url_for("mainapp"))
 
 
 @app.route("/download-pdf")
@@ -194,32 +350,23 @@ def strava_callback():
         client.access_token = session["access_token"]
         strava_athlete = client.get_athlete()
         session["user_id"] = strava_athlete.id
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("profile"))
     else:
         return redirect(url_for("index"))
 
 
-# --- BEGIN: Dashboard and API endpoints for one-page app ---
-
-
-@app.route("/dashboard")
-def dashboard():
+@app.route("/profile")
+def profile():
     strava_athlete = get_user()
     if not strava_athlete:
         return redirect(url_for("index"))
     return render_template(
-        "dashboard.html",
+        "profile.html",
         cow_path=utils.get_cow_path(),
         flask_env=FLASK_ENV,
         athlete=strava_athlete,
         races=list(RACES),
     )
-
-
-def get_cached_activities(user_id):
-    if not hasattr(g, "activities"):
-        g.activities = get_activities(user_id)
-    return g.activities
 
 
 def get_cached_top_images(user_id, activities):
@@ -234,7 +381,7 @@ def get_cached_top_images(user_id, activities):
 @app.route("/get_image_data")
 def get_image_data():
     athlete = get_user()
-    activities = get_cached_activities(athlete.id)
+    activities = get_activities(athlete.id, update_db=should_update_activities())
     top_images = get_cached_top_images(athlete.id, activities)
     return jsonify({"urls": top_images})
 
@@ -242,7 +389,7 @@ def get_image_data():
 @app.route("/get_profile_data")
 def get_profile_data():
     athlete = get_user()
-    activities = get_cached_activities(athlete.id)
+    activities = get_activities(athlete.id, update_db=should_update_activities())
     stats = utils.get_stats(activities)
     gear = utils.get_gear(activities)
     clubs = client.get_athlete_clubs()
@@ -265,7 +412,7 @@ def get_cached_gear_distances(user_id, activities):
 @app.route("/get_gear_data")
 def get_gear_data():
     athlete = get_user()
-    activities = get_cached_activities(athlete.id)
+    activities = get_activities(athlete.id, update_db=should_update_activities())
     lines = get_cached_gear_distances(athlete.id, activities)
     data = {"lines": lines}
     return jsonify(data)
@@ -278,7 +425,7 @@ def get_data():
     strava_athlete = get_user()
     if not strava_athlete:
         raise Exception("Could not get user")
-    activities = get_cached_activities(strava_athlete.id)
+    activities = get_activities(strava_athlete.id, update_db=should_update_activities())
     data = get_trends(activities, activity_types=activity_types)
     return jsonify({"data": json.dumps(data)})
 
@@ -286,7 +433,7 @@ def get_data():
 @app.route("/get_activity_types")
 def get_activity_types():
     strava_athlete = get_user()
-    activities = get_cached_activities(strava_athlete.id)
+    activities = get_activities(strava_athlete.id, update_db=should_update_activities())
 
     activity_types = list(set([x.type.lower() for x in activities]))
     type_counts = Counter(x.type.lower() for x in activities)
@@ -299,7 +446,7 @@ def get_heatmap():
     strava_athlete = get_user()
     athlete_folder = os.path.join("app", "static", "temp", str(strava_athlete.id))
     os.makedirs(athlete_folder, exist_ok=True)
-    activities = get_cached_activities(strava_athlete.id)
+    activities = get_activities(strava_athlete.id, update_db=should_update_activities())
     text_path = os.path.join(athlete_folder, "num.txt")
     num = -1
     if os.path.exists(text_path):

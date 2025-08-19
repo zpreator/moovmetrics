@@ -7,13 +7,33 @@ import time
 
 logger = logging.getLogger("moovmetrics")
 
-TYPES = [
-    "time",
-    "altitude",
-    "heartrate",
-    "temp",
-    "velocity_smooth"
-]
+TYPES = ["time", "altitude", "heartrate", "temp", "velocity_smooth"]
+
+
+def get_races(top_n: int | None = 5) -> list[Activity] | None:
+    """Get race stats to use with LLM"""
+    strava_athlete = get_strava_athlete()
+    if not strava_athlete:
+        logger.error("Error authenticating user")
+        return None
+
+    # Get just recent races
+    if top_n:
+        races = (
+            Activity.query.filter_by(user_id=strava_athlete.id, workout_type=1)
+            .order_by(Activity.start_date_local.desc())
+            .limit(top_n)
+            .all()
+        )
+    else:
+        races = (
+            Activity.query.filter_by(user_id=strava_athlete.id, workout_type=1)
+            .order_by(Activity.start_date_local.desc())
+            .all()
+        )
+
+    return races
+
 
 def get_user():
     strava_athlete = get_strava_athlete()
@@ -24,21 +44,36 @@ def get_user():
         _update_user_database(strava_athlete)
         return strava_athlete
 
-def get_activities(user_id, ids=None):
+
+def get_activities(user_id, ids=None, update_db=False, top_n=None):
     """Fetch activities from the database, updating it if necessary.
-    
+
     Returns:
         List
     """
-    if ids is None:
+    if update_db:
         _update_activities_database(user_id)
-        return Activity.query.filter_by(user_id=user_id).order_by(Activity.start_date_local.desc()).all()
-    else:
+    if ids:
         return [Activity.query.filter_by(id=id, user_id=user_id).first() for id in ids]
-    
+    else:
+        if top_n:
+            return (
+                Activity.query.filter_by(user_id=user_id)
+                .order_by(Activity.start_date_local.desc())
+                .limit(top_n)
+                .all()
+            )
+        else:
+            return (
+                Activity.query.filter_by(user_id=user_id)
+                .order_by(Activity.start_date_local.desc())
+                .all()
+            )
+
+
 def get_stream_data_for_activity(strava_id, data_type):
     """Fetch stream data for an activity, updating the db if necessary.
-    
+
     Args:
         strava_id: strava_id of activity in db
         data_type: name of the stream
@@ -48,29 +83,36 @@ def get_stream_data_for_activity(strava_id, data_type):
     """
     _update_streams_database(strava_id, data_type)
     return StreamData.query.filter_by(activity_id=strava_id, data_type=data_type).all()
-    
+
+
 def get_splits_for_activity(strava_id):
     _update_splits_segments(strava_id)
     return Split.query.filter_by(activity_id=strava_id).all()
 
+
 def get_segments_for_activity(strava_id):
     _update_splits_segments(strava_id)
     return Segment.query.filter_by(activity_id=strava_id).all()
+
 
 def _update_splits_segments(strava_id):
     strava_activity = client.get_activity(activity_id=strava_id)
     _update_splits_database(strava_id, strava_activity)
     _update_segments_database(strava_id, strava_activity)
 
+
 def get_all_best_efforts(user_id, activities=None, batch_size=5):
-    """ Gets all the effort data for all the activities.
-    
+    """Gets all the effort data for all the activities.
+
     The rate limit is avoided by waiting for 30 seconds each batch_size number
     of calls
     """
     if activities is None:
-        activities = get_activities()
-        activities = [x for x in activities if x.type == "Run"]
+        activities = (
+            Activity.query.filter_by(user_id=user_id, type="Run")
+            .order_by(Activity.start_date_local.desc())
+            .all()
+        )
 
     all_best_efforts = []
     i = 0
@@ -85,13 +127,19 @@ def get_all_best_efforts(user_id, activities=None, batch_size=5):
             time.sleep(30)
     return all_best_efforts
 
+
 def _get_most_recent_activity_start_date(user_id):
     """Retrieve the most recent activity start date from the database."""
-    most_recent_activity = Activity.query.filter_by(user_id=user_id).order_by(Activity.start_date_local.desc()).first()
+    most_recent_activity = (
+        Activity.query.filter_by(user_id=user_id)
+        .order_by(Activity.start_date_local.desc())
+        .first()
+    )
     if most_recent_activity:
         return most_recent_activity.start_date_local
     else:
         return None
+
 
 def get_new_activities(after_date):
     """Retrieve new activities from the external source."""
@@ -100,16 +148,24 @@ def get_new_activities(after_date):
         activities = list(client.get_activities(limit=per_page, after=after_date))
         all_activities = activities[:]
         while len(activities) == per_page:
-            activities = list(client.get_activities(limit=per_page, before=activities[-1].start_date, after=after_date))
+            activities = list(
+                client.get_activities(
+                    limit=per_page, before=activities[-1].start_date, after=after_date
+                )
+            )
             all_activities.extend(activities)
         return all_activities
     except Exception as e:
         logging.error(f"Error fetching new activities: {e}")
         return []
 
+
 def _update_activities_database(user_id):
     """Add new activities to the database."""
-    existing_activity_ids = {int(activity.strava_id) for activity in Activity.query.filter_by(user_id=user_id)}
+    existing_activity_ids = {
+        int(activity.strava_id)
+        for activity in Activity.query.filter_by(user_id=user_id)
+    }
     after_date = _get_most_recent_activity_start_date(user_id)
     new_activities = get_new_activities(after_date)
     for activity in new_activities:
@@ -176,7 +232,7 @@ def _update_activities_database(user_id):
                     upload_id_str=activity.upload_id_str,
                     # utc_offset=activity.utc_offset,
                     weighted_average_watts=activity.weighted_average_watts,
-                    workout_type=activity.workout_type
+                    workout_type=activity.workout_type,
                 )
                 db.session.add(new_activity)
             except Exception as e:
@@ -187,13 +243,14 @@ def _update_activities_database(user_id):
         logging.error(f"Error committing changes to database: {e}")
         db.session.rollback()
 
+
 def _update_splits_database(strava_id, activity):
     try:
         existing_split_data = Split.query.filter_by(activity_id=strava_id).all()
         if existing_split_data:
             logging.info(f"Split data already exists for activity ID {strava_id}")
             return existing_split_data
-        
+
         for split in activity.splits_standard:
             new_split = Split(
                 activity_id=strava_id,
@@ -203,7 +260,7 @@ def _update_splits_database(strava_id, activity):
                 average_grade_adjusted_speed=split.average_grade_adjusted_speed,
                 elapsed_time=split.elapsed_time,
                 distance=split.distance,
-                pace_zone=split.pace_zone
+                pace_zone=split.pace_zone,
             )
             db.session.add(new_split)
         db.session.commit()
@@ -211,13 +268,14 @@ def _update_splits_database(strava_id, activity):
         logging.error(f"Error adding new splits to database for {strava_id}: {e}")
         db.session.rollback()
 
+
 def _update_segments_database(strava_id, activity):
     try:
         existing_segment_data = Split.query.filter_by(activity_id=strava_id).all()
         if existing_segment_data:
             logging.info(f"Split data already exists for activity ID {strava_id}")
             return existing_segment_data
-        
+
         for segment in activity.segment_efforts:
             new_segment = Split(
                 activity_id=strava_id,
@@ -234,10 +292,13 @@ def _update_segments_database(strava_id, activity):
         logging.error(f"Error adding new segments to database for {strava_id}: {e}")
         db.session.rollback()
 
+
 def _update_streams_database(strava_id, data_type=None):
     try:
         # Check if stream data already exists for the activity
-        existing_stream_data = StreamData.query.filter_by(activity_id=strava_id, data_type=data_type).all()
+        existing_stream_data = StreamData.query.filter_by(
+            activity_id=strava_id, data_type=data_type
+        ).all()
         if existing_stream_data:
             logging.info(f"Stream data already exists for activity ID {strava_id}")
             return existing_stream_data
@@ -247,25 +308,27 @@ def _update_streams_database(strava_id, data_type=None):
         for stream_name, stream in streams.items():
             for time, value in zip(time_stream_data, stream.data):
                 stream_data_entry = StreamData(
-                    activity_id=strava_id,
-                    data_type=stream_name,
-                    time=time,
-                    value=value
+                    activity_id=strava_id, data_type=stream_name, time=time, value=value
                 )
                 db.session.add(stream_data_entry)
 
         db.session.commit()
-        logging.info(f"Stream data successfully fetched and stored for activity ID {strava_id}")
+        logging.info(
+            f"Stream data successfully fetched and stored for activity ID {strava_id}"
+        )
     except Exception as e:
-        logging.error(f"Error fetching and storing stream data for activity ID {strava_id}: {e}")
+        logging.error(
+            f"Error fetching and storing stream data for activity ID {strava_id}: {e}"
+        )
         db.session.rollback()
-    
+
+
 def _get_best_efforts_from_data(distances, times, races_dict):
-    """ Calculate the fastest time for each race within the activity.
-    
+    """Calculate the fastest time for each race within the activity.
+
     For example, if the run was 4 miles, calculate the fastest 5k, 1 mile, 1/2 mile
     etc. at any point during the activity.
-    
+
     Args:
         distances: List of distances covered in the activity
         times: List of corresponding times for each distance
@@ -280,23 +343,26 @@ def _get_best_efforts_from_data(distances, times, races_dict):
     #     segment_times[distances[i]] = times[i] - times[i - 1]
 
     for race in races_dict:
-        race['start_idx'] = 0
-        race['fastest_time'] = None
-        race['max_avg_speed'] = 0
+        race["start_idx"] = 0
+        race["fastest_time"] = None
+        race["max_avg_speed"] = 0
 
     for end_idx in range(1, len(distances)):
         for race in races_dict:
-            segment_distance = distances[end_idx] - distances[race['start_idx']]
-            if segment_distance >= race['distance']:
-                segment_time = times[end_idx] - times[race['start_idx']]
+            segment_distance = distances[end_idx] - distances[race["start_idx"]]
+            if segment_distance >= race["distance"]:
+                segment_time = times[end_idx] - times[race["start_idx"]]
                 avg_speed = segment_distance / segment_time
 
-                if avg_speed > race['max_avg_speed']:
-                    race['max_avg_speed'] = avg_speed
-                    race['fastest_time'] = segment_time
+                if avg_speed > race["max_avg_speed"]:
+                    race["max_avg_speed"] = avg_speed
+                    race["fastest_time"] = segment_time
                 # Move start_idx to the next potential segment start point
-                while distances[end_idx] - distances[race['start_idx']] >= race['distance']:
-                    race['start_idx'] += 1
+                while (
+                    distances[end_idx] - distances[race["start_idx"]]
+                    >= race["distance"]
+                ):
+                    race["start_idx"] += 1
                 # Exit the inner loop for this race
                 # break
 
@@ -307,7 +373,7 @@ def _update_user_database(athlete):
     existing_athlete = User.query.filter_by(strava_id=athlete.id).first()
     if existing_athlete:
         return
-    
+
     try:
         username = athlete.username
         if not username:
@@ -318,16 +384,13 @@ def _update_user_database(athlete):
                 username += athlete.lastname[0].capitalize()
             if username == "":
                 username = str(athlete.id)
-        new_athlete = User(
-            strava_id=athlete.id,
-            username=username,
-            email=athlete.email
-        )
+        new_athlete = User(strava_id=athlete.id, username=username, email=athlete.email)
         db.session.add(new_athlete)
         db.session.commit()
     except Exception as e:
         logging.error(f"Error with saving user: {athlete.id}")
         db.session.rollback()
+
 
 def get_best_efforts_for_activity(strava_id):
     all_races = []
@@ -339,13 +402,16 @@ def get_best_efforts_for_activity(strava_id):
     if exixting_best_efforts:
         logging.info(f"Best effort data already exists for this activity: {strava_id}")
         return exixting_best_efforts
-    
+
     return _update_best_efforts_database(strava_id, all_races)
-    
+
+
 def _update_best_efforts_database(strava_id, all_races):
     try:
         # Get the best efforts for this activity
-        stream_data_entries = get_stream_data_for_activity(strava_id, data_type="distance")
+        stream_data_entries = get_stream_data_for_activity(
+            strava_id, data_type="distance"
+        )
         times = [entry.time for entry in stream_data_entries]
         distances = [entry.value for entry in stream_data_entries]
         if len(times) == 0 or len(distances) == 0:
@@ -359,15 +425,19 @@ def _update_best_efforts_database(strava_id, all_races):
                 activity_id=strava_id,
                 race_name=best_effort_item["name"],
                 distance=best_effort_item["distance"],
-                elapsed_time=best_effort_item["fastest_time"]
+                elapsed_time=best_effort_item["fastest_time"],
             )
             db.session.add(best_effort)
             best_efforts.append(best_effort)
         db.session.commit()
-        logging.info(f"Best Effort data successfully fetched and stored for activity: {strava_id}")
+        logging.info(
+            f"Best Effort data successfully fetched and stored for activity: {strava_id}"
+        )
         return best_efforts
     except Exception as e:
-        logging.error(f"Error fetching and storing best effort data for activity ID {strava_id}: {e}")
+        logging.error(
+            f"Error fetching and storing best effort data for activity ID {strava_id}: {e}"
+        )
         db.session.rollback()
         return None
 
@@ -377,5 +447,5 @@ def _get_stream_data(strava_id):
     time_stream = streams.pop("time", None)
     if time_stream is None:
         raise ValueError("Time stream data is missing")
-    
-    return time_stream.data, streams 
+
+    return time_stream.data, streams

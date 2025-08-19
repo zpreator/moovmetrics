@@ -31,7 +31,12 @@
         <a href="/login" class="btn btn-primary">Login with Email</a>
       </div>
       {% else %}
-      <a href="/logout" class="btn btn-logout">Logout</a>
+      <a href="/profile" class="btn btn-logout">
+        {% if athlete %}
+          <img src="{{ athlete.profile }}" style="border-radius:50%; height:40px; width:40px; object-fit:cover; vertical-align:middle;">
+        {% endif %}
+        Profile
+      </a>
       {% endif %}
     </div>
   </div>
@@ -39,6 +44,7 @@
 
 <!-- Main content -->
 <main>
+  <div style="height: 100px;"></div>
   {% block body %}{% endblock %}
 </main>
 

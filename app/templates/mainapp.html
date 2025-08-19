@@ -18,36 +18,108 @@
     </div>
     {% endif %}
     
+    {% if athlete %}
+    <div class="strava-status">
+      <span class="checkmark">&#10003;</span>
+      <span class="strava-text">Connected to Strava</span>
+    </div>
+    {% endif %}
+    
+    {% if not plan %}
     <form class="form-container" method="POST" action="/recommendation" id="trainingForm">
       <div class="form-group">
-        <label for="goal">What is your primary fitness goal?</label>
-        <select class="form-input" name="goal" id="goal" required>
+        <label for="goal_type">What is your main goal?</label>
+        <select class="form-input" name="goal_type" id="goal_type" required>
           <option value="">Select a goal</option>
-          <option value="run">Run a race</option>
-          <option value="cycle">Improve cycling</option>
-          <option value="triathlon">Complete a triathlon</option>
-          <option value="general">General fitness</option>
+          <option value="race">🏁 Training for a race/event</option>
+          <option value="improvement">⚡ Improving pace/performance</option>
+          <option value="maintenance">🔄 Maintaining fitness</option>
+          <option value="injury">🩹 Working through an injury</option>
+          <option value="other">✨ Other (please specify)</option>
         </select>
+        
+        <!-- Conditional fields based on goal type -->
+        <div id="race_details" class="conditional-field" style="display:none; margin-top:12px;">
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label for="race_distance">What distance are you training for?</label>
+            <select class="form-input" name="race_distance" id="race_distance">
+              <option value="">Select race distance</option>
+              <option value="5k">🏃 5K (3.1 miles)</option>
+              <option value="10k">🏃 10K (6.2 miles)</option>
+              <option value="half">🏃 Half Marathon (13.1 miles)</option>
+              <option value="marathon">🏃‍♂️ Marathon (26.2 miles)</option>
+              <option value="50k">🏃‍♂️ 50K (31 miles)</option>
+              <option value="50m">🏃‍♂️ 50 Miles</option>
+              <option value="100k">🏃‍♂️ 100K (62 miles)</option>
+              <option value="100m">🏃‍♂️ 100 Miles</option>
+              <option value="custom">✨ Other Distance</option>
+            </select>
+          </div>
+          
+          <div id="custom_distance" class="form-group" style="display:none; margin-bottom: 12px;">
+            <label for="custom_distance_value">Enter the distance:</label>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <input type="number" class="form-input" name="custom_distance_value" id="custom_distance_value" 
+                step="0.1" min="0" placeholder="Enter distance" style="flex: 2;">
+              <select class="form-input" name="custom_distance_unit" id="custom_distance_unit" style="flex: 1;">
+                <option value="miles">Miles</option>
+                <option value="km">Kilometers</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="race_date">When is your event?</label>
+            <input type="date" class="form-input" name="race_date" id="race_date">
+          </div>
+        </div>
+        
+        <div id="injury_details" class="conditional-field" style="display:none; margin-top:12px;">
+          <label for="injury_description">Please describe your injury:</label>
+          <textarea class="form-input" name="injury_description" id="injury_description" 
+            rows="3" placeholder="What injury are you working through? Any specific limitations?"></textarea>
+        </div>
+        
+        <div id="goal_details" class="conditional-field" style="display:none; margin-top:12px;">
+          <label for="goal_description">Please describe your goal:</label>
+          <textarea class="form-input" name="goal_description" id="goal_description" 
+            rows="3" placeholder="Please specify your goal"></textarea>
+        </div>
       </div>
+
       <div class="form-group">
         <label for="experience">How would you describe your experience level?</label>
         <select class="form-input" name="experience" id="experience" required>
           <option value="">Select experience</option>
-          <option value="beginner">Beginner</option>
-          <option value="intermediate">Intermediate</option>
-          <option value="advanced">Advanced</option>
+          <option value="beginner">🌱 Beginner</option>
+          <option value="intermediate">🌟 Intermediate</option>
+          <option value="advanced">🏆 Advanced</option>
         </select>
       </div>
+
       <div class="form-group">
-        <label for="days">How many days per week can you train?</label>
-        <input class="form-input" type="number" name="days" id="days" min="1" max="7" required>
+        <label for="intensity">How much time can you commit to training?</label>
+        <select class="form-input" name="intensity" id="intensity" required>
+          <option value="">Select training intensity</option>
+          <option value="mild 1-2 days">🍃 Mild: 1-2 days</option>
+          <option value="medium 2-3 days">🌤️ Medium: 2-3 days, some cross training</option>
+          <option value="hot 3-5 days">🔥 Hot: 3-5 days, cross training and some intense workouts</option>
+          <option value="spicy 6-7 days">🌶️ Spicy: 6-7 days, cross training, intense workouts, 2-a-day workouts</option>
+        </select>
       </div>
+
+      <div class="form-group">
+        <label for="start_date">When would you like to start your plan?</label>
+        <input type="date" class="form-input" name="start_date" id="start_date" required>
+      </div>
+
       <button type="submit" class="form-button btn btn-primary" id="submitBtn">
         <span id="btnText">Get My Plan</span>
         <span id="loadingSpinner" class="loading-spinner" style="display: none;">
         </span>
       </button>
     </form>
+    {% endif %}
     
     <div class="schedule-container">
       <h2>Your Recommended Schedule</h2>
@@ -87,6 +159,10 @@
       <div class="button-group">
         {% if plan %}
         <a href="{{ url_for('download_pdf') }}" class="btn btn-primary">Download as PDF</a>
+        <form method="POST" action="/recommendation" style="display: inline-block; margin-left: 10px;">
+          <input type="hidden" name="reset" value="true">
+          <button type="submit" class="btn btn-secondary">Create New Plan</button>
+        </form>
         {% else %}
         <button class="btn btn-secondary" disabled>Download as PDF</button>
         {% endif %}
@@ -219,7 +295,60 @@
 .form-button:disabled:hover {
   background-color: #6c757d !important;
 }
+
+/* Form styling */
+.conditional-field {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 12px;
+  border-radius: 4px;
+  margin-top: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.conditional-field .form-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 8px;
+}
+
+.form-input[type="date"] {
+  font-family: inherit;
+  padding: 8px 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+textarea.form-input {
+  resize: vertical;
+  min-height: 80px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Strava login status checkmark */
+.strava-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+  font-size: 1.1em;
+}
+.checkmark {
+  color: #28a745;
+  font-size: 2em;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.strava-text {
+  color: #28a745;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
 </style>
+
+
 
 <script>
 document.getElementById('trainingForm').addEventListener('submit', function(e) {
@@ -257,5 +386,77 @@ window.addEventListener('load', function() {
         loadingSpinner.style.display = 'none';
     }
 });
+// // Handle sport selection
+// document.getElementById('sport').addEventListener('change', function(e) {
+//     const sportDetails = document.getElementById('sport_details');
+//     const customInput = document.getElementById('sport_custom');
+//     if (e.target.value === 'custom') {
+//         sportDetails.style.display = 'block';
+//         customInput.required = true;
+//     } else {
+//         sportDetails.style.display = 'none';
+//         customInput.required = false;
+//         customInput.value = '';
+//     }
+// });
+
+// Handle goal type selection
+document.getElementById('goal_type').addEventListener('change', function(e) {
+    const raceDetails = document.getElementById('race_details');
+    const injuryDetails = document.getElementById('injury_details');
+    const goalDetails = document.getElementById('goal_details');
+    const raceDate = document.getElementById('race_date');
+    const raceDistance = document.getElementById('race_distance');
+    const injuryDescription = document.getElementById('injury_description');
+    
+    // Hide all conditional fields first
+    raceDetails.style.display = 'none';
+    injuryDetails.style.display = 'none';
+    goalDetails.style.display = 'none';
+    goalDetails.required = false;
+    raceDate.required = false;
+    raceDistance.required = false;
+    injuryDescription.required = false;
+    
+    // Show relevant fields based on selection
+    switch(e.target.value) {
+        case 'race':
+            raceDetails.style.display = 'block';
+            raceDate.required = true;
+            raceDistance.required = true;
+            break;
+        case 'injury':
+            injuryDetails.style.display = 'block';
+            injuryDescription.required = true;
+            break;
+        case 'other':
+            goalDetails.style.display = 'block';
+            goalDetails.required = true;
+            break;
+    }
+});
+
+// Handle race distance selection
+document.getElementById('race_distance').addEventListener('change', function(e) {
+    const customDistance = document.getElementById('custom_distance');
+    const customDistanceValue = document.getElementById('custom_distance_value');
+    const customDistanceUnit = document.getElementById('custom_distance_unit');
+    
+    if (e.target.value === 'custom') {
+        customDistance.style.display = 'block';
+        customDistanceValue.required = true;
+        customDistanceUnit.required = true;
+    } else {
+        customDistance.style.display = 'none';
+        customDistanceValue.required = false;
+        customDistanceUnit.required = false;
+        customDistanceValue.value = '';
+    }
+});
+
+// Set minimum date for date inputs
+const today = new Date().toISOString().split('T')[0];
+document.getElementById('start_date').min = today;
+document.getElementById('race_date').min = today;
 </script>
 {% endblock %}

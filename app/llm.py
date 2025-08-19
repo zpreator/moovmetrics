@@ -36,7 +36,9 @@ class TrainingPlan(BaseModel):
     notes: Optional[str] = None
 
 
-def generate_training_plan(form_data: dict, use_dummy: bool = False) -> TrainingPlan:
+def generate_training_plan(
+    form_data: dict, strava_context: str | None, use_dummy: bool = False
+) -> TrainingPlan:
     """
     Generate a training plan using OpenAI based on form data.
 
@@ -64,19 +66,23 @@ def generate_training_plan(form_data: dict, use_dummy: bool = False) -> Training
     # Generate new plan using OpenAI
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-    # Format the form data for the prompt
+    # Prepare the form answers
     form_answers = f"""
     Primary fitness goal: {form_data.get("goal", "Not specified")}
-    Experience level: {form_data.get("experience", "Not specified")}
-    Training days per week: {form_data.get("days", "Not specified")}
+    Experience level (beginner, intermediate, advanced): {form_data.get("experience", "Not specified")}
+    Intensity (mild, medium, hot, spicy): {form_data.get("intensity", "Not specified")}
+    Start date: {form_data.get("start_date", "Not specified")}
     """
 
+    if strava_context:
+        form_answers += f"\n\nHere are some automatically generated Strava stats, use them to inform your training plan: {strava_context}"
+
     response = client.beta.chat.completions.parse(
-        model="gpt-4o-2024-08-06",
+        model="gpt-5-mini",
         messages=[
             {
                 "role": "system",
-                "content": "Generate a comprehensive training plan based on the user's fitness goals and experience level. Create a structured plan with specific workouts for each day of the week over multiple weeks.",
+                "content": "Generate a training plan based on the user's fitness goals and experience level. Create a structured plan with specific workouts for each day of the week over multiple weeks. If you suggest N weeks, ensure the output has N weeks of workouts. Do not be too verbose, keep the notes section 1-2 sentences.",
             },
             {
                 "role": "user",

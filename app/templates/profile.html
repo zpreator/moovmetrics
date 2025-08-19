@@ -8,21 +8,20 @@
 <script src="/static/js/dashboard.js" defer></script>
 
 <!-- Page Container -->
-<div class="w3-margin-top" >
+<div class="w3-margin-top page-content" >
   <!-- The Grid -->
   <div class="w3-row-padding">
     <!-- Right Column -->
     <div class="w3-third">
       <div class="w3-white w3-text-grey w3-card-4">
         <div class="w3-display-container">
-          <div class="avatar-container">
-              <img src="/static/images/topo.png" class="background-img" alt="background">
-              <div class="circle">
-                  <img src="{{ athlete.profile }}" class="avatar" alt="avatar">
-              </div>
-          </div>
-          <div class="w3-display-bottomleft w3-container w3-text-white">
-            <h2>{{ athlete.firstname }} {{ athlete.lastname }}</h2>
+          
+          <div class="athlete-center-container">
+            <h2 class="athlete-name">{{ athlete.firstname }} {{ athlete.lastname }}</h2>
+            <div class="athlete-btn-group">
+              <a href="/logout" class="btn athlete-btn logout">Logout</a>
+              <a href="/mainapp" class="btn athlete-btn plan">Generate Fitness Plan</a>
+            </div>
           </div>
         </div>
         <div class="image-container" id="image-container">
@@ -123,4 +122,61 @@
 
   <!-- End Page Container -->
 </div>
+<style>
+.athlete-center-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+.athlete-name {
+  text-align: center;
+  margin-bottom: 12px;
+  color: #ffffff;
+  font-size: 2em;
+  font-weight: bold;
+}
+.athlete-btn-group {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+.athlete-btn {
+  padding: 8px 20px;
+  border-radius: 5px;
+  text-decoration: none;
+  font-weight: bold;
+  font-size: 1em;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  background: #007bff;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.07);
+}
+.athlete-btn:hover {
+  cursor: pointer;
+}
+.athlete-btn.logout {
+  background: #dc3545;
+}
+.athlete-btn.logout:hover {
+  background: #a71d2a;
+  cursor: pointer;
+}
+.athlete-btn.plan {
+  background: #28a745;
+}
+.athlete-btn.plan:hover {
+  background: #1e7e34;
+  cursor: pointer;
+}
+
+.page-content {
+  position: relative;
+  z-index: 10;
+}
+</style>
 {% endblock %}
