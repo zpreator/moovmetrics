@@ -18,6 +18,7 @@ from app.llm import (
     generate_training_plan,
     serialize_training_plan,
     deserialize_training_plan,
+    WeekSummary,
 )
 from app.pdf_generator import create_pdf_response
 
@@ -360,6 +361,67 @@ def recommendation():
         training_plan = generate_training_plan(
             form_data, strava_context, use_dummy=use_dummy
         )
+
+        # Generate week summaries if not provided by LLM
+        if not hasattr(training_plan, "weeks") or not training_plan.weeks:
+            training_plan.weeks = []
+            for week_num in range(1, training_plan.duration_weeks + 1):
+                # Get workouts for this week
+                week_workouts = [
+                    w for w in training_plan.workouts if w.week == week_num
+                ]
+
+                # Calculate total distance
+                total_distance = sum(w.distance_km or 0 for w in week_workouts)
+
+                # Get unique workout types
+                workout_types = list(
+                    set(w.workout_type for w in week_workouts if w.workout_type)
+                )
+
+                # Determine week theme
+                if week_num == training_plan.duration_weeks:
+                    theme = (
+                        "Race Week"
+                        if "race" in form_data.get("goal", "").lower()
+                        else "Peak Week"
+                    )
+                elif week_num == training_plan.duration_weeks - 1:
+                    theme = (
+                        "Taper Week"
+                        if "race" in form_data.get("goal", "").lower()
+                        else "Pre-Peak Week"
+                    )
+                elif week_num == 1:
+                    theme = "Base Building"
+                else:
+                    # Look for key workouts to determine theme
+                    if any("tempo" in w.workout_type.lower() for w in week_workouts):
+                        theme = "Speed Development"
+                    elif any("long" in w.workout_type.lower() for w in week_workouts):
+                        theme = "Endurance Building"
+                    else:
+                        theme = "Building Mileage"
+
+                # Create summary based on workouts
+                key_workouts = [
+                    w
+                    for w in week_workouts
+                    if w.workout_type.lower() not in ["rest", "easy run"]
+                ]
+                if key_workouts:
+                    summary = f"Focus on {', '.join(w.workout_type for w in key_workouts[:2])}"
+                else:
+                    summary = "Building base mileage with easy runs"
+
+                week_summary = WeekSummary(
+                    number=week_num,
+                    theme=theme,
+                    total_distance_km=round(total_distance, 1),
+                    workout_types=workout_types,
+                    summary=summary,
+                )
+                training_plan.weeks.append(week_summary)
 
         # For now, just print the results
         print("Generated Training Plan:")

@@ -172,23 +172,27 @@
             <p><strong>Notes:</strong> {{ plan.notes }}</p>
           {% endif %}
           
-          <h4>Workout Schedule:</h4>
-          <div class="workout-list">
-            {% for workout in plan.workouts %}
-            <div class="workout-item">
-              <strong>Week {{ workout.week }}, {{ workout.day_of_week }}:</strong> {{ workout.workout_type }}
-              {% if workout.distance_km %}
-                <br><em>Distance: {{ workout.distance_km }} km</em>
-              {% endif %}
-              {% if workout.duration_minutes %}
-                <br><em>Duration: {{ workout.duration_minutes }} minutes</em>
-              {% endif %}
-              {% if workout.pace %}
-                <br><em>Pace: {{ workout.pace }}</em>
-              {% endif %}
-              {% if workout.notes %}
-                <br><em>Notes: {{ workout.notes }}</em>
-              {% endif %}
+          <h4>Training Schedule Overview:</h4>
+          <div class="week-list">
+            {% for week in plan.weeks %}
+            <div class="week-item">
+              <div class="week-header">
+                <strong>Week {{ week.number }}</strong>
+                <span class="week-theme">{{ week.theme }}</span>
+              </div>
+              <div class="week-stats">
+                <div class="stat">
+                  <span class="stat-label">Total Distance:</span>
+                  <span class="stat-value">{{ week.total_distance_km|round(1) }} km</span>
+                </div>
+                <div class="stat">
+                  <span class="stat-label">Workouts:</span>
+                  <span class="stat-value">{{ week.workout_types|join(", ") }}</span>
+                </div>
+              </div>
+              <div class="week-notes">
+                {{ week.summary }}
+              </div>
             </div>
             {% endfor %}
           </div>
@@ -231,41 +235,83 @@
   color: #721c24;
 }
 
-.workout-list {
-  max-height: 400px;
+.week-list {
+  max-height: 600px;
   overflow-y: auto;
   border: 1px solid #ddd;
-  padding: 10px;
-  border-radius: 4px;
+  padding: 15px;
+  border-radius: 8px;
   background-color: #f8f9fa;
 }
 
-.workout-item {
-  padding: 12px;
-  margin: 8px 0;
-  border-left: 4px solid #007bff;
+.week-item {
+  padding: 16px;
+  margin: 12px 0;
+  border-left: 6px solid #007bff;
   background-color: #2c3e50;
   color: #ffffff;
-  border-radius: 6px;
+  border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  transition: transform 0.2s ease;
+  transition: all 0.3s ease;
 }
 
-.workout-item:hover {
+.week-item:hover {
   transform: translateX(2px);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.15);
 }
 
-.workout-item strong {
+.week-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.week-header strong {
+  font-size: 1.2em;
   color: #3498db;
-  font-size: 1.1em;
 }
 
-.workout-item em {
+.week-theme {
+  background-color: rgba(52, 152, 219, 0.2);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.9em;
+  color: #3498db;
+}
+
+.week-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-label {
   color: #bdc3c7;
-  font-style: normal;
-  display: block;
-  margin-top: 4px;
+  font-size: 0.9em;
+}
+
+.stat-value {
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.week-notes {
+  margin-top: 12px;
+  color: #ecf0f1;
+  font-style: italic;
+  line-height: 1.4;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.1);
 }
 
 .button-group {

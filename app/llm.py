@@ -24,6 +24,14 @@ class Workout(BaseModel):
     notes: Optional[str] = None
 
 
+class WeekSummary(BaseModel):
+    number: int
+    theme: str  # e.g., "Base Building", "Peak Week", "Taper"
+    total_distance_km: float
+    workout_types: List[str]  # List of workout types this week
+    summary: str  # Textual summary of the week's focus
+
+
 class TrainingPlan(BaseModel):
     title: str
     duration_weeks: int
@@ -33,6 +41,7 @@ class TrainingPlan(BaseModel):
     author: Optional[str] = None
 
     workouts: List[Workout]
+    weeks: List[WeekSummary]  # Weekly summaries
     notes: Optional[str] = None
 
 
@@ -82,7 +91,15 @@ def generate_training_plan(
         messages=[
             {
                 "role": "system",
-                "content": "Generate a training plan based on the user's fitness goals and experience level. Create a structured plan with specific workouts for each day of the week over multiple weeks. If you suggest N weeks, ensure the output has N weeks of workouts. Do not be too verbose, keep the notes section 1-2 sentences.",
+                "content": """Generate a training plan based on the user's fitness goals and experience level. Create a structured plan with specific workouts for each day of the week over multiple weeks. If you suggest N weeks, ensure the output has N weeks of workouts. Do not be too verbose, keep the notes section 1-2 sentences.
+
+For each week, provide a summary that includes:
+1. A theme (e.g., "Base Building", "Peak Week", "Recovery", "Taper")
+2. Total distance for the week in kilometers
+3. Types of workouts included that week (e.g., "Easy runs, Long run, Tempo")
+4. A brief summary of the week's focus or progression
+
+The weekly summaries should show clear progression through the training cycle and help users understand how each week contributes to their goal.""",
             },
             {
                 "role": "user",
