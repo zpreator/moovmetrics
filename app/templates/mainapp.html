@@ -91,26 +91,66 @@
         <label for="experience">How would you describe your experience level?</label>
         <select class="form-input" name="experience" id="experience" required>
           <option value="">Select experience</option>
-          <option value="beginner">🌱 Beginner</option>
-          <option value="intermediate">🌟 Intermediate</option>
-          <option value="advanced">🏆 Advanced</option>
+          <option value="beginner" {% if recommendations and recommendations.recommended_experience == 'beginner' %}selected{% endif %}>
+            🌱 Beginner
+          </option>
+          <option value="intermediate" {% if recommendations and recommendations.recommended_experience == 'intermediate' %}selected{% endif %}>
+            🌟 Intermediate
+          </option>
+          <option value="advanced" {% if recommendations and recommendations.recommended_experience == 'advanced' %}selected{% endif %}>
+            🏆 Advanced
+          </option>
         </select>
+        {% if recommendations %}
+        <small class="form-text text-muted">
+          Based on your Strava history: {{ recommendations.runs_per_week }} runs/week, averaging {{ recommendations.avg_distance }} miles per run
+        </small>
+        {% endif %}
       </div>
 
       <div class="form-group">
         <label for="intensity">How much time can you commit to training?</label>
         <select class="form-input" name="intensity" id="intensity" required>
           <option value="">Select training intensity</option>
-          <option value="mild 1-2 days">🍃 Mild: 1-2 days</option>
-          <option value="medium 2-3 days">🌤️ Medium: 2-3 days, some cross training</option>
-          <option value="hot 3-5 days">🔥 Hot: 3-5 days, cross training and some intense workouts</option>
-          <option value="spicy 6-7 days">🌶️ Spicy: 6-7 days, cross training, intense workouts, 2-a-day workouts</option>
+          <option value="mild 1-2 days" {% if recommendations and recommendations.recommended_intensity == 'mild 1-2 days' %}selected{% endif %}>
+            🍃 Mild: 1-2 days
+          </option>
+          <option value="medium 2-3 days" {% if recommendations and recommendations.recommended_intensity == 'medium 2-3 days' %}selected{% endif %}>
+            🌤️ Medium: 2-3 days, some cross training
+          </option>
+          <option value="hot 3-5 days" {% if recommendations and recommendations.recommended_intensity == 'hot 3-5 days' %}selected{% endif %}>
+            🔥 Hot: 3-5 days, cross training and some intense workouts
+          </option>
+          <option value="spicy 6-7 days" {% if recommendations and recommendations.recommended_intensity == 'spicy 6-7 days' %}selected{% endif %}>
+            🌶️ Spicy: 6-7 days, cross training, intense workouts, 2-a-day workouts
+          </option>
         </select>
+        {% if recommendations %}
+        <small class="form-text text-muted">
+          Suggested based on your current training frequency
+        </small>
+        {% endif %}
       </div>
 
       <div class="form-group">
-        <label for="start_date">When would you like to start your plan?</label>
-        <input type="date" class="form-input" name="start_date" id="start_date" required>
+        <label for="num_weeks">How many weeks would you like to train?</label>
+        <select class="form-input" name="num_weeks" id="num_weeks" required>
+          <option value="">Select number of weeks</option>
+          <option value="4">4 weeks</option>
+          <option value="6">6 weeks</option>
+          <option value="8">8 weeks</option>
+          <option value="10">10 weeks</option>
+          <option value="12">12 weeks</option>
+        </select>
+      </div>
+
+      <!-- Intermediate races section -->
+      <div id="intermediate_races" class="form-group" style="margin-top: 20px;">
+        <label>Add intermediate races (optional)</label>
+        <div id="intermediate_races_container">
+          <!-- Race entries will be added here dynamically -->
+        </div>
+        <button type="button" class="btn btn-secondary" id="add_race_btn" style="margin-top: 10px;">+ Add Race</button>
       </div>
 
       <button type="submit" class="form-button btn btn-primary" id="submitBtn">
@@ -346,6 +386,39 @@ textarea.form-input {
   font-weight: bold;
   letter-spacing: 0.5px;
 }
+
+.text-muted {
+  color: #6c757d;
+  font-size: 0.875em;
+  margin-top: 4px;
+  display: block;
+}
+
+/* Intermediate races styling */
+.intermediate-race {
+  margin-bottom: 15px;
+  padding: 15px;
+}
+
+#add_race_btn {
+  background-color: #28a745;
+  color: white;
+  transition: background-color 0.3s ease;
+}
+
+#add_race_btn:hover {
+  background-color: #218838;
+}
+
+.remove-race {
+  background-color: #dc3545;
+  color: white;
+  transition: background-color 0.3s ease;
+}
+
+.remove-race:hover {
+  background-color: #c82333;
+}
 </style>
 
 
@@ -454,9 +527,71 @@ document.getElementById('race_distance').addEventListener('change', function(e) 
     }
 });
 
-// Set minimum date for date inputs
+// Set minimum date for race date input
 const today = new Date().toISOString().split('T')[0];
-document.getElementById('start_date').min = today;
 document.getElementById('race_date').min = today;
+
+// Function to recommend number of training weeks based on race distance
+function recommendWeeks(distance) {
+    const weeksByDistance = {
+        '5k': 8,
+        '10k': 10,
+        'half': 12,
+        'marathon': 12,
+        '50k': 12,
+        '50m': 12,
+        '100k': 12,
+        '100m': 12,
+        'custom': 12
+    };
+    return weeksByDistance[distance] || 8;
+}
+
+// Handle race distance selection to update recommended weeks
+document.getElementById('race_distance').addEventListener('change', function(e) {
+    const numWeeks = document.getElementById('num_weeks');
+    const recommendedWeeks = recommendWeeks(e.target.value);
+    numWeeks.value = recommendedWeeks.toString();
+});
+
+// Handle intermediate races
+let raceCounter = 0;
+document.getElementById('add_race_btn').addEventListener('click', function() {
+    const container = document.getElementById('intermediate_races_container');
+    raceCounter++;
+    
+    const raceEntry = document.createElement('div');
+    raceEntry.className = 'intermediate-race conditional-field';
+    raceEntry.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <strong>Intermediate Race ${raceCounter}</strong>
+            <button type="button" class="btn btn-secondary remove-race" style="padding: 5px 10px;">Remove</button>
+        </div>
+        <div class="form-group" style="margin-bottom: 12px;">
+            <label>Race Distance</label>
+            <select class="form-input" name="intermediate_race_distance_${raceCounter}">
+                <option value="5k">🏃 5K (3.1 miles)</option>
+                <option value="10k">🏃 10K (6.2 miles)</option>
+                <option value="half">🏃 Half Marathon (13.1 miles)</option>
+                <option value="marathon">🏃‍♂️ Marathon (26.2 miles)</option>
+                <option value="50k">🏃‍♂️ 50K (31 miles)</option>
+                <option value="50m">🏃‍♂️ 50 Miles</option>
+                <option value="100k">🏃‍♂️ 100K (62 miles)</option>
+                <option value="100m">🏃‍♂️ 100 Miles</option>
+                <option value="custom">✨ Other Distance</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Race Date</label>
+            <input type="date" class="form-input" name="intermediate_race_date_${raceCounter}" min="${today}">
+        </div>
+    `;
+    container.appendChild(raceEntry);
+
+    // Add remove button handler
+    raceEntry.querySelector('.remove-race').addEventListener('click', function() {
+        container.removeChild(raceEntry);
+    });
+});
 </script>
 {% endblock %}

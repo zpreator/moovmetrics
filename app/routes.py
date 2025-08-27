@@ -111,6 +111,64 @@ def strava_login():
     return redirect(url)
 
 
+# Analyze Strava data to recommend initial settings
+def analyze_strava_activity_patterns(activities):
+    if not activities:
+        return None
+
+    # Filter to get only runs from the last 20 activities
+    recent_runs = [
+        activity
+        for activity in activities[:20]
+        if activity.type and activity.type.lower() == "run"
+    ]
+
+    if not recent_runs:
+        return None
+
+    # Sort runs by date
+    recent_runs.sort(key=lambda x: x.start_date_local, reverse=True)
+
+    # Calculate average runs per week
+    if len(recent_runs) >= 2:
+        time_diff = recent_runs[0].start_date_local - recent_runs[-1].start_date_local
+        weeks = time_diff.days / 7
+        runs_per_week = len(recent_runs) / weeks if weeks > 0 else 0
+    else:
+        runs_per_week = 0
+
+    # Calculate average distance per run (in miles)
+    avg_distance = sum(
+        run.distance * 0.000621371 for run in recent_runs if run.distance
+    ) / len(recent_runs)
+
+    # Determine experience level and training intensity based on patterns
+    def get_experience_level(runs_per_week, avg_distance):
+        if runs_per_week >= 5 or avg_distance >= 10:
+            return "advanced"
+        elif runs_per_week >= 3 or avg_distance >= 5:
+            return "intermediate"
+        else:
+            return "beginner"
+
+    def get_training_intensity(runs_per_week):
+        if runs_per_week >= 6:
+            return "spicy 6-7 days"
+        elif runs_per_week >= 3:
+            return "hot 3-5 days"
+        elif runs_per_week >= 2:
+            return "medium 2-3 days"
+        else:
+            return "mild 1-2 days"
+
+    return {
+        "runs_per_week": round(runs_per_week, 1),
+        "avg_distance": round(avg_distance, 1),
+        "recommended_experience": get_experience_level(runs_per_week, avg_distance),
+        "recommended_intensity": get_training_intensity(runs_per_week),
+    }
+
+
 # Main app page with questionnaire
 @app.route("/mainapp", methods=["GET"])
 def mainapp():
@@ -123,14 +181,45 @@ def mainapp():
     if success and "current_training_plan" in session:
         plan = deserialize_training_plan(session["current_training_plan"])
 
+    # Get Strava context and recommendations if user is connected
+    strava_context = None
+    recommendations = None
+    athlete = get_user()
+    if athlete:
+        activities = get_activities(athlete.id)
+        if activities:
+            # Generate Strava context
+            strava_context = "Strava Stats:\n"
+            stats = utils.get_stats(activities)
+            for key, value in stats.items():
+                strava_context += f"{key}: Total count: {value['count']}, Total distance: {value['distance']} miles\n"
+
+            # Get activity pattern recommendations
+            recommendations = analyze_strava_activity_patterns(activities)
+            if recommendations:
+                strava_context += f"\nActivity Patterns:\n"
+                strava_context += (
+                    f"Average runs per week: {recommendations['runs_per_week']}\n"
+                )
+                strava_context += f"Average distance per run: {recommendations['avg_distance']} miles\n"
+
+            # Store context for later use in recommendation
+            session["strava_context"] = strava_context
+
     return render_template(
-        "mainapp.html", athlete=get_user(), success=success, plan=plan, error=error
+        "mainapp.html",
+        athlete=athlete,
+        success=success,
+        plan=plan,
+        error=error,
+        recommendations=recommendations,
     )
 
 
 # Handle questionnaire submission (placeholder)
 @app.route("/recommendation", methods=["POST"])
 def recommendation():
+    top_activities = 10
     # Handle reset request
     if request.form.get("reset"):
         # Clear the current plan and success flag
@@ -140,62 +229,53 @@ def recommendation():
         return redirect(url_for("mainapp"))
 
     try:
-        # Check if connected to Strava
-        athlete = get_user()
-        strava_context = None
-        if athlete:
-            strava_context = "Strava Stats:\n"
-            activities = get_activities(athlete.id)
-            stats = utils.get_stats(activities)
-            for key, value in stats.items():
-                strava_context += f"{key}: Total count: {value['count']}, Total distance: {value['distance']} miles\n"
+        # Get stored Strava context
+        strava_context = session.get("strava_context")
+        races = get_races(None)
+        activities = get_activities(get_user().id, top_n=top_activities)
+        if races:
+            # Get race stats
+            longest_race = max(races, key=lambda x: x.distance if x.distance else 0)
+            fastest_race = min(
+                races,
+                key=lambda x: (
+                    x.elapsed_time.total_seconds() / (x.distance)
+                    if x.distance and x.elapsed_time
+                    else float("inf")
+                ),
+            )
 
-            races = get_races(None)
-            if races:
-                # Get race stats
-                longest_race = max(races, key=lambda x: x.distance if x.distance else 0)
-                fastest_race = min(
-                    races,
-                    key=lambda x: (
-                        x.elapsed_time.total_seconds() / (x.distance)
-                        if x.distance and x.elapsed_time
-                        else float("inf")
-                    ),
-                )
-
-                def race_analysis(race) -> str:
-                    analysis = ""
-                    if race.distance:
-                        distance_miles = (
-                            race.distance * 0.621371 / 1000
-                        )  # Convert m to miles
-                        pace_min_per_mile = (
-                            race.elapsed_time.total_seconds() / 60 / distance_miles
-                        )
-                        analysis += f"{race.name} ({distance_miles:.1f} miles), Pace: {pace_min_per_mile:.2f} min/mile, Date: {race.start_date_local.strftime('%Y-%m-%d')}"
-                        if race.average_heartrate:
-                            analysis += (
-                                f", Average HR: {race.average_heartrate:.0f} bpm\n"
-                            )
-                        else:
-                            analysis += "\n"
+            def race_analysis(race) -> str:
+                analysis = ""
+                if race.distance:
+                    distance_miles = (
+                        race.distance * 0.621371 / 1000
+                    )  # Convert m to miles
+                    pace_min_per_mile = (
+                        race.elapsed_time.total_seconds() / 60 / distance_miles
+                    )
+                    analysis += f"{race.name} ({distance_miles:.1f} miles), Pace: {pace_min_per_mile:.2f} min/mile, Date: {race.start_date_local.strftime('%Y-%m-%d')}"
+                    if race.average_heartrate:
+                        analysis += f", Average HR: {race.average_heartrate:.0f} bpm\n"
                     else:
-                        return ""
-                    return analysis
+                        analysis += "\n"
+                else:
+                    return ""
+                return analysis
 
-                # Add detailed race analysis to context
-                strava_context += "\nRace Analysis:\n"
-                strava_context += f"Longest Race: {race_analysis(longest_race)}"
-                strava_context += f"Fastest Race: {race_analysis(fastest_race)}"
-                strava_context += f"Most Recent Race: {race_analysis(races[0])}"
+            # Add detailed race analysis to context
+            strava_context += "\nRace Analysis:\n"
+            strava_context += f"Longest Race: {race_analysis(longest_race)}"
+            strava_context += f"Fastest Race: {race_analysis(fastest_race)}"
+            strava_context += f"Most Recent Race: {race_analysis(races[0])}"
 
-                strava_context += "\nRace History (Most Recent):\n"
-                for race in races[:5]:  # They should already be sorted by date
-                    strava_context += race_analysis(race)
+            strava_context += "\nRace History (Most Recent):\n"
+            for race in races[:5]:  # They should already be sorted by date
+                strava_context += race_analysis(race)
 
-                strava_context += "\nRecent Activities:\n"
-                for activity in activities[:10]:
-                    strava_context += race_analysis(activity)
+            strava_context += "\nRecent Activities:\n"
+            for activity in activities[:top_activities]:
+                strava_context += race_analysis(activity)
 
         # Get form data
         goal_type = request.form.get("goal_type")
@@ -244,14 +324,33 @@ def recommendation():
                 "goal_description", "Custom running goal"
             )
 
-        # Build form data dictionary
+        # Get intermediate races
+        intermediate_races = []
+        for key in request.form.keys():
+            if key.startswith("intermediate_race_distance_"):
+                race_num = key.split("_")[-1]
+                race_date = request.form.get(f"intermediate_race_date_{race_num}")
+                race_distance = request.form.get(key)
+                if race_date and race_distance:
+                    intermediate_races.append(
+                        {"distance": race_distance, "date": race_date}
+                    )
+
+        # Build form data dictionary with non-empty values
         form_data = {
             "sport": "running",  # Hardcoded as we're focusing on running only
             "goal": goal_description,
-            "experience": request.form.get("experience"),
-            "intensity": request.form.get("intensity"),
-            "start_date": request.form.get("start_date"),
         }
+
+        # Add optional fields only if they have values
+        if experience := request.form.get("experience"):
+            form_data["experience"] = experience
+        if intensity := request.form.get("intensity"):
+            form_data["intensity"] = intensity
+        if num_weeks := request.form.get("num_weeks"):
+            form_data["num_weeks"] = num_weeks
+        if intermediate_races:
+            form_data["intermediate_races"] = intermediate_races
 
         # Check if we should use cached plan (for testing)
         use_dummy = os.getenv("USE_DUMMY", "false").lower() == "true"
@@ -433,7 +532,7 @@ def get_data():
 @app.route("/get_activity_types")
 def get_activity_types():
     strava_athlete = get_user()
-    activities = get_activities(strava_athlete.id, update_db=should_update_activities())
+    activities = get_activities(athlete.id, update_db=should_update_activities())
 
     activity_types = list(set([x.type.lower() for x in activities]))
     type_counts = Counter(x.type.lower() for x in activities)
