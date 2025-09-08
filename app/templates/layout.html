@@ -4,120 +4,118 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Moov Metrics</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js" integrity="sha512-ZwR1/gSZM3ai6vCdI+LVF1zSq/5HznD3ZSTk7kajkaj4D292NLuduDCO1c/NT8Id+jE58KYLKT7hXnbtryGmMg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
-    <link href="https://fonts.googleapis.com/css?family=Roboto:400,700|Montserrat:400,700|Open+Sans:400,700|Lato:400,700|Playfair+Display:400,700|Raleway:400,700|Pacifico|Oswald:400,700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css?family=Montserrat:700,400|Roboto:400,700&display=swap" rel="stylesheet">
     <link rel="icon" href="{{ url_for('static', filename='images/cow-head.ico') }}" type="image/x-icon">
-    <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/site.css') }}">
-    <link rel='stylesheet' href='https://fonts.googleapis.com/css?family=Roboto'>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/site.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
 </head>
-<body class="w3-light-grey">
+<body class="modern-bg">
 
-<style>
-h1,h2,h3,h4,h5,h6 {font-family: "Roboto", sans-serif}
-body {
-    background-image: url('/static/images/topo.png'); /* Replace 'path/to/your/image.jpg' with the path to your image */
-    background-size: contain; /* Cover the entire background */
-  }
-</style>
+<!-- Dynamic Background -->
+<div id="particles-js"></div>
 
 <!-- Navbar -->
-<div class="w3-top">
-  <div class="w3-bar w3-black w3-card">
-    <a class="w3-bar-item w3-button w3-padding-large w3-hide-medium w3-hide-large w3-left" href="javascript:void(0)" onclick="myFunction()" title="Toggle Navigation Menu">
-      <!-- <i class="fa fa-bars"></i> -->
-      <img src="{{ url_for('static', filename='images/cow-head.ico') }}" alt="Logo" height="20px">
+<nav class="navbar">
+  <div class="navbar-content">
+    <a href="/" class="navbar-logo">
+      <img src="{{ url_for('static', filename='images/cow-head.png') }}" alt="Moov Metrics Logo" height="32">
+      <span class="logo-text">Moov Metrics</span>
     </a>
-    {% if athlete %}
-    <a class="w3-bar-item w3-button w3-padding-large w3-hide-medium w3-hide-large w3-right" href="/profile_page" title="Toggle Navigation Menu">
-        
-      Welcome {{athlete.firstname}}
-      <img src="{{ athlete.profile }}" class="avatar" alt="Logo" height="20px">
-    </a>
-    {% endif %}
-    <!-- <a href="/dashboard" class="w3-bar-item w3-button w3-padding-large"><img src="{{ url_for('static', filename='images/cow-head.ico') }}" alt="Logo" height="20px"></a> -->
-    <a href="/dashboard" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Dashboard</a>
-    <a href="/activities_page" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Activities</a>
-    <a href="/best_efforts_page" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Best Efforts</a>
-    <a href="/gear_page" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Gear</a>
-    <!-- <a href="/year_in_review" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Year in Review</a> -->
-    <!-- <a href="/game" class="w3-bar-item w3-button w3-padding-large w3-hide-small">Cow Cardio</a> -->
-    {% if flask_env == 'dev' %}
-    <p class="w3-bar-item w3-button w3-padding-large w3-hide-small">Dev</p>
-    {% endif %}
-
-      <a href="/logout" class="w3-bar-item w3-button w3-padding-large w3-hide-small w3-right">Logout</a>
-      <a href="/support" class="w3-bar-item w3-button w3-padding-large w3-hide-small w3-right">Support Me</a>
-  </div>
-</div>
-
-<!-- Navbar on small screens (remove the onclick attribute if you want the navbar to always show on top of the content when clicking on the links) -->
-<div id="navDemo" class="w3-bar-block w3-black w3-hide w3-hide-large w3-hide-medium w3-top" style="margin-top:46px">
-  <a href="/dashboard" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Dashboard</a>
-  <a href="/activities_page" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Activities</a>
-  <a href="/best_efforts_page" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Best Efforts</a>
-  <a href="/gear_page" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Gear</a>
-  <!-- <a href="/year_in_review" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Year in Review</a> -->
-  <!-- <a href="/game" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Cow Cardio</a> -->
-  <a href="/support" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Support Me</a>
-  <a href="/logout" class="w3-bar-item w3-button w3-padding-large" onclick="myFunction()">Logout</a>
-</div>
-
-<!-- Upper section -->
-<div class="w3-display-container w3-center title-section w3-margin-bottom">
-  <div class="w3-row-padding">
-    <div class="w3-half">
-      <h2 class="title" style="font-family: 'Pacifico', sans-serif;">Moov Metrics</h2>
-      <p>Deeper analysis that gets you mooving</p>
-    </div>
-    <div class="w3-half">
-      <img src="{{ cow_path }}" alt="Logo" class="logo">
+    <div class="navbar-links">
+      {% if not session.get('access_token') %}
+      <button class="btn btn-login navbar-login-toggle" type="button">Login</button>
+      <div class="navbar-login-options" style="display:none;">
+        <a href="/login/strava" class="btn btn-strava"><i class="fa fa-bolt"></i> Login with Strava</a>
+        <a href="/login" class="btn btn-primary">Login with Email</a>
+      </div>
+      {% else %}
+      <a href="/profile" class="btn btn-logout">
+        {% if athlete %}
+          <img src="{{ athlete.profile }}" style="border-radius:50%; height:40px; width:40px; object-fit:cover; vertical-align:middle;">
+        {% endif %}
+        Profile
+      </a>
+      {% endif %}
     </div>
   </div>
-</div>
-{% block body %}
-{% endblock %}
+</nav>
+
+<!-- Main content -->
+<main>
+  <div style="height: 100px;"></div>
+  {% block body %}{% endblock %}
+</main>
+
 <!-- Footer -->
-<footer class="w3-container w3-padding-64 w3-center w3-opacity w3-light-grey w3-xlarge">
-  <i class="fa fa-github w3-hover-opacity"></i>
-  <i class="fa fa-instagram w3-hover-opacity"></i>
-  <div>
-    <img src="{{ url_for('static', filename='images/api_logo_pwrdBy_strava_horiz_light.png') }}">
+<footer class="footer">
+  <div class="footer-content">
+    <span>© {{ year or 2025 }} Moov Metrics</span>
+    <img src="{{ url_for('static', filename='images/api_logo_pwrdBy_strava_horiz_light.png') }}" alt="Powered by Strava" class="footer-strava">
   </div>
 </footer>
+
 <script>
-    document.addEventListener("DOMContentLoaded", function() {
-    const hamburger = document.querySelector(".hamburger");
-    const dropdownContent = document.querySelector(".dropdown-content");
-
-    // Toggle dropdown on hamburger click
-    // hamburger.addEventListener("click", function() {
-    //     dropdownContent.classList.toggle("show");
-    // });
-
-    // Close dropdown when clicking outside of it
-    window.addEventListener("click", function(event) {
-        if (!event.target.matches('.hamburger')) {
-            if (dropdownContent.classList.contains('show')) {
-                dropdownContent.classList.remove('show');
-            }
-        }
-    });
+// Initialize particles.js for dynamic background
+particlesJS.load('particles-js', 'static/js/particles.json', function() {
+  // Callback after loading
 });
 
-// Used to toggle the menu on small screens when clicking on the menu button
-function myFunction() {
-  var x = document.getElementById("navDemo");
-  if (x.className.indexOf("w3-show") == -1) {
-    x.className += " w3-show";
-  } else {
-    x.className = x.className.replace(" w3-show", "");
-  }
-}
+// Hide/show navbar on mobile scroll
+(function() {
+  let lastScrollY = window.scrollY;
+  let ticking = false;
+  const navbar = document.querySelector('.navbar');
+  let isMobile = window.matchMedia('(max-width: 600px)').matches;
 
+  function onScroll() {
+    if (!isMobile) return;
+    if (window.scrollY > lastScrollY && window.scrollY > 40) {
+      // Scrolling down
+      navbar.classList.add('navbar-hide');
+    } else {
+      // Scrolling up
+      navbar.classList.remove('navbar-hide');
+    }
+    lastScrollY = window.scrollY;
+    ticking = false;
+  }
+
+  function onResize() {
+    isMobile = window.matchMedia('(max-width: 600px)').matches;
+    if (!isMobile) {
+      navbar.classList.remove('navbar-hide');
+    }
+  }
+
+  window.addEventListener('scroll', function() {
+    if (!ticking) {
+      window.requestAnimationFrame(onScroll);
+      ticking = true;
+    }
+  });
+  window.addEventListener('resize', onResize);
+
+  // Navbar login dropdown logic
+  var loginToggle = document.querySelector('.navbar-login-toggle');
+  var loginOptions = document.querySelector('.navbar-login-options');
+  if (loginToggle && loginOptions) {
+    loginToggle.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (loginOptions.style.display === 'none' || loginOptions.style.display === '') {
+        loginOptions.style.display = 'flex';
+      } else {
+        loginOptions.style.display = 'none';
+      }
+    });
+    document.addEventListener('click', function(e) {
+      if (!loginOptions.contains(e.target) && e.target !== loginToggle) {
+        loginOptions.style.display = 'none';
+      }
+    });
+  }
+})();
 </script>
 </body>
 </html>

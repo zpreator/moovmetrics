@@ -1,0 +1,16 @@
+{% extends "layout.html" %}
+
+{% block body %}
+<section class="signup-section">
+  <div class="signup-content">
+    <h1 class="signup-title">Sign Up</h1>
+    <p class="signup-subtitle">Enter your details to create your account.</p>
+    <form class="signup-form" method="POST" action="/signup">
+      <input type="email" name="email" value="{{ email }}" readonly required>
+      <input type="text" name="name" placeholder="Your Name" required>
+      <input type="password" name="password" placeholder="Create a Password" required>
+      <button type="submit" class="btn btn-primary">Create Account</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

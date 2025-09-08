@@ -1,8 +1,209 @@
+/* Common section styles */
+.content-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 80vh;
+  padding-top: 80px; /* Offset for navbar */
+  box-sizing: border-box;
+}
+
+/* Common card container styles */
+.card-container {
+  background: rgba(24,28,32,0.95);
+  border-radius: 18px;
+  box-shadow: 0 4px 24px 0 rgba(0,0,0,0.2);
+  padding: 2.5rem 2rem;
+  max-width: 500px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 20;
+}
+
+/* Common text styles */
+.page-title {
+  margin-bottom: 0.5rem;
+  font-size: 2rem;
+  font-weight: 700;
+  text-align: center;
+  color: #fff;
+}
+
+.page-subtitle {
+  margin-bottom: 1.5rem;
+  color: #a0a0a0;
+  text-align: center;
+}
+
+/* Form styles */
+.form-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 2rem;
+  max-width: 320px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.form-group {
+  width: 100%;
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.form-group label {
+  margin-bottom: 0.75rem;
+  font-weight: 500;
+  color: #fff;
+  opacity: 0.9;
+}
+
+.form-input,
+.form-group select {
+  width: 100%;
+  max-width: 320px;
+  padding: 0.9rem 1.2rem;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 24px;
+  font-size: 1rem;
+  background: rgba(24,28,32,0.8);
+  margin-bottom: 0.5rem;
+  color: #fff;
+  text-align: center;
+  transition: all 0.2s ease;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.form-input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: rgba(255,255,255,0.2);
+  background: rgba(34,38,42,0.95);
+}
+
+.form-input::placeholder {
+  color: rgba(255,255,255,0.5);
+}
+
+.form-group select option {
+  background: rgba(24,28,32,0.95);
+  color: #fff;
+  padding: 0.5rem;
+}
+
+.form-button {
+  width: 100%;
+  max-width: 320px;
+  padding: 0.9rem 1.2rem;
+  border-radius: 24px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  transition: transform 0.2s ease;
+}
+
+.form-button:hover {
+  transform: translateY(-1px);
+}
+
+/* Schedule section styles */
+.schedule-container {
+  width: 100%;
+  text-align: center;
+  margin-top: 2rem;
+}
+
+.schedule-content {
+  background: rgba(34,38,42,0.95);
+  border-radius: 10px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  color: #fff;
+}
+
+.button-group {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1rem;
+}
+/* Centered signup section, matching homepage style */
+.signup-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 80vh;
+  padding-top: 80px; /* Offset for navbar */
+  box-sizing: border-box;
+}
+
+.signup-content {
+  background: rgba(255,255,255,0.97);
+  border-radius: 18px;
+  box-shadow: 0 4px 24px 0 rgba(0,0,0,0.08);
+  padding: 2.5rem 2rem 2rem 2rem;
+  max-width: 400px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 20;
+}
+
+.signup-title {
+  margin-bottom: 0.5rem;
+  font-size: 2rem;
+  font-weight: 700;
+  text-align: center;
+  color: #1a1a1a;
+}
+
+.signup-subtitle {
+  margin-bottom: 1.5rem;
+  color: #222;
+  text-align: center;
+}
+
+.signup-form input {
+  width: 100%;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+  background: #fafbfc;
+  color: #222;
+}
+
+.signup-form button {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
 body {
   display: flex;
   flex-direction: column;
   min-height: 100vh; /* Make sure the body covers the full viewport height */
   margin: 0;
+  color: #fff;
+  background: #181c20;
 }
 
 .container {
@@ -114,12 +315,65 @@ body {
 }
 
 /* Button styles */
+
+/* Default button and link styles */
 a, button {
     text-decoration: none;
     color: white;
     padding: 8px 16px;
     border: none;
     cursor: pointer;
+}
+
+.btn-logout {
+    color: rgba(255,255,255,0.8);
+    border: 1px solid rgba(255,255,255,0.2);
+    background: transparent;
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.btn-logout:hover {
+    color: #fff;
+    border-color: rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.1);
+}
+
+/* Light button variant (e.g., .chart-button, .btn-secondary) */
+.chart-button,
+.btn-secondary,
+button:disabled {
+    color: #333 !important;
+    background-color: #f0f0f0;
+}
+
+/* Disabled button style for clarity */
+button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    border: 1px solid #ccc;
+}
+
+/* Improve subtitle color for accessibility */
+.mainapp-subtitle,
+.signup-subtitle {
+    color: #444;
+}
+
+/* Placeholder text color for all inputs */
+input::placeholder,
+textarea::placeholder {
+    color: #bbb;
+    opacity: 1;
+}
+
+/* Ensure input text is dark for contrast */
+input,
+select,
+textarea {
+    color: #222;
 }
 
 /* Hamburger menu styles */

@@ -236,11 +236,15 @@ def get_gear_distances(activities):
     lines = []
     for gear_id, data in gear_data.items():
         gear_item = client.get_gear(gear_id)
-        if gear_item.frame_type != 3:
-            gear_name = gear_item.name
-            lines.append({
-                "label": gear_name, 
-                "data": data})
+        # Add emoji prefix: shoes if frame_type is None, bike if int
+        if gear_item.frame_type is None:
+            emoji = "👟"
+        else:
+            emoji = "🚲"
+        gear_name = f"{emoji} {gear_item.name}"
+        lines.append({
+            "label": gear_name, 
+            "data": data})
     return sorted(lines, key=lambda x: x["data"][-1]["y"], reverse=True)
 
 def calculate_VO2_max(activity):
