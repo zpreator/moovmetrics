@@ -3,18 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Moov Metrics</title>
+    <title>{% block title %}Moov Metrics{% endblock %}</title>
     <link href="https://fonts.googleapis.com/css?family=Montserrat:700,400|Roboto:400,700&display=swap" rel="stylesheet">
     <link rel="icon" href="{{ url_for('static', filename='images/cow-head.ico') }}" type="image/x-icon">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/site.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+    {% if show_particles %}
     <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    {% endif %}
+    {% block extra_css %}{% endblock %}
 </head>
-<body class="modern-bg">
+<body class="{% if show_particles %}with-particles{% endif %}">
 
-<!-- Dynamic Background -->
+{% if show_particles %}
 <div id="particles-js"></div>
+{% endif %}
 
 <!-- Navbar -->
 <nav class="navbar">
@@ -24,19 +27,21 @@
       <span class="logo-text">Moov Metrics</span>
     </a>
     <div class="navbar-links">
-      {% if not session.get('access_token') %}
-      <button class="btn btn-login navbar-login-toggle" type="button">Login</button>
-      <div class="navbar-login-options" style="display:none;">
-        <a href="/login/strava" class="btn btn-strava"><i class="fa fa-bolt"></i> Login with Strava</a>
-        <a href="/login" class="btn btn-primary">Login with Email</a>
-      </div>
-      {% else %}
-      <a href="/profile" class="btn btn-logout">
-        {% if athlete %}
-          <img src="{{ athlete.profile }}" style="border-radius:50%; height:40px; width:40px; object-fit:cover; vertical-align:middle;">
+      {% if session.get('access_token') %}
+      <a href="/dashboard" class="btn-nav{% if active_page == 'dashboard' %} active{% endif %}">Dashboard</a>
+      <a href="/tools" class="btn-nav{% if active_page == 'tools' %} active{% endif %}">Tools</a>
+      <a href="/profile" class="btn-nav{% if active_page == 'profile' %} active{% endif %}">
+        {% if athlete and athlete.profile %}
+          <img src="{{ athlete.profile }}" class="nav-avatar" alt="Profile">
         {% endif %}
         Profile
       </a>
+      {% else %}
+      <a href="/tools" class="btn-nav{% if active_page == 'tools' %} active{% endif %}">Tools</a>
+      <button class="btn-cta navbar-login-toggle" type="button">Login</button>
+      <div class="navbar-login-options" style="display:none;">
+        <a href="/login/strava" class="login-opt btn-strava"><i class="fa fa-bolt"></i> Continue with Strava</a>
+      </div>
       {% endif %}
     </div>
   </div>
@@ -44,23 +49,22 @@
 
 <!-- Main content -->
 <main>
-  <div style="height: 100px;"></div>
+  <div style="height: 72px;"></div>
   {% block body %}{% endblock %}
 </main>
 
 <!-- Footer -->
 <footer class="footer">
   <div class="footer-content">
-    <span>© {{ year or 2025 }} Moov Metrics</span>
+    <span>© {{ year or 2026 }} Moov Metrics</span>
     <img src="{{ url_for('static', filename='images/api_logo_pwrdBy_strava_horiz_light.png') }}" alt="Powered by Strava" class="footer-strava">
   </div>
 </footer>
 
 <script>
-// Initialize particles.js for dynamic background
-particlesJS.load('particles-js', 'static/js/particles.json', function() {
-  // Callback after loading
-});
+{% if show_particles %}
+particlesJS.load('particles-js', '/static/js/particles.json', function() {});
+{% endif %}
 
 // Hide/show navbar on mobile scroll
 (function() {
@@ -72,10 +76,8 @@ particlesJS.load('particles-js', 'static/js/particles.json', function() {
   function onScroll() {
     if (!isMobile) return;
     if (window.scrollY > lastScrollY && window.scrollY > 40) {
-      // Scrolling down
       navbar.classList.add('navbar-hide');
     } else {
-      // Scrolling up
       navbar.classList.remove('navbar-hide');
     }
     lastScrollY = window.scrollY;
@@ -84,30 +86,20 @@ particlesJS.load('particles-js', 'static/js/particles.json', function() {
 
   function onResize() {
     isMobile = window.matchMedia('(max-width: 600px)').matches;
-    if (!isMobile) {
-      navbar.classList.remove('navbar-hide');
-    }
+    if (!isMobile) navbar.classList.remove('navbar-hide');
   }
 
   window.addEventListener('scroll', function() {
-    if (!ticking) {
-      window.requestAnimationFrame(onScroll);
-      ticking = true;
-    }
+    if (!ticking) { window.requestAnimationFrame(onScroll); ticking = true; }
   });
   window.addEventListener('resize', onResize);
 
-  // Navbar login dropdown logic
   var loginToggle = document.querySelector('.navbar-login-toggle');
   var loginOptions = document.querySelector('.navbar-login-options');
   if (loginToggle && loginOptions) {
     loginToggle.addEventListener('click', function(e) {
       e.stopPropagation();
-      if (loginOptions.style.display === 'none' || loginOptions.style.display === '') {
-        loginOptions.style.display = 'flex';
-      } else {
-        loginOptions.style.display = 'none';
-      }
+      loginOptions.style.display = (loginOptions.style.display === 'none' || loginOptions.style.display === '') ? 'flex' : 'none';
     });
     document.addEventListener('click', function(e) {
       if (!loginOptions.contains(e.target) && e.target !== loginToggle) {
@@ -117,5 +109,6 @@ particlesJS.load('particles-js', 'static/js/particles.json', function() {
   }
 })();
 </script>
+{% block extra_js %}{% endblock %}
 </body>
 </html>

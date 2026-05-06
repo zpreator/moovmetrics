@@ -1,0 +1,107 @@
+{% extends 'layout.html' %}
+
+{% block title %}Dashboard — Moov Metrics{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/dashboard.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+{% endblock %}
+
+{% block body %}
+<div class="inner-page dashboard-page">
+
+  <!-- Activity Images -->
+  <section class="dash-section">
+    <h2 class="section-title">Recent Activity Photos</h2>
+    <div class="image-container" id="image-container">
+      <div class="loading-spinner" id="spinner-image"></div>
+    </div>
+  </section>
+
+  <!-- Trends Chart -->
+  <section class="dash-section">
+    <h2 class="section-title">Trends</h2>
+    <div class="chart-card">
+      <div class="chart-buttons-container">
+        <div class="chart-buttons types">
+          <button class="chart-button type active" id="all" onclick="updateType('all')">All</button>
+          {% for activity_type in activity_types %}
+          <button class="chart-button type" id="{{ activity_type }}" onclick="updateType('{{ activity_type }}')">{{ activity_type | title }}</button>
+          {% endfor %}
+          <div id="activityTypeButtons"></div>
+        </div>
+      </div>
+      <div class="chart-buttons-container">
+        <div class="chart-buttons windows">
+          <button class="chart-button window active" id="w" onclick="updateWindow('w')">W</button>
+          <button class="chart-button window" id="m" onclick="updateWindow('m')">M</button>
+          <button class="chart-button window" id="6m" onclick="updateWindow('6m')">6M</button>
+          <button class="chart-button window" id="y" onclick="updateWindow('y')">Y</button>
+        </div>
+      </div>
+      <div class="canvas-container">
+        <div class="loading-spinner" id="spinner-1"></div>
+        <canvas id="canvas"></canvas>
+      </div>
+      <div class="chart-buttons-container">
+        <div class="chart-buttons datasets">
+          <button class="chart-button dataset active" id="hr" onclick="updateDataset('hr')">Heart Rate</button>
+          <button class="chart-button dataset" id="avg_speed" onclick="updateDataset('avg_speed')">Speed</button>
+          <button class="chart-button dataset" id="kudos" onclick="updateDataset('kudos')">Kudos</button>
+          <button class="chart-button dataset" id="vo2_max" onclick="updateDataset('vo2_max')">VO2 Max</button>
+          <button class="chart-button dataset" id="pr_count" onclick="updateDataset('pr_count')">PRs</button>
+          <button class="chart-button dataset" id="distance" onclick="updateDataset('distance')">Distance</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Gear Section -->
+  <section class="dash-section dash-two-col">
+    <div class="chart-card">
+      <h2 class="section-title">Gear Distance</h2>
+      <div style="height: 320px; position: relative;">
+        <div class="loading-spinner" id="spinner-1-gear"></div>
+        <canvas id="distanceChart"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h2 class="section-title">Cumulative Shoe Mileage</h2>
+      <div style="height: 320px; position: relative;">
+        <div class="loading-spinner" id="spinner-2-gear"></div>
+        <canvas id="shoeChart"></canvas>
+      </div>
+      <div id="checkboxes" style="margin-top: 0.75rem;"></div>
+    </div>
+  </section>
+
+  <!-- Activity Breakdown + Clubs -->
+  <section class="dash-section dash-two-col">
+    <div class="chart-card">
+      <h2 class="section-title">Activity Stats</h2>
+      <div id="sports-container">
+        <div class="loading-spinner" id="spinner-sports"></div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h2 class="section-title">Clubs</h2>
+      <div id="clubs-container">
+        <div class="loading-spinner" id="spinner-clubs"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Heatmap -->
+  <section class="dash-section">
+    <h2 class="section-title">Activity Map</h2>
+    <div class="chart-card" style="padding: 0; overflow: hidden;">
+      <iframe id="heatmapFrame" src="" width="100%" height="560px" style="border:none; display:block;"></iframe>
+    </div>
+  </section>
+
+</div>
+
+<script src="/static/js/dashboard.js" defer></script>
+{% endblock %}

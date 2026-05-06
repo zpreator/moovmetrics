@@ -1,0 +1,348 @@
+{% extends 'layout.html' %}
+
+{% block title %}Tools — Moov Metrics{% endblock %}
+
+{% block body %}
+<div class="inner-page tools-page">
+  <div class="tools-header">
+    <h1 class="tools-title">Running Tools</h1>
+    <p class="tools-subtitle">Pace calculators and race predictions for every runner</p>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tools-tabs">
+    <button class="tab-btn active" onclick="showTab('pace')">Pace Calculator</button>
+    <button class="tab-btn" onclick="showTab('predict')">Race Predictor</button>
+  </div>
+
+  <!-- ===== PACE CALCULATOR ===== -->
+  <div id="tab-pace" class="tab-panel">
+    <div class="tool-card">
+      <h2 class="tool-card-title">Pace Calculator</h2>
+      <p class="tool-card-sub">Calculate any combination of distance, time, and pace.</p>
+
+      <div class="calc-mode-row">
+        <label class="calc-mode-label">
+          <input type="radio" name="calc_mode" value="time" checked onchange="setPaceMode('time')"> Find Finish Time
+        </label>
+        <label class="calc-mode-label">
+          <input type="radio" name="calc_mode" value="pace" onchange="setPaceMode('pace')"> Find Pace
+        </label>
+        <label class="calc-mode-label">
+          <input type="radio" name="calc_mode" value="distance" onchange="setPaceMode('distance')"> Find Distance
+        </label>
+      </div>
+
+      <div class="calc-fields">
+        <!-- Distance field -->
+        <div class="calc-group" id="field-distance">
+          <label>Distance</label>
+          <div class="calc-distance-row">
+            <select id="distance-preset" onchange="applyDistancePreset()">
+              <option value="">Select race…</option>
+              <option value="1609.34">1 Mile</option>
+              <option value="5000">5K</option>
+              <option value="8046.7">5 Mile</option>
+              <option value="10000">10K</option>
+              <option value="21097.5">Half Marathon</option>
+              <option value="42195">Marathon</option>
+              <option value="50000">50K</option>
+              <option value="80467.2">50 Miles</option>
+              <option value="custom">Custom…</option>
+            </select>
+            <div id="custom-distance-wrap" style="display:none; margin-top: 0.5rem;">
+              <input type="number" id="custom-dist-val" placeholder="Distance" min="0" step="0.01">
+              <select id="custom-dist-unit">
+                <option value="miles">miles</option>
+                <option value="km">km</option>
+                <option value="meters">meters</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pace field -->
+        <div class="calc-group" id="field-pace">
+          <label>Pace (per mile)</label>
+          <div class="time-input-row">
+            <input type="number" id="pace-min" placeholder="min" min="0" max="59" class="time-part">
+            <span class="time-sep">:</span>
+            <input type="number" id="pace-sec" placeholder="sec" min="0" max="59" class="time-part">
+          </div>
+        </div>
+
+        <!-- Time field -->
+        <div class="calc-group" id="field-time">
+          <label>Total Time</label>
+          <div class="time-input-row">
+            <input type="number" id="time-hr" placeholder="hr" min="0" class="time-part">
+            <span class="time-sep">:</span>
+            <input type="number" id="time-min" placeholder="min" min="0" max="59" class="time-part">
+            <span class="time-sep">:</span>
+            <input type="number" id="time-sec" placeholder="sec" min="0" max="59" class="time-part">
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-calculate" onclick="calculate()">Calculate</button>
+
+      <div class="calc-result" id="calc-result" style="display:none;">
+        <div class="result-value" id="result-main"></div>
+        <div class="result-extras" id="result-extras"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== RACE PREDICTOR ===== -->
+  <div id="tab-predict" class="tab-panel" style="display:none;">
+    <div class="tool-card">
+      <h2 class="tool-card-title">Race Time Predictor</h2>
+      <p class="tool-card-sub">
+        Enter a known race result and predict your times for other distances using the Riegel formula.
+        {% if is_strava %}
+        <span class="strava-badge"><i class="fa fa-bolt"></i> Using your Strava data</span>
+        {% endif %}
+      </p>
+
+      {% if is_strava %}
+      <div class="strava-efforts-section">
+        <label>Use a Strava best effort:</label>
+        <select id="strava-effort-select" onchange="applyStravaEffort()">
+          <option value="">Loading your efforts…</option>
+        </select>
+      </div>
+      <div class="or-divider">or enter manually</div>
+      {% endif %}
+
+      <div class="calc-fields">
+        <div class="calc-group">
+          <label>Reference Distance</label>
+          <select id="ref-distance">
+            <option value="1609.34">1 Mile</option>
+            <option value="5000" selected>5K</option>
+            <option value="8046.7">5 Mile</option>
+            <option value="10000">10K</option>
+            <option value="21097.5">Half Marathon</option>
+            <option value="42195">Marathon</option>
+            <option value="50000">50K</option>
+          </select>
+        </div>
+        <div class="calc-group">
+          <label>Your Time</label>
+          <div class="time-input-row">
+            <input type="number" id="ref-hr" placeholder="hr" min="0" class="time-part">
+            <span class="time-sep">:</span>
+            <input type="number" id="ref-min" placeholder="min" min="0" max="59" class="time-part">
+            <span class="time-sep">:</span>
+            <input type="number" id="ref-sec" placeholder="sec" min="0" max="59" class="time-part">
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-calculate" onclick="predict()">Predict</button>
+
+      <div id="predictions-out" style="display:none;">
+        <table class="predictions-table">
+          <thead>
+            <tr><th>Distance</th><th>Predicted Time</th><th>Pace / mile</th></tr>
+          </thead>
+          <tbody id="predictions-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ---- Tab switching ----
+function showTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).style.display = '';
+  event.currentTarget.classList.add('active');
+}
+
+// ---- Pace calculator mode ----
+let calcMode = 'time';
+function setPaceMode(mode) {
+  calcMode = mode;
+  document.getElementById('field-distance').style.opacity = (mode === 'distance') ? '0.4' : '1';
+  document.getElementById('field-pace').style.opacity   = (mode === 'pace')     ? '0.4' : '1';
+  document.getElementById('field-time').style.opacity   = (mode === 'time')     ? '0.4' : '1';
+  document.getElementById('calc-result').style.display = 'none';
+}
+
+function applyDistancePreset() {
+  const val = document.getElementById('distance-preset').value;
+  document.getElementById('custom-distance-wrap').style.display = (val === 'custom') ? '' : 'none';
+}
+
+function getDistanceMeters() {
+  const preset = document.getElementById('distance-preset').value;
+  if (!preset || preset === 'custom') {
+    const v = parseFloat(document.getElementById('custom-dist-val').value);
+    const u = document.getElementById('custom-dist-unit').value;
+    if (isNaN(v) || v <= 0) return null;
+    if (u === 'miles') return v * 1609.34;
+    if (u === 'km')    return v * 1000;
+    return v;
+  }
+  return parseFloat(preset);
+}
+
+function getPaceSeconds() {
+  const m = parseInt(document.getElementById('pace-min').value) || 0;
+  const s = parseInt(document.getElementById('pace-sec').value) || 0;
+  return m * 60 + s;
+}
+
+function getTimeSeconds() {
+  const h = parseInt(document.getElementById('time-hr').value)  || 0;
+  const m = parseInt(document.getElementById('time-min').value) || 0;
+  const s = parseInt(document.getElementById('time-sec').value) || 0;
+  return h * 3600 + m * 60 + s;
+}
+
+function fmtTime(secs) {
+  secs = Math.round(secs);
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+function fmtPace(secsPerMile) {
+  return fmtTime(secsPerMile) + ' /mi';
+}
+
+function calculate() {
+  const resultDiv  = document.getElementById('calc-result');
+  const mainDiv    = document.getElementById('result-main');
+  const extrasDiv  = document.getElementById('result-extras');
+  resultDiv.style.display = '';
+  extrasDiv.innerHTML = '';
+
+  if (calcMode === 'time') {
+    const dist = getDistanceMeters();
+    const pace = getPaceSeconds();
+    if (!dist || !pace) { mainDiv.textContent = 'Please fill in distance and pace.'; return; }
+    const miles = dist / 1609.34;
+    const totalSecs = pace * miles;
+    mainDiv.textContent = fmtTime(totalSecs);
+    extrasDiv.innerHTML = `<span>${miles.toFixed(2)} miles at ${fmtPace(pace)}</span>`;
+
+  } else if (calcMode === 'pace') {
+    const dist = getDistanceMeters();
+    const total = getTimeSeconds();
+    if (!dist || !total) { mainDiv.textContent = 'Please fill in distance and time.'; return; }
+    const miles = dist / 1609.34;
+    const pace  = total / miles;
+    mainDiv.textContent = fmtPace(pace);
+    extrasDiv.innerHTML = `<span>${miles.toFixed(2)} miles in ${fmtTime(total)}</span>`;
+
+  } else { // distance
+    const pace  = getPaceSeconds();
+    const total = getTimeSeconds();
+    if (!pace || !total) { mainDiv.textContent = 'Please fill in pace and time.'; return; }
+    const miles = total / pace;
+    const km    = miles * 1.60934;
+    mainDiv.textContent = `${miles.toFixed(2)} mi`;
+    extrasDiv.innerHTML = `<span>${km.toFixed(2)} km &nbsp;|&nbsp; ${fmtTime(total)} at ${fmtPace(pace)}</span>`;
+  }
+}
+
+// ---- Race predictor (Riegel formula) ----
+const RACE_TARGETS = [
+  { label: '1 Mile',        meters: 1609.34  },
+  { label: '5K',            meters: 5000     },
+  { label: '5 Mile',        meters: 8046.7   },
+  { label: '10K',           meters: 10000    },
+  { label: 'Half Marathon', meters: 21097.5  },
+  { label: 'Marathon',      meters: 42195    },
+  { label: '50K',           meters: 50000    },
+  { label: '50 Miles',      meters: 80467.2  },
+  { label: '100K',          meters: 100000   },
+];
+
+function riegel(t1, d1, d2) {
+  return t1 * Math.pow(d2 / d1, 1.06);
+}
+
+function predict() {
+  const d1 = parseFloat(document.getElementById('ref-distance').value);
+  const t1 = (parseInt(document.getElementById('ref-hr').value)  || 0) * 3600
+           + (parseInt(document.getElementById('ref-min').value) || 0) * 60
+           + (parseInt(document.getElementById('ref-sec').value) || 0);
+  if (!d1 || !t1) return;
+
+  const tbody = document.getElementById('predictions-body');
+  tbody.innerHTML = '';
+
+  RACE_TARGETS.forEach(target => {
+    const t2    = riegel(t1, d1, target.meters);
+    const miles = target.meters / 1609.34;
+    const pace  = t2 / miles;
+    const tr    = document.createElement('tr');
+    const isRef = Math.abs(target.meters - d1) < 1;
+    tr.innerHTML = `
+      <td>${target.label}${isRef ? ' <span class="ref-tag">ref</span>' : ''}</td>
+      <td>${fmtTime(t2)}</td>
+      <td>${fmtPace(pace)}</td>
+    `;
+    if (isRef) tr.classList.add('ref-row');
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('predictions-out').style.display = '';
+}
+
+// ---- Strava best efforts (only if logged in) ----
+{% if is_strava %}
+async function loadStravaEfforts() {
+  try {
+    const res  = await fetch('/api/best-efforts');
+    const data = await res.json();
+    const sel  = document.getElementById('strava-effort-select');
+    sel.innerHTML = '<option value="">— select an effort —</option>';
+
+    const efforts = data.efforts.sort((a, b) => a.distance_m - b.distance_m);
+    efforts.forEach(e => {
+      const opt = document.createElement('option');
+      opt.value = JSON.stringify(e);
+      const miles = (e.distance_m / 1609.34).toFixed(1);
+      opt.textContent = `${e.name} — ${fmtTime(e.seconds)}`;
+      sel.appendChild(opt);
+    });
+  } catch (err) {
+    console.error('Could not load Strava efforts:', err);
+  }
+}
+
+function applyStravaEffort() {
+  const sel = document.getElementById('strava-effort-select');
+  if (!sel.value) return;
+  const e = JSON.parse(sel.value);
+
+  // Match distance to ref-distance select
+  const refSel = document.getElementById('ref-distance');
+  let closest = null;
+  let closestDiff = Infinity;
+  for (const opt of refSel.options) {
+    const diff = Math.abs(parseFloat(opt.value) - e.distance_m);
+    if (diff < closestDiff) { closestDiff = diff; closest = opt; }
+  }
+  if (closest && closestDiff < 500) refSel.value = closest.value;
+
+  // Fill time
+  const secs = Math.round(e.seconds);
+  document.getElementById('ref-hr').value  = Math.floor(secs / 3600) || '';
+  document.getElementById('ref-min').value = Math.floor((secs % 3600) / 60) || '';
+  document.getElementById('ref-sec').value = secs % 60 || '';
+}
+
+window.addEventListener('DOMContentLoaded', loadStravaEfforts);
+{% endif %}
+</script>
+{% endblock %}

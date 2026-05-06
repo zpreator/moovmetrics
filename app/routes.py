@@ -80,9 +80,10 @@ def index():
     try:
         authenticated = authenticate()
         if authenticated:
-            return redirect(url_for("mainapp"))
+            return redirect(url_for("profile"))
         return render_template(
-            "index.html", flask_env=FLASK_ENV, cow_path=utils.get_cow_path()
+            "index.html", flask_env=FLASK_ENV, cow_path=utils.get_cow_path(),
+            show_particles=True
         )
     except stravalib.exc.AccessUnauthorized:
         return redirect(url_for("logout"))
@@ -544,8 +545,65 @@ def profile():
         cow_path=utils.get_cow_path(),
         flask_env=FLASK_ENV,
         athlete=strava_athlete,
-        races=list(RACES),
+        active_page="profile",
     )
+
+
+@app.route("/dashboard")
+def dashboard():
+    strava_athlete = get_user()
+    if not strava_athlete:
+        return redirect(url_for("index"))
+    athlete_id = getattr(strava_athlete, "id", None)
+    activities = get_activities(athlete_id, update_db=should_update_activities()) if athlete_id else []
+    types_raw = [a.type.lower() for a in activities if a and getattr(a, "type", None)]
+    type_counts = Counter(types_raw)
+    activity_types = [t for t, _ in type_counts.most_common()]
+    return render_template(
+        "dashboard.html",
+        athlete=strava_athlete,
+        activity_types=activity_types,
+        active_page="dashboard",
+    )
+
+
+@app.route("/tools")
+def tools():
+    strava_athlete = get_user()
+    is_strava = strava_athlete is not None
+    return render_template(
+        "tools.html",
+        athlete=strava_athlete,
+        is_strava=is_strava,
+        active_page="tools",
+    )
+
+
+@app.route("/api/best-efforts")
+def best_efforts():
+    from app.models import BestEffort, Activity
+    from app import db
+    strava_athlete = get_user()
+    if not strava_athlete:
+        return jsonify({"efforts": []})
+    athlete_id = getattr(strava_athlete, "id", None)
+    efforts = (
+        db.session.query(BestEffort)
+        .join(Activity, BestEffort.activity_id == Activity.strava_id)
+        .filter(Activity.user_id == athlete_id)
+        .all()
+    ) if athlete_id else []
+    best_by_race = {}
+    for e in efforts:
+        if e.elapsed_time is None:
+            continue
+        if e.race_name not in best_by_race or e.elapsed_time < best_by_race[e.race_name]["seconds"]:
+            best_by_race[e.race_name] = {
+                "name": e.race_name,
+                "distance_m": e.distance,
+                "seconds": e.elapsed_time,
+            }
+    return jsonify({"efforts": list(best_by_race.values())})
 
 
 def get_cached_top_images(user_id, activities):
