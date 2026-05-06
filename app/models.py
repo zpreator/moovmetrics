@@ -7,6 +7,9 @@ class User(db.Model):
     username = db.Column(db.String(20), unique=True, nullable=False)    # Optional: username for your application
     email = db.Column(db.String(120), unique=True)       # Optional: email address
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    strava_access_token = db.Column(db.String(512))
+    strava_refresh_token = db.Column(db.String(512))
+    strava_token_expires_at = db.Column(db.Float)
     
     # Add more fields as needed, such as profile information, preferences, etc.
     activities = db.relationship("Activity", backref="user", lazy=True)
@@ -93,7 +96,7 @@ class Activity(db.Model):
     best_efforts = db.relationship("BestEffort", backref="activity", lazy=True)
 
     def __repr__(self):
-        return f"Activity('{self.strava_id}', '{self.start_time}')"
+        return f"Activity('{self.strava_id}', '{self.start_date_local}')"
     
 class StreamData(db.Model):
     id = db.Column(db.Integer, primary_key=True)

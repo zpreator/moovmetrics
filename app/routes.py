@@ -3,6 +3,7 @@ import json
 import logging
 import os
 from collections import Counter
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import stravalib.exc
@@ -24,13 +25,29 @@ from app.pdf_generator import create_pdf_response
 
 logger = logging.getLogger("moovmetrics")
 
-app.secret_key = "your_secret_key_here"
 if os.path.exists("settings.env"):
     load_dotenv("settings.env")
+app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")
 
 FLASK_ENV = os.environ.get("FLASK_ENV", "dev")
 
 RUNNING = {}
+
+
+def _save_tokens_to_db(strava_id, access_token, refresh_token, expires_at):
+    from app.models import User
+    user = User.query.filter_by(strava_id=str(strava_id)).first()
+    if user:
+        user.strava_access_token = access_token
+        user.strava_refresh_token = refresh_token
+        user.strava_token_expires_at = float(expires_at)
+        try:
+            from app import db
+            db.session.commit()
+        except Exception as e:
+            logger.error(f"Error saving tokens to DB: {e}")
+            from app import db
+            db.session.rollback()
 
 
 def should_update_activities():
@@ -511,6 +528,7 @@ def strava_callback():
         client.access_token = session["access_token"]
         strava_athlete = client.get_athlete()
         session["user_id"] = strava_athlete.id
+        _save_tokens_to_db(strava_athlete.id, response["access_token"], response["refresh_token"], response["expires_at"])
         return redirect(url_for("profile"))
     else:
         return redirect(url_for("index"))
@@ -624,6 +642,115 @@ def get_heatmap():
         utils.generate_map(activities, save_path)
     heatmap_path = url_for("static", filename=relative_path)
     return jsonify({"heatmap_path": heatmap_path})
+
+
+def _load_api_user():
+    """Validate the API key and return an authenticated (token-refreshed) User, or a JSON error tuple."""
+    from app.models import User
+    from app import db
+
+    api_key = request.args.get("key") or request.headers.get("X-API-Key")
+    expected_key = os.getenv("TRMNL_API_KEY")
+    if not expected_key or api_key != expected_key:
+        return None, (jsonify({"error": "Unauthorized"}), 401)
+
+    strava_athlete_id = os.getenv("STRAVA_ATHLETE_ID")
+    user = (
+        User.query.filter_by(strava_id=strava_athlete_id).first()
+        if strava_athlete_id
+        else User.query.first()
+    )
+
+    if not user or not user.strava_access_token:
+        return None, (jsonify({"error": "No authenticated user. Log in via the web app first."}), 503)
+
+    if user.strava_token_expires_at and time.time() > user.strava_token_expires_at:
+        try:
+            response = client.exchange_code_for_token(
+                client_id=os.getenv("STRAVA_CLIENT_ID"),
+                client_secret=os.getenv("STRAVA_CLIENT_SECRET"),
+                code=user.strava_refresh_token,
+            )
+            user.strava_access_token = response["access_token"]
+            user.strava_refresh_token = response["refresh_token"]
+            user.strava_token_expires_at = float(response["expires_at"])
+            db.session.commit()
+        except Exception as e:
+            logger.error(f"API token refresh failed: {e}")
+            return None, (jsonify({"error": "Token refresh failed"}), 503)
+
+    client.access_token = user.strava_access_token
+    return user, None
+
+
+@app.route("/api/trmnl")
+def trmnl():
+    from app.models import Activity
+    from stravalib import unithelper
+
+    user, err = _load_api_user()
+    if err:
+        return err
+    assert user is not None
+
+    week_ago = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=7)
+    weekly_activities = Activity.query.filter(
+        Activity.user_id == int(user.strava_id),
+        Activity.start_date_local >= week_ago,
+        Activity.type == "Run",
+    ).all()
+    weekly_miles = round(sum(float(a.distance or 0) for a in weekly_activities) / 1609.34, 1)
+
+    gear_ids = set(a.gear_id for a in Activity.query.filter_by(user_id=int(user.strava_id)).all() if a.gear_id)
+    shoes = []
+    for gear_id in gear_ids:
+        try:
+            gear_item = client.get_gear(gear_id)
+            if gear_item.frame_type is None and gear_item.distance:
+                miles = int(unithelper.miles(gear_item.distance))  # type: ignore[arg-type]
+                shoes.append({"name": gear_item.name, "miles": miles})
+        except Exception:
+            pass
+    shoes.sort(key=lambda x: x["miles"], reverse=True)
+
+    return jsonify({"weekly_miles": weekly_miles, "shoes": shoes})
+
+
+@app.route("/api/weekly")
+def weekly_progress():
+    from app.models import Activity
+
+    user, err = _load_api_user()
+    if err:
+        return err
+    assert user is not None
+
+    today = datetime.now(timezone.utc).replace(tzinfo=None).date()
+    # ISO week: Monday=0 … Sunday=6
+    week_start = today - timedelta(days=today.weekday())
+    week_end = week_start + timedelta(days=6)
+    days_remaining = (week_end - today).days + 1  # inclusive of today
+
+    activity_type = os.getenv("WEEKLY_ACTIVITY_TYPE", "Run")
+    week_activities = Activity.query.filter(
+        Activity.user_id == int(user.strava_id),
+        Activity.start_date_local >= datetime.combine(week_start, datetime.min.time()),
+        Activity.type == activity_type,
+    ).all()
+    miles_this_week = round(sum(float(a.distance or 0) for a in week_activities) / 1609.34, 1)
+
+    goal_miles = float(os.getenv("WEEKLY_GOAL_MILES", "30"))
+    percent = min(100, round(miles_this_week / goal_miles * 100)) if goal_miles else 0
+
+    return jsonify({
+        "miles_this_week": miles_this_week,
+        "goal_miles": goal_miles,
+        "percent": percent,
+        "days_remaining": days_remaining,
+        "week_start": week_start.isoformat(),
+        "week_end": week_end.isoformat(),
+        "activity_type": activity_type,
+    })
 
 
 if __name__ == "__main__":
