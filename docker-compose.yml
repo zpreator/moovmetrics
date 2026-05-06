@@ -1,0 +1,15 @@
+services:
+  web:
+    build: .
+    ports:
+      - "5001:5001"
+    volumes:
+      - db_data:/app/app/db
+      - temp_data:/app/app/static/temp
+    env_file:
+      - settings.env
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  temp_data:
