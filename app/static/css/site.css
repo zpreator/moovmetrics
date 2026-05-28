@@ -594,6 +594,174 @@ select option { background: #23272b; }
   vertical-align: middle;
 }
 
+.predictions-formula-label {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 0.5rem;
+}
+
+/* Strava connect banner (orange, non-intrusive) */
+.strava-cta-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  background: rgba(252,76,2,0.1);
+  border: 1px solid rgba(252,76,2,0.3);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  font-size: 0.88rem;
+  color: rgba(255,255,255,0.7);
+  margin-bottom: 1.25rem;
+}
+.btn-strava-cta {
+  flex-shrink: 0;
+  padding: 0.4rem 0.9rem;
+  border-radius: 7px;
+  background: #fc4c02;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.btn-strava-cta:hover { background: #d13b00; }
+
+/* Performance Profile summary + badges */
+.profile-summary-line {
+  font-size: 0.9rem;
+  color: rgba(255,255,255,0.6);
+  margin-bottom: 0.25rem;
+}
+.profile-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.35);
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.profile-badge {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 5px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.profile-badge.opportunity {
+  background: rgba(251,146,60,0.18);
+  color: #fb923c;
+}
+.profile-badge.strength {
+  background: rgba(29,185,84,0.15);
+  color: #1db954;
+}
+
+.loading-hint {
+  color: rgba(255,255,255,0.35);
+  font-size: 0.88rem;
+  font-style: italic;
+  margin: 0.75rem 0;
+}
+
+/* Strava Predictor — HR settings row */
+.hr-settings-row {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: 1.25rem;
+}
+.hr-setting {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.hr-setting label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.hr-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.hr-setting input { width: 5.5rem; }
+.hr-unit {
+  font-size: 0.82rem;
+  color: rgba(255,255,255,0.35);
+  flex-shrink: 0;
+}
+
+/* VO2max distribution + slider */
+.vo2max-slider-wrap {
+  margin-top: 0.35rem;
+}
+.vo2max-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.vo2max-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #1db954;
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(29,185,84,0.45);
+  transition: transform 0.1s;
+}
+.vo2max-slider::-webkit-slider-thumb:hover { transform: scale(1.15); }
+.vo2max-slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #1db954;
+  border: none;
+  cursor: pointer;
+}
+.vo2max-current {
+  text-align: center;
+  margin-top: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+.vo2max-number {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1db954;
+}
+.vo2max-unit {
+  font-size: 0.9rem;
+  color: rgba(255,255,255,0.4);
+}
+
+/* Distribution legend */
+.dist-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 0.6rem;
+  flex-wrap: wrap;
+}
+.dist-legend-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 /* =====================================================
    Loading spinner
    ===================================================== */

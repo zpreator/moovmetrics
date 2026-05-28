@@ -579,31 +579,85 @@ def tools():
     )
 
 
+_CANONICAL_DISTANCES = [400, 805, 1000, 1609, 3219, 5000, 10000, 15000, 16093, 20000, 21097, 42195]
+_CANONICAL_NAMES = {
+    400: "400m",
+    805: "1/2 Mile",
+    1000: "1K",
+    1609: "1 Mile",
+    3219: "2 Mile",
+    5000: "5K",
+    10000: "10K",
+    15000: "15K",
+    16093: "10 Mile",
+    20000: "20K",
+    21097: "Half Marathon",
+    42195: "Marathon",
+}
+# Distances that match the Reference Distance dropdown in the race predictor
+_REF_DISTANCE_KEYS = {1609, 5000, 10000, 21097, 42195}
+
+def _canonical_dist_key(distance):
+    return min(_CANONICAL_DISTANCES, key=lambda d: abs(d - distance))
+
+
 @app.route("/api/best-efforts")
 def best_efforts():
     from app.models import BestEffort, Activity
     from app import db
+    from app.data import get_pr_efforts_for_activity
     strava_athlete = get_user()
     if not strava_athlete:
         return jsonify({"efforts": []})
+    client.access_token = session["access_token"]
     athlete_id = getattr(strava_athlete, "id", None)
-    efforts = (
-        db.session.query(BestEffort)
+    if athlete_id:
+        unprocessed = (
+            Activity.query.filter_by(user_id=athlete_id, type="Run")
+            .filter(Activity.pr_count > 0)
+            .filter(~Activity.best_efforts.any())
+            .order_by(Activity.start_date_local.desc())
+            .limit(10)
+            .all()
+        )
+        for activity in unprocessed:
+            get_pr_efforts_for_activity(activity.strava_id)
+
+    all_efforts = (
+        db.session.query(BestEffort, Activity.start_date_local)
         .join(Activity, BestEffort.activity_id == Activity.strava_id)
         .filter(Activity.user_id == athlete_id)
         .all()
     ) if athlete_id else []
-    best_by_race = {}
-    for e in efforts:
+
+    # Build best time per canonical distance, restricted to ref-distance dropdown options
+    best_by_distance = {}
+    for e, act_date in all_efforts:
         if e.elapsed_time is None:
             continue
-        if e.race_name not in best_by_race or e.elapsed_time < best_by_race[e.race_name]["seconds"]:
-            best_by_race[e.race_name] = {
-                "name": e.race_name,
-                "distance_m": e.distance,
+        dist_key = _canonical_dist_key(e.distance)
+        if dist_key not in _REF_DISTANCE_KEYS:
+            continue
+        if dist_key not in best_by_distance or e.elapsed_time < best_by_distance[dist_key]["seconds"]:
+            best_by_distance[dist_key] = {
+                "name": _CANONICAL_NAMES[dist_key],
+                "distance_m": dist_key,
                 "seconds": e.elapsed_time,
+                "date": act_date.isoformat() if act_date else None,
             }
-    return jsonify({"efforts": list(best_by_race.values())})
+
+    # Filter out pace-inconsistent entries: a shorter distance must have a faster pace
+    # than any longer distance (otherwise the data point is from a bad race).
+    sorted_efforts = sorted(best_by_distance.items(), reverse=True)  # longest first
+    consistent = []
+    fastest_pace = float("inf")  # seconds per meter; lower = faster
+    for dist_key, effort in sorted_efforts:
+        pace = effort["seconds"] / dist_key
+        if pace <= fastest_pace:
+            fastest_pace = pace
+            consistent.append(effort)
+
+    return jsonify({"efforts": list(reversed(consistent))})
 
 
 def get_cached_top_images(user_id, activities):
@@ -657,24 +711,35 @@ def get_gear_data():
 
 @app.route("/get_data", methods=["POST"])
 def get_data():
-    activity_types = request.get_json()["activity_types"]
-    client.access_token = session["access_token"]
-    strava_athlete = get_user()
-    if not strava_athlete:
-        raise Exception("Could not get user")
-    activities = get_activities(strava_athlete.id, update_db=should_update_activities())
-    data = get_trends(activities, activity_types=activity_types)
-    return jsonify({"data": json.dumps(data)})
+    try:
+        body = request.get_json()
+        activity_types = body["activity_types"]
+
+        if "access_token" not in session:
+            return jsonify({"error": "No access token in session"}), 401
+
+        client.access_token = session["access_token"]
+        strava_athlete = get_user()
+        if not strava_athlete:
+            return jsonify({"error": "Could not get user"}), 500
+
+        activities = get_activities(strava_athlete.id, update_db=should_update_activities())
+        data = get_trends(activities, activity_types=activity_types)
+        return jsonify({"data": json.dumps(data)})
+    except Exception as e:
+        import traceback
+        app.logger.error(f"Error in /get_data: {e}\n{traceback.format_exc()}")
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/get_activity_types")
 def get_activity_types():
     strava_athlete = get_user()
-    activities = get_activities(athlete.id, update_db=should_update_activities())
-
-    activity_types = list(set([x.type.lower() for x in activities]))
-    type_counts = Counter(x.type.lower() for x in activities)
-    activity_types = [x for x, _ in type_counts.most_common()]
+    if not strava_athlete:
+        return jsonify({"activity_types": []})
+    activities = get_activities(strava_athlete.id, update_db=should_update_activities())
+    type_counts = Counter(a.type.lower() for a in activities if a and getattr(a, "type", None))
+    activity_types = [t for t, _ in type_counts.most_common()]
     return jsonify({"activity_types": activity_types})
 
 
@@ -809,6 +874,58 @@ def weekly_progress():
         "week_end": week_end.isoformat(),
         "activity_type": activity_type,
     })
+
+
+@app.route("/api/hr-vo2max")
+def hr_vo2max():
+    from app.models import Activity
+    strava_athlete = get_user()
+    if not strava_athlete:
+        return jsonify({"activities": []})
+    athlete_id = getattr(strava_athlete, "id", None)
+    if not athlete_id:
+        return jsonify({"activities": []})
+
+    n_activities = int(request.args.get("n_activities", 30))
+    hrmax  = float(request.args.get("hrmax",   190))
+    hr_rest = float(request.args.get("hr_rest", 60))
+
+    activities = (
+        Activity.query
+        .filter_by(user_id=athlete_id, type="Run")
+        .filter(Activity.average_heartrate.isnot(None))
+        .filter(Activity.average_speed.isnot(None))
+        .filter(Activity.elapsed_time > timedelta(seconds=1200))
+        .order_by(Activity.start_date_local.desc())
+        .limit(n_activities)
+        .all()
+    )
+
+    results = []
+    for a in activities:
+        try:
+            hr         = float(a.average_heartrate)
+            speed_mps  = float(a.average_speed)
+            v          = speed_mps * 60          # m/s → m/min
+            vo2_at_v   = 0.000104 * v * v + 0.182258 * v - 4.60
+            pct        = (hr - hr_rest) / (hrmax - hr_rest)
+            if pct <= 0:
+                continue
+            vo2max = vo2_at_v / pct
+            if not (20 < vo2max < 90):
+                continue
+            distance_miles = round(float(a.distance or 0) / 1609.34, 2)
+            date_str = a.start_date_local.strftime("%b %d, %Y") if a.start_date_local else ""
+            results.append({
+                "date":           date_str,
+                "distance_miles": distance_miles,
+                "avg_hr":         round(hr, 1),
+                "vo2max":         round(vo2max, 1),
+            })
+        except Exception as e:
+            logger.warning(f"Skipping activity for HR vo2max: {e}")
+
+    return jsonify({"activities": results})
 
 
 if __name__ == "__main__":

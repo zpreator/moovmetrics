@@ -11,34 +11,29 @@
 
   <!-- Tabs -->
   <div class="tools-tabs">
-    <button class="tab-btn active" onclick="showTab('pace')">Pace Calculator</button>
-    <button class="tab-btn" onclick="showTab('predict')">Race Predictor</button>
+    <button class="tab-btn active" onclick="showTab('pace',    this)">Pace Calculator</button>
+    <button class="tab-btn"        onclick="showTab('riegel',  this)">Riegel Prediction</button>
+    <button class="tab-btn"        onclick="showTab('daniels', this)">Daniels Prediction</button>
+    {% if is_strava %}
+    <button class="tab-btn"        onclick="showTab('profile', this)">Performance Profile</button>
+    {% endif %}
   </div>
 
-  <!-- ===== PACE CALCULATOR ===== -->
+  <!-- ===== TAB 1: PACE CALCULATOR ===== -->
   <div id="tab-pace" class="tab-panel">
     <div class="tool-card">
       <h2 class="tool-card-title">Pace Calculator</h2>
       <p class="tool-card-sub">Calculate any combination of distance, time, and pace.</p>
-
       <div class="calc-mode-row">
-        <label class="calc-mode-label">
-          <input type="radio" name="calc_mode" value="time" checked onchange="setPaceMode('time')"> Find Finish Time
-        </label>
-        <label class="calc-mode-label">
-          <input type="radio" name="calc_mode" value="pace" onchange="setPaceMode('pace')"> Find Pace
-        </label>
-        <label class="calc-mode-label">
-          <input type="radio" name="calc_mode" value="distance" onchange="setPaceMode('distance')"> Find Distance
-        </label>
+        <label class="calc-mode-label"><input type="radio" name="calc_mode" value="time" checked onchange="setPaceMode('time')"> Find Finish Time</label>
+        <label class="calc-mode-label"><input type="radio" name="calc_mode" value="pace" onchange="setPaceMode('pace')"> Find Pace</label>
+        <label class="calc-mode-label"><input type="radio" name="calc_mode" value="distance" onchange="setPaceMode('distance')"> Find Distance</label>
       </div>
-
       <div class="calc-fields">
-        <!-- Distance field -->
         <div class="calc-group" id="field-distance">
           <label>Distance</label>
           <div class="calc-distance-row">
-            <select id="distance-preset" onchange="applyDistancePreset()">
+            <select id="distance-preset" onchange="applyDistancePreset(); calculate()">
               <option value="">Select race…</option>
               <option value="1609.34">1 Mile</option>
               <option value="5000">5K</option>
@@ -50,9 +45,9 @@
               <option value="80467.2">50 Miles</option>
               <option value="custom">Custom…</option>
             </select>
-            <div id="custom-distance-wrap" style="display:none; margin-top: 0.5rem;">
-              <input type="number" id="custom-dist-val" placeholder="Distance" min="0" step="0.01">
-              <select id="custom-dist-unit">
+            <div id="custom-distance-wrap" style="display:none; margin-top:0.5rem;">
+              <input type="number" id="custom-dist-val" placeholder="Distance" min="0" step="0.01" oninput="calculate()">
+              <select id="custom-dist-unit" onchange="calculate()">
                 <option value="miles">miles</option>
                 <option value="km">km</option>
                 <option value="meters">meters</option>
@@ -60,32 +55,25 @@
             </div>
           </div>
         </div>
-
-        <!-- Pace field -->
         <div class="calc-group" id="field-pace">
           <label>Pace (per mile)</label>
           <div class="time-input-row">
-            <input type="number" id="pace-min" placeholder="min" min="0" max="59" class="time-part">
+            <input type="number" id="pace-min" placeholder="min" min="0" max="59" class="time-part" oninput="calculate()">
             <span class="time-sep">:</span>
-            <input type="number" id="pace-sec" placeholder="sec" min="0" max="59" class="time-part">
+            <input type="number" id="pace-sec" placeholder="sec" min="0" max="59" class="time-part" oninput="calculate()">
           </div>
         </div>
-
-        <!-- Time field -->
         <div class="calc-group" id="field-time">
           <label>Total Time</label>
           <div class="time-input-row">
-            <input type="number" id="time-hr" placeholder="hr" min="0" class="time-part">
+            <input type="number" id="time-hr"  placeholder="hr"  min="0" class="time-part" oninput="calculate()">
             <span class="time-sep">:</span>
-            <input type="number" id="time-min" placeholder="min" min="0" max="59" class="time-part">
+            <input type="number" id="time-min" placeholder="min" min="0" max="59" class="time-part" oninput="calculate()">
             <span class="time-sep">:</span>
-            <input type="number" id="time-sec" placeholder="sec" min="0" max="59" class="time-part">
+            <input type="number" id="time-sec" placeholder="sec" min="0" max="59" class="time-part" oninput="calculate()">
           </div>
         </div>
       </div>
-
-      <button class="btn-calculate" onclick="calculate()">Calculate</button>
-
       <div class="calc-result" id="calc-result" style="display:none;">
         <div class="result-value" id="result-main"></div>
         <div class="result-extras" id="result-extras"></div>
@@ -93,31 +81,22 @@
     </div>
   </div>
 
-  <!-- ===== RACE PREDICTOR ===== -->
-  <div id="tab-predict" class="tab-panel" style="display:none;">
+  <!-- ===== TAB 2: RIEGEL PREDICTION ===== -->
+  <div id="tab-riegel" class="tab-panel" style="display:none;">
     <div class="tool-card">
-      <h2 class="tool-card-title">Race Time Predictor</h2>
-      <p class="tool-card-sub">
-        Enter a known race result and predict your times for other distances using the Riegel formula.
-        {% if is_strava %}
-        <span class="strava-badge"><i class="fa fa-bolt"></i> Using your Strava data</span>
-        {% endif %}
-      </p>
-
-      {% if is_strava %}
-      <div class="strava-efforts-section">
-        <label>Use a Strava best effort:</label>
-        <select id="strava-effort-select" onchange="applyStravaEffort()">
-          <option value="">Loading your efforts…</option>
-        </select>
-      </div>
-      <div class="or-divider">or enter manually</div>
-      {% endif %}
-
+      <h2 class="tool-card-title">Riegel Race Prediction</h2>
+      <p class="tool-card-sub">Power-law formula: T₂ = T₁ × (D₂/D₁)<sup>exp</sup>. Enter a known result to project any distance.</p>
       <div class="calc-fields">
         <div class="calc-group">
+          <label>Formula</label>
+          <select id="riegel-formula" onchange="predict()">
+            <option value="1.06">Standard (exponent 1.06)</option>
+            <option value="1.08">Conservative (exponent 1.08)</option>
+          </select>
+        </div>
+        <div class="calc-group">
           <label>Reference Distance</label>
-          <select id="ref-distance">
+          <select id="ref-distance" onchange="predict()">
             <option value="1609.34">1 Mile</option>
             <option value="5000" selected>5K</option>
             <option value="8046.7">5 Mile</option>
@@ -130,219 +109,448 @@
         <div class="calc-group">
           <label>Your Time</label>
           <div class="time-input-row">
-            <input type="number" id="ref-hr" placeholder="hr" min="0" class="time-part">
+            <input type="number" id="ref-hr"  placeholder="hr"  min="0" class="time-part" oninput="predict()">
             <span class="time-sep">:</span>
-            <input type="number" id="ref-min" placeholder="min" min="0" max="59" class="time-part">
+            <input type="number" id="ref-min" placeholder="min" min="0" max="59" class="time-part" oninput="predict()">
             <span class="time-sep">:</span>
-            <input type="number" id="ref-sec" placeholder="sec" min="0" max="59" class="time-part">
+            <input type="number" id="ref-sec" placeholder="sec" min="0" max="59" class="time-part" oninput="predict()">
           </div>
         </div>
       </div>
-
-      <button class="btn-calculate" onclick="predict()">Predict</button>
-
       <div id="predictions-out" style="display:none;">
+        <div id="predictions-formula-label" class="predictions-formula-label"></div>
         <table class="predictions-table">
-          <thead>
-            <tr><th>Distance</th><th>Predicted Time</th><th>Pace / mile</th></tr>
-          </thead>
+          <thead><tr><th>Distance</th><th>Predicted Time</th><th>Pace / mile</th></tr></thead>
           <tbody id="predictions-body"></tbody>
         </table>
       </div>
     </div>
   </div>
 
+  <!-- ===== TAB 3: DANIELS PREDICTION ===== -->
+  <div id="tab-daniels" class="tab-panel" style="display:none;">
+    <div class="tool-card">
+      <h2 class="tool-card-title">Daniels Race Prediction</h2>
+      <p class="tool-card-sub">Uses the Jack Daniels VO2max formula to project race times from a single aerobic capacity estimate. Drag the slider to explore.</p>
+
+      {% if not is_strava %}
+      <div class="strava-cta-banner">
+        <span>Connect Strava to see your estimated VO2max from your actual PRs and heart-rate data — plotted on the chart so you can see the range and pick the most accurate value.</span>
+        <a href="/login/strava" class="btn-strava-cta">Connect Strava</a>
+      </div>
+      {% endif %}
+
+      {% if is_strava %}
+      <div class="hr-settings-row">
+        <div class="hr-setting">
+          <label>Max HR</label>
+          <div class="hr-input-row">
+            <input type="number" id="hr-max" value="190" min="100" max="250" oninput="scheduleReload()">
+            <span class="hr-unit">bpm</span>
+          </div>
+        </div>
+        <div class="hr-setting">
+          <label>Resting HR</label>
+          <div class="hr-input-row">
+            <input type="number" id="hr-rest" value="60" min="30" max="120" oninput="scheduleReload()">
+            <span class="hr-unit">bpm</span>
+          </div>
+        </div>
+        <div class="hr-setting">
+          <label>Last N runs</label>
+          <div class="hr-input-row">
+            <input type="number" id="hr-n-activities" value="30" min="1" max="200" oninput="scheduleReload()">
+          </div>
+        </div>
+      </div>
+      <div id="strava-loading" class="loading-hint">Loading Strava data…</div>
+      <div id="strava-vo2max-wrap" style="display:none;">
+        <div class="dist-legend">
+          <span class="dist-legend-dot" style="background:rgba(29,185,84,0.85)"></span><span>PR estimate</span>
+          <span class="dist-legend-dot" style="background:rgba(96,165,250,0.7); margin-left:1rem"></span><span>Activity estimate</span>
+        </div>
+        <canvas id="vo2max-dist-canvas" height="70" style="width:100%; display:block;"></canvas>
+      </div>
+      {% endif %}
+
+      <div class="vo2max-slider-wrap" style="margin-top:1.25rem;">
+        <input type="range" id="vo2max-slider" class="vo2max-slider" min="25" max="80" step="0.5" value="50" oninput="onSliderChange()">
+      </div>
+      <div class="vo2max-current">
+        <span class="vo2max-number" id="vo2max-display">50.0</span>
+        <span class="vo2max-unit"> mL/kg/min</span>
+      </div>
+
+      <div style="margin-top:1.25rem;">
+        <div id="daniels-predictions-label" class="predictions-formula-label"></div>
+        <table class="predictions-table">
+          <thead><tr><th>Distance</th><th>Predicted Time</th><th>Pace / mile</th></tr></thead>
+          <tbody id="daniels-predictions-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TAB 4: PERFORMANCE PROFILE (Strava only) ===== -->
+  {% if is_strava %}
+  <div id="tab-profile" class="tab-panel" style="display:none;">
+    <div class="tool-card">
+      <h2 class="tool-card-title">Performance Profile</h2>
+      <p class="tool-card-sub">Fits a personalized Riegel curve through all your PRs. Dots sitting above the curve are distances where your current fitness likely exceeds your old PR.</p>
+      <div id="profile-loading" class="loading-hint">Loading your PRs…</div>
+      <div id="profile-content" style="display:none;">
+        <div id="profile-summary" class="profile-summary-line"></div>
+        <canvas id="profile-chart" height="250" style="width:100%; display:block; margin:1rem 0;"></canvas>
+        <div class="profile-legend">
+          <span class="dist-legend-dot" style="background:rgba(29,185,84,0.9)"></span><span>Recent PR</span>
+          <span class="dist-legend-dot" style="background:rgba(120,130,150,0.7); margin-left:1rem"></span><span>Older PR</span>
+          <span style="display:inline-flex; align-items:center; gap:0.35rem; margin-left:1rem;">
+            <span style="display:inline-block; width:22px; height:2px; background:rgba(29,185,84,0.5); vertical-align:middle;"></span>
+            <span>Your curve</span>
+          </span>
+        </div>
+        <table class="predictions-table" style="margin-top:1rem;">
+          <thead><tr><th>Distance</th><th>Your PR</th><th>Curve predicts</th><th>Difference</th><th></th></tr></thead>
+          <tbody id="profile-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
 </div>
 
 <script>
-// ---- Tab switching ----
-function showTab(name) {
+// ============================================================
+// Global state (defined before any functions that reference them)
+// ============================================================
+let allEstimates  = [];
+let currentVO2max = 50;
+let sliderMin     = 25, sliderMax = 80;
+let profileEfforts    = [];
+let profileRegression = null;
+let profileLoaded     = false;
+let reloadTimer       = null;
+
+// ============================================================
+// Tab switching (single definition)
+// ============================================================
+function showTab(name, btn) {
   document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).style.display = '';
-  event.currentTarget.classList.add('active');
-}
-
-// ---- Pace calculator mode ----
-let calcMode = 'time';
-function setPaceMode(mode) {
-  calcMode = mode;
-  document.getElementById('field-distance').style.opacity = (mode === 'distance') ? '0.4' : '1';
-  document.getElementById('field-pace').style.opacity   = (mode === 'pace')     ? '0.4' : '1';
-  document.getElementById('field-time').style.opacity   = (mode === 'time')     ? '0.4' : '1';
-  document.getElementById('calc-result').style.display = 'none';
-}
-
-function applyDistancePreset() {
-  const val = document.getElementById('distance-preset').value;
-  document.getElementById('custom-distance-wrap').style.display = (val === 'custom') ? '' : 'none';
-}
-
-function getDistanceMeters() {
-  const preset = document.getElementById('distance-preset').value;
-  if (!preset || preset === 'custom') {
-    const v = parseFloat(document.getElementById('custom-dist-val').value);
-    const u = document.getElementById('custom-dist-unit').value;
-    if (isNaN(v) || v <= 0) return null;
-    if (u === 'miles') return v * 1609.34;
-    if (u === 'km')    return v * 1000;
-    return v;
+  btn.classList.add('active');
+  if (name === 'daniels' && allEstimates.length > 0) setTimeout(renderDistribution, 10);
+  if (name === 'profile') {
+    if (!profileLoaded) { profileLoaded = true; loadProfileData(); }
+    else if (profileEfforts.length > 0) setTimeout(renderProfileChart, 10);
   }
-  return parseFloat(preset);
 }
 
-function getPaceSeconds() {
-  const m = parseInt(document.getElementById('pace-min').value) || 0;
-  const s = parseInt(document.getElementById('pace-sec').value) || 0;
-  return m * 60 + s;
-}
-
-function getTimeSeconds() {
-  const h = parseInt(document.getElementById('time-hr').value)  || 0;
-  const m = parseInt(document.getElementById('time-min').value) || 0;
-  const s = parseInt(document.getElementById('time-sec').value) || 0;
-  return h * 3600 + m * 60 + s;
-}
-
+// ============================================================
+// Helpers
+// ============================================================
 function fmtTime(secs) {
   secs = Math.round(secs);
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  const s = secs % 60;
+  const h = Math.floor(secs/3600), m = Math.floor((secs%3600)/60), s = secs%60;
   if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
   return `${m}:${String(s).padStart(2,'0')}`;
 }
+function fmtPace(secPerMile) { return fmtTime(secPerMile) + ' /mi'; }
 
-function fmtPace(secsPerMile) {
-  return fmtTime(secsPerMile) + ' /mi';
-}
-
-function calculate() {
-  const resultDiv  = document.getElementById('calc-result');
-  const mainDiv    = document.getElementById('result-main');
-  const extrasDiv  = document.getElementById('result-extras');
-  resultDiv.style.display = '';
-  extrasDiv.innerHTML = '';
-
-  if (calcMode === 'time') {
-    const dist = getDistanceMeters();
-    const pace = getPaceSeconds();
-    if (!dist || !pace) { mainDiv.textContent = 'Please fill in distance and pace.'; return; }
-    const miles = dist / 1609.34;
-    const totalSecs = pace * miles;
-    mainDiv.textContent = fmtTime(totalSecs);
-    extrasDiv.innerHTML = `<span>${miles.toFixed(2)} miles at ${fmtPace(pace)}</span>`;
-
-  } else if (calcMode === 'pace') {
-    const dist = getDistanceMeters();
-    const total = getTimeSeconds();
-    if (!dist || !total) { mainDiv.textContent = 'Please fill in distance and time.'; return; }
-    const miles = dist / 1609.34;
-    const pace  = total / miles;
-    mainDiv.textContent = fmtPace(pace);
-    extrasDiv.innerHTML = `<span>${miles.toFixed(2)} miles in ${fmtTime(total)}</span>`;
-
-  } else { // distance
-    const pace  = getPaceSeconds();
-    const total = getTimeSeconds();
-    if (!pace || !total) { mainDiv.textContent = 'Please fill in pace and time.'; return; }
-    const miles = total / pace;
-    const km    = miles * 1.60934;
-    mainDiv.textContent = `${miles.toFixed(2)} mi`;
-    extrasDiv.innerHTML = `<span>${km.toFixed(2)} km &nbsp;|&nbsp; ${fmtTime(total)} at ${fmtPace(pace)}</span>`;
-  }
-}
-
-// ---- Race predictor (Riegel formula) ----
 const RACE_TARGETS = [
-  { label: '1 Mile',        meters: 1609.34  },
-  { label: '5K',            meters: 5000     },
-  { label: '5 Mile',        meters: 8046.7   },
-  { label: '10K',           meters: 10000    },
-  { label: 'Half Marathon', meters: 21097.5  },
-  { label: 'Marathon',      meters: 42195    },
-  { label: '50K',           meters: 50000    },
-  { label: '50 Miles',      meters: 80467.2  },
-  { label: '100K',          meters: 100000   },
+  { label:'1 Mile',        meters:1609.34  },
+  { label:'5K',            meters:5000     },
+  { label:'5 Mile',        meters:8046.7   },
+  { label:'10K',           meters:10000    },
+  { label:'Half Marathon', meters:21097.5  },
+  { label:'Marathon',      meters:42195    },
+  { label:'50K',           meters:50000    },
+  { label:'50 Miles',      meters:80467.2  },
+  { label:'100K',          meters:100000   },
 ];
 
-function riegel(t1, d1, d2) {
-  return t1 * Math.pow(d2 / d1, 1.06);
+// ============================================================
+// Pace Calculator
+// ============================================================
+let calcMode = 'time';
+function setPaceMode(mode) {
+  calcMode = mode;
+  document.getElementById('field-distance').style.opacity = mode==='distance'?'0.4':'1';
+  document.getElementById('field-pace').style.opacity     = mode==='pace'    ?'0.4':'1';
+  document.getElementById('field-time').style.opacity     = mode==='time'    ?'0.4':'1';
+  calculate();
+}
+function applyDistancePreset() {
+  document.getElementById('custom-distance-wrap').style.display =
+    document.getElementById('distance-preset').value === 'custom' ? '' : 'none';
+}
+function getDistanceMeters() {
+  const p = document.getElementById('distance-preset').value;
+  if (!p || p==='custom') {
+    const v = parseFloat(document.getElementById('custom-dist-val').value);
+    const u = document.getElementById('custom-dist-unit').value;
+    if (isNaN(v)||v<=0) return null;
+    return u==='miles'?v*1609.34:u==='km'?v*1000:v;
+  }
+  return parseFloat(p);
+}
+function calculate() {
+  const res=document.getElementById('calc-result'), main=document.getElementById('result-main'), extra=document.getElementById('result-extras');
+  extra.innerHTML='';
+  const pace=(parseInt(document.getElementById('pace-min').value)||0)*60+(parseInt(document.getElementById('pace-sec').value)||0);
+  const total=(parseInt(document.getElementById('time-hr').value)||0)*3600+(parseInt(document.getElementById('time-min').value)||0)*60+(parseInt(document.getElementById('time-sec').value)||0);
+  const dist=getDistanceMeters();
+  if (calcMode==='time') {
+    if (!dist||!pace){res.style.display='none';return;}
+    const mi=dist/1609.34; main.textContent=fmtTime(pace*mi); extra.innerHTML=`<span>${mi.toFixed(2)} miles at ${fmtPace(pace)}</span>`;
+  } else if (calcMode==='pace') {
+    if (!dist||!total){res.style.display='none';return;}
+    const mi=dist/1609.34,p=total/mi; main.textContent=fmtPace(p); extra.innerHTML=`<span>${mi.toFixed(2)} miles in ${fmtTime(total)}</span>`;
+  } else {
+    if (!pace||!total){res.style.display='none';return;}
+    const mi=total/pace; main.textContent=`${mi.toFixed(2)} mi`; extra.innerHTML=`<span>${(mi*1.60934).toFixed(2)} km &nbsp;|&nbsp; ${fmtTime(total)} at ${fmtPace(pace)}</span>`;
+  }
+  res.style.display='';
 }
 
+// ============================================================
+// Riegel Prediction
+// ============================================================
 function predict() {
-  const d1 = parseFloat(document.getElementById('ref-distance').value);
-  const t1 = (parseInt(document.getElementById('ref-hr').value)  || 0) * 3600
-           + (parseInt(document.getElementById('ref-min').value) || 0) * 60
-           + (parseInt(document.getElementById('ref-sec').value) || 0);
-  if (!d1 || !t1) return;
-
-  const tbody = document.getElementById('predictions-body');
-  tbody.innerHTML = '';
-
-  RACE_TARGETS.forEach(target => {
-    const t2    = riegel(t1, d1, target.meters);
-    const miles = target.meters / 1609.34;
-    const pace  = t2 / miles;
-    const tr    = document.createElement('tr');
-    const isRef = Math.abs(target.meters - d1) < 1;
-    tr.innerHTML = `
-      <td>${target.label}${isRef ? ' <span class="ref-tag">ref</span>' : ''}</td>
-      <td>${fmtTime(t2)}</td>
-      <td>${fmtPace(pace)}</td>
-    `;
+  const exp=parseFloat(document.getElementById('riegel-formula').value);
+  const d1=parseFloat(document.getElementById('ref-distance').value);
+  const t1=(parseInt(document.getElementById('ref-hr').value)||0)*3600+(parseInt(document.getElementById('ref-min').value)||0)*60+(parseInt(document.getElementById('ref-sec').value)||0);
+  if (!d1||!t1){document.getElementById('predictions-out').style.display='none';return;}
+  document.getElementById('predictions-formula-label').textContent=`Riegel — ${exp===1.06?'standard':'conservative'} (exponent ${exp})`;
+  const tbody=document.getElementById('predictions-body'); tbody.innerHTML='';
+  RACE_TARGETS.forEach(t=>{
+    const t2=t1*Math.pow(t.meters/d1,exp), isRef=Math.abs(t.meters-d1)<1;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${t.label}${isRef?' <span class="ref-tag">ref</span>':''}</td><td>${fmtTime(t2)}</td><td>${fmtPace(t2/(t.meters/1609.34))}</td>`;
     if (isRef) tr.classList.add('ref-row');
     tbody.appendChild(tr);
   });
-
-  document.getElementById('predictions-out').style.display = '';
+  document.getElementById('predictions-out').style.display='';
 }
 
-// ---- Strava best efforts (only if logged in) ----
+// ============================================================
+// Daniels VO2max formulas
+// ============================================================
+function calcVO2max(distMeters, timeSecs) {
+  const T=timeSecs/60, v=distMeters/T;
+  const vo2=0.000104*v*v+0.182258*v-4.60;
+  const pct=0.8+0.1894393*Math.exp(-0.012778*T)+0.2989558*Math.exp(-0.1932695*T);
+  return vo2/pct;
+}
+function predictTimeFromVO2max(vo2max, distMeters) {
+  let lo=distMeters/600, hi=distMeters/0.5;
+  for (let i=0;i<100;i++){const mid=(lo+hi)/2; if(calcVO2max(distMeters,mid)<vo2max)hi=mid;else lo=mid;}
+  return (lo+hi)/2;
+}
+
+// ============================================================
+// Daniels tab — slider + predictions
+// ============================================================
+function onSliderChange() {
+  currentVO2max=parseFloat(document.getElementById('vo2max-slider').value);
+  document.getElementById('vo2max-display').textContent=currentVO2max.toFixed(1);
+  if (allEstimates.length>0) renderDistribution();
+  updateDanielsPredictions();
+}
+function updateDanielsPredictions() {
+  const prCt=allEstimates.filter(e=>e.source==='pr').length;
+  const hrCt=allEstimates.filter(e=>e.source==='hr').length;
+  let src='';
+  if (prCt&&hrCt) src=` · ${prCt} PR + ${hrCt} activity estimates`;
+  else if (prCt)  src=` · ${prCt} PR estimate${prCt!==1?'s':''}`;
+  else if (hrCt)  src=` · ${hrCt} activity estimate${hrCt!==1?'s':''}`;
+  document.getElementById('daniels-predictions-label').textContent=`Jack Daniels · VO2max ${currentVO2max.toFixed(1)} mL/kg/min${src}`;
+  const tbody=document.getElementById('daniels-predictions-body'); tbody.innerHTML='';
+  RACE_TARGETS.forEach(t=>{
+    const t2=predictTimeFromVO2max(currentVO2max,t.meters);
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${t.label}</td><td>${fmtTime(t2)}</td><td>${fmtPace(t2/(t.meters/1609.34))}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
 {% if is_strava %}
-async function loadStravaEfforts() {
+// ============================================================
+// Daniels tab — Strava data loading + distribution canvas
+// ============================================================
+function scheduleReload() {
+  clearTimeout(reloadTimer);
+  reloadTimer=setTimeout(loadStravaData, 800);
+}
+async function loadStravaData() {
+  const loadEl=document.getElementById('strava-loading'), wrapEl=document.getElementById('strava-vo2max-wrap');
+  loadEl.textContent='Loading Strava data…'; loadEl.style.display=''; wrapEl.style.display='none';
+  allEstimates=[];
   try {
-    const res  = await fetch('/api/best-efforts');
-    const data = await res.json();
-    const sel  = document.getElementById('strava-effort-select');
-    sel.innerHTML = '<option value="">— select an effort —</option>';
-
-    const efforts = data.efforts.sort((a, b) => a.distance_m - b.distance_m);
-    efforts.forEach(e => {
-      const opt = document.createElement('option');
-      opt.value = JSON.stringify(e);
-      const miles = (e.distance_m / 1609.34).toFixed(1);
-      opt.textContent = `${e.name} — ${fmtTime(e.seconds)}`;
-      sel.appendChild(opt);
-    });
-  } catch (err) {
-    console.error('Could not load Strava efforts:', err);
-  }
+    const res=await fetch('/api/best-efforts'), data=await res.json();
+    data.efforts.forEach(e=>{const vo2=calcVO2max(e.distance_m,e.seconds); if(vo2>20&&vo2<90)allEstimates.push({vo2max:vo2,source:'pr'});});
+  } catch(e){console.warn('PR load:',e);}
+  try {
+    const hrmax=parseInt(document.getElementById('hr-max').value)||190;
+    const hrRest=parseInt(document.getElementById('hr-rest').value)||60;
+    const n=parseInt(document.getElementById('hr-n-activities').value)||30;
+    const res=await fetch(`/api/hr-vo2max?n_activities=${n}&hrmax=${hrmax}&hr_rest=${hrRest}`), data=await res.json();
+    data.activities.forEach(a=>{if(a.vo2max>20&&a.vo2max<90)allEstimates.push({vo2max:a.vo2max,source:'hr'});});
+  } catch(e){console.warn('HR load:',e);}
+  if (!allEstimates.length){loadEl.textContent='No activity data found with heart rate.'; updateDanielsPredictions(); return;}
+  loadEl.style.display='none';
+  const vals=allEstimates.map(e=>e.vo2max), mean=vals.reduce((s,v)=>s+v,0)/vals.length;
+  sliderMin=Math.max(20,Math.floor(Math.min(...vals))-3); sliderMax=Math.min(85,Math.ceil(Math.max(...vals))+3);
+  currentVO2max=Math.round(mean*2)/2;
+  const slider=document.getElementById('vo2max-slider');
+  slider.min=sliderMin; slider.max=sliderMax; slider.value=currentVO2max;
+  document.getElementById('vo2max-display').textContent=currentVO2max.toFixed(1);
+  wrapEl.style.display=''; setTimeout(renderDistribution,10); updateDanielsPredictions();
 }
-
-function applyStravaEffort() {
-  const sel = document.getElementById('strava-effort-select');
-  if (!sel.value) return;
-  const e = JSON.parse(sel.value);
-
-  // Match distance to ref-distance select
-  const refSel = document.getElementById('ref-distance');
-  let closest = null;
-  let closestDiff = Infinity;
-  for (const opt of refSel.options) {
-    const diff = Math.abs(parseFloat(opt.value) - e.distance_m);
-    if (diff < closestDiff) { closestDiff = diff; closest = opt; }
-  }
-  if (closest && closestDiff < 500) refSel.value = closest.value;
-
-  // Fill time
-  const secs = Math.round(e.seconds);
-  document.getElementById('ref-hr').value  = Math.floor(secs / 3600) || '';
-  document.getElementById('ref-min').value = Math.floor((secs % 3600) / 60) || '';
-  document.getElementById('ref-sec').value = secs % 60 || '';
+function renderDistribution() {
+  const canvas=document.getElementById('vo2max-dist-canvas'); if(!canvas)return;
+  const W=canvas.clientWidth; if(!W)return;
+  const H=70; canvas.width=W; canvas.height=H;
+  const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,W,H);
+  const PAD=16, DOT_Y=28, AXIS_Y=48;
+  const scaleX=v=>PAD+(v-sliderMin)/(sliderMax-sliderMin)*(W-2*PAD);
+  const curX=scaleX(currentVO2max);
+  ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(PAD,AXIS_Y); ctx.lineTo(W-PAD,AXIS_Y); ctx.stroke();
+  ctx.strokeStyle='rgba(29,185,84,0.35)'; ctx.lineWidth=1.5; ctx.setLineDash([3,4]);
+  ctx.beginPath(); ctx.moveTo(curX,5); ctx.lineTo(curX,AXIS_Y+4); ctx.stroke(); ctx.setLineDash([]);
+  allEstimates.filter(e=>e.source==='hr').forEach(e=>{
+    ctx.beginPath(); ctx.arc(scaleX(e.vo2max),DOT_Y,4.5,0,Math.PI*2);
+    ctx.fillStyle='rgba(96,165,250,0.45)'; ctx.fill();
+  });
+  allEstimates.filter(e=>e.source==='pr').forEach(e=>{
+    ctx.beginPath(); ctx.arc(scaleX(e.vo2max),DOT_Y,6,0,Math.PI*2);
+    ctx.fillStyle='rgba(29,185,84,0.9)'; ctx.fill();
+  });
+  ctx.fillStyle='#1db954';
+  ctx.beginPath(); ctx.moveTo(curX-5,AXIS_Y+1); ctx.lineTo(curX+5,AXIS_Y+1); ctx.lineTo(curX,AXIS_Y+10); ctx.closePath(); ctx.fill();
+  ctx.font='10px system-ui,sans-serif'; ctx.fillStyle='rgba(255,255,255,0.22)';
+  ctx.textAlign='left';  ctx.fillText(sliderMin.toFixed(0),0,H-2);
+  ctx.textAlign='right'; ctx.fillText(sliderMax.toFixed(0),W,H-2);
 }
+window.addEventListener('DOMContentLoaded', loadStravaData);
+window.addEventListener('resize', ()=>{if(allEstimates.length)renderDistribution();});
+{% else %}
+window.addEventListener('DOMContentLoaded', updateDanielsPredictions);
+{% endif %}
 
-window.addEventListener('DOMContentLoaded', loadStravaEfforts);
+// ============================================================
+// Performance Profile (Strava only)
+// ============================================================
+{% if is_strava %}
+function fitLinearRegression(xs, ys) {
+  const n=xs.length, mx=xs.reduce((s,x)=>s+x,0)/n, my=ys.reduce((s,y)=>s+y,0)/n;
+  const slope=xs.reduce((s,x,i)=>s+(x-mx)*(ys[i]-my),0)/xs.reduce((s,x)=>s+(x-mx)**2,0);
+  return {slope, intercept:my-slope*mx};
+}
+async function loadProfileData() {
+  try {
+    const res=await fetch('/api/best-efforts'), data=await res.json();
+    profileEfforts=data.efforts;
+    if (profileEfforts.length<2){document.getElementById('profile-loading').textContent='Need at least 2 PR distances to build a profile.';return;}
+    profileRegression=fitLinearRegression(profileEfforts.map(e=>Math.log(e.distance_m)),profileEfforts.map(e=>Math.log(e.seconds)));
+    document.getElementById('profile-loading').style.display='none';
+    document.getElementById('profile-content').style.display='';
+    renderProfileSummary(); renderProfileTable(); setTimeout(renderProfileChart,10);
+  } catch(e){console.error('Profile:',e); document.getElementById('profile-loading').textContent='Could not load PR data.';}
+}
+function renderProfileSummary() {
+  const exp=profileRegression.slope;
+  const profile=exp<1.04?'endurance specialist':exp>1.09?'speed specialist':'well-balanced';
+  document.getElementById('profile-summary').innerHTML=
+    `Personal exponent: <strong>${exp.toFixed(3)}</strong> &nbsp;·&nbsp; standard Riegel = 1.06 &nbsp;·&nbsp; ${profile}`;
+}
+function renderProfileTable() {
+  const tbody=document.getElementById('profile-table-body'); tbody.innerHTML='';
+  [...profileEfforts].sort((a,b)=>a.distance_m-b.distance_m).forEach(e=>{
+    const predT=Math.exp(profileRegression.intercept+profileRegression.slope*Math.log(e.distance_m));
+    const diff=e.seconds-predT;
+    const diffStr=diff>1?`+${fmtTime(Math.abs(diff))} slower`:diff<-1?`−${fmtTime(Math.abs(diff))} faster`:'on curve';
+    const badge=diff>30?'<span class="profile-badge opportunity">room to improve</span>':diff<-30?'<span class="profile-badge strength">strength</span>':'';
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${e.name}</td><td>${fmtTime(e.seconds)}</td><td>${fmtTime(predT)}</td><td>${diffStr}</td><td>${badge}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+function renderProfileChart() {
+  const canvas=document.getElementById('profile-chart'); if(!canvas)return;
+  const W=canvas.clientWidth; if(!W)return;
+  const H=250; canvas.width=W; canvas.height=H;
+  const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,W,H);
+  const ML=68,MR=18,MT=18,MB=46, cW=W-ML-MR, cH=H-MT-MB;
+  const ldMin=Math.log(1200), ldMax=Math.log(50000);
+
+  // Pace range covering both dots and curve at standard distances
+  const gridD=[1609,5000,10000,21097,42195];
+  const predPaces=gridD.map(d=>Math.exp(profileRegression.intercept+profileRegression.slope*Math.log(d))/(d/1609.34));
+  const effortPaces=profileEfforts.map(e=>e.seconds/(e.distance_m/1609.34));
+  const allPaces=[...predPaces,...effortPaces];
+  const paceMin=Math.min(...allPaces)*0.92, paceMax=Math.max(...allPaces)*1.10;
+
+  // Faster pace → higher on chart (smaller y pixel)
+  const toX=d=>ML+(Math.log(d)-ldMin)/(ldMax-ldMin)*cW;
+  const toY=pace=>MT+(pace-paceMin)/(paceMax-paceMin)*cH;
+
+  // Vertical grid at standard distances
+  const xticks=[{d:1609,l:'1 mi'},{d:5000,l:'5K'},{d:10000,l:'10K'},{d:21097,l:'Half'},{d:42195,l:'Mar'}];
+  ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=1;
+  xticks.forEach(({d})=>{const x=toX(d); ctx.beginPath(); ctx.moveTo(x,MT); ctx.lineTo(x,MT+cH); ctx.stroke();});
+
+  // Horizontal pace grid
+  const span=paceMax-paceMin, step=span<120?30:span<300?60:120;
+  ctx.font='10px system-ui,sans-serif';
+  for (let p=Math.ceil(paceMin/step)*step; p<=paceMax; p+=step) {
+    const y=toY(p);
+    ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(ML,y); ctx.lineTo(ML+cW,y); ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,0.28)'; ctx.textAlign='right';
+    ctx.fillText(`${Math.floor(p/60)}:${String(Math.round(p%60)).padStart(2,'0')}`,ML-6,y+3.5);
+  }
+
+  // Axes
+  ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(ML,MT); ctx.lineTo(ML,MT+cH); ctx.lineTo(ML+cW,MT+cH); ctx.stroke();
+
+  // X labels
+  ctx.fillStyle='rgba(255,255,255,0.28)'; ctx.textAlign='center';
+  xticks.forEach(({d,l})=>ctx.fillText(l,toX(d),MT+cH+16));
+
+  // Y-axis label
+  ctx.save(); ctx.translate(12,MT+cH/2); ctx.rotate(-Math.PI/2);
+  ctx.textAlign='center'; ctx.fillStyle='rgba(255,255,255,0.25)';
+  ctx.fillText('Pace (min/mi)',0,0); ctx.restore();
+
+  // Regression curve
+  ctx.beginPath(); let first=true;
+  for (let i=0;i<=120;i++){
+    const ld=ldMin+(ldMax-ldMin)*i/120, d=Math.exp(ld);
+    const pace=Math.exp(profileRegression.intercept+profileRegression.slope*ld)/(d/1609.34);
+    const x=ML+(ld-ldMin)/(ldMax-ldMin)*cW, y=toY(pace);
+    first?(ctx.moveTo(x,y),first=false):ctx.lineTo(x,y);
+  }
+  ctx.strokeStyle='rgba(29,185,84,0.5)'; ctx.lineWidth=2; ctx.stroke();
+
+  // PR dots (colored by recency)
+  profileEfforts.forEach(e=>{
+    const x=toX(e.distance_m), y=toY(e.seconds/(e.distance_m/1609.34));
+    let fill='rgba(29,185,84,0.9)';
+    if (e.date){
+      const t=Math.min(1,(Date.now()-new Date(e.date).getTime())/(365.25*864e5));
+      const r=Math.round(29+t*(130-29)), g=Math.round(185+t*(130-185)), b=Math.round(84+t*(150-84));
+      fill=`rgba(${r},${g},${b},${(0.9-t*0.25).toFixed(2)})`;
+    }
+    ctx.beginPath(); ctx.arc(x,y,7,0,Math.PI*2);
+    ctx.fillStyle=fill; ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.lineWidth=1; ctx.stroke();
+  });
+}
+window.addEventListener('resize',()=>{if(profileEfforts.length)renderProfileChart();});
 {% endif %}
 </script>
 {% endblock %}

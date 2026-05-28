@@ -27,9 +27,6 @@
       <div class="chart-buttons-container">
         <div class="chart-buttons types">
           <button class="chart-button type active" id="all" onclick="updateType('all')">All</button>
-          {% for activity_type in activity_types %}
-          <button class="chart-button type" id="{{ activity_type }}" onclick="updateType('{{ activity_type }}')">{{ activity_type | title }}</button>
-          {% endfor %}
           <div id="activityTypeButtons"></div>
         </div>
       </div>
@@ -55,25 +52,6 @@
           <button class="chart-button dataset" id="distance" onclick="updateDataset('distance')">Distance</button>
         </div>
       </div>
-    </div>
-  </section>
-
-  <!-- Gear Section -->
-  <section class="dash-section dash-two-col">
-    <div class="chart-card">
-      <h2 class="section-title">Gear Distance</h2>
-      <div style="height: 320px; position: relative;">
-        <div class="loading-spinner" id="spinner-1-gear"></div>
-        <canvas id="distanceChart"></canvas>
-      </div>
-    </div>
-    <div class="chart-card">
-      <h2 class="section-title">Cumulative Shoe Mileage</h2>
-      <div style="height: 320px; position: relative;">
-        <div class="loading-spinner" id="spinner-2-gear"></div>
-        <canvas id="shoeChart"></canvas>
-      </div>
-      <div id="checkboxes" style="margin-top: 0.75rem;"></div>
     </div>
   </section>
 
