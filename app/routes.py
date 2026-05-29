@@ -1,3 +1,4 @@
+import hmac
 import time
 import json
 import logging
@@ -27,7 +28,10 @@ logger = logging.getLogger("moovmetrics")
 
 if os.path.exists("settings.env"):
     load_dotenv("settings.env")
-app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")
+_secret_key = os.getenv("SECRET_KEY")
+if not _secret_key:
+    raise RuntimeError("SECRET_KEY environment variable is not set. Add it to settings.env.")
+app.secret_key = _secret_key
 
 FLASK_ENV = os.environ.get("FLASK_ENV", "dev")
 
@@ -53,18 +57,17 @@ def _save_tokens_to_db(strava_id, access_token, refresh_token, expires_at):
 def should_update_activities():
     last_fetch = session.get("last_activities_fetch")
     now = int(time.time())
-    # 2 hours = 7200 seconds
     if not last_fetch or now - last_fetch > 7200:
         session["last_activities_fetch"] = now
-        print("Fetching new activities from Strava")
+        logger.debug("Fetching new activities from Strava")
         return True
-    print("Using cached activities")
+    logger.debug("Using cached activities")
     return False
 
 
 @app.errorhandler(Exception)
 def handle_all_exceptions(error):
-    print(error)
+    logger.error(f"Unhandled exception: {error}")
     return redirect(url_for("fail"))
 
 
@@ -118,15 +121,13 @@ def strava_login():
     # Redirect user to Strava authorization URL
     redirect_uri = url_for("strava_callback", _external=True)
     url = client.authorization_url(
-        client_id=os.getenv("STRAVA_CLIENT_ID"),
+        client_id=int(os.environ["STRAVA_CLIENT_ID"]),
         redirect_uri=redirect_uri,
         state=session["state"],
         approval_prompt="auto",
     )
 
-    # Debugging statements
-    logger.info(f"Here is the redirect: {redirect_uri}")
-    logger.info(f"Here is the url: {url}")
+    logger.debug(f"Strava redirect_uri: {redirect_uri}")
     return redirect(url)
 
 
@@ -371,9 +372,7 @@ def recommendation():
         if intermediate_races:
             form_data["intermediate_races"] = intermediate_races
 
-        # Check if we should use cached plan (for testing)
         use_dummy = os.getenv("USE_DUMMY", "false").lower() == "true"
-        print(f"Using dummy plan: {use_dummy}")
 
         # Generate training plan using LLM
         training_plan = generate_training_plan(
@@ -441,26 +440,10 @@ def recommendation():
                 )
                 training_plan.weeks.append(week_summary)
 
-        # For now, just print the results
-        print("Generated Training Plan:")
-        print(f"Title: {training_plan.title}")
-        print(f"Duration: {training_plan.duration_weeks} weeks")
-        print(f"Goal: {training_plan.goal}")
-        print(f"Number of workouts: {len(training_plan.workouts)}")
-
-        for i, workout in enumerate(
-            training_plan.workouts[:5]
-        ):  # Print first 5 workouts
-            print(
-                f"Workout {i + 1}: Week {workout.week}, {workout.day_of_week} - {workout.workout_type}"
-            )
-            if workout.distance_km:
-                print(f"  Distance: {workout.distance_km} km")
-            if workout.duration_minutes:
-                print(f"  Duration: {workout.duration_minutes} minutes")
-
-        if len(training_plan.workouts) > 5:
-            print(f"... and {len(training_plan.workouts) - 5} more workouts")
+        logger.debug(
+            f"Generated training plan: {training_plan.title!r}, "
+            f"{training_plan.duration_weeks} weeks, {len(training_plan.workouts)} workouts"
+        )
 
         # Store the training plan in session for PDF generation using proper serialization
         session["current_training_plan"] = serialize_training_plan(training_plan)
@@ -470,8 +453,8 @@ def recommendation():
         return redirect(url_for("mainapp"))
 
     except Exception as e:
-        print(f"Error generating training plan: {e}")
-        session["error_message"] = str(e)
+        logger.error(f"Error generating training plan: {e}")
+        session["error_message"] = "Failed to generate training plan. Please try again."
         return redirect(url_for("mainapp"))
 
 
@@ -479,26 +462,15 @@ def recommendation():
 def download_pdf():
     """Download the current training plan as a PDF calendar."""
     try:
-        # Get the training plan from session
         plan_data = session.get("current_training_plan")
         if not plan_data:
-            print("No training plan data found in session")
             return redirect(url_for("mainapp"))
 
-        # Reconstruct the TrainingPlan object using proper deserialization
-        print(f"Plan data keys: {plan_data.keys()}")
         training_plan = deserialize_training_plan(plan_data)
-
-        print(f"Successfully reconstructed TrainingPlan: {training_plan.title}")
-
-        # Generate and return PDF
         return create_pdf_response(training_plan)
 
     except Exception as e:
-        print(f"Error generating PDF: {e}")
-        import traceback
-
-        traceback.print_exc()
+        logger.error(f"Error generating PDF: {e}")
         return redirect(url_for("mainapp"))
 
 
@@ -519,8 +491,8 @@ def strava_callback():
             return "Invalid state. Possible CSRF attack."
         code = request.args.get("code")
         response = client.exchange_code_for_token(
-            client_id=os.getenv("STRAVA_CLIENT_ID"),
-            client_secret=os.getenv("STRAVA_CLIENT_SECRET"),
+            client_id=int(os.environ["STRAVA_CLIENT_ID"]),
+            client_secret=os.environ["STRAVA_CLIENT_SECRET"],
             code=code,
         )
         session["access_token"] = response["access_token"]
@@ -672,6 +644,8 @@ def get_cached_top_images(user_id, activities):
 @app.route("/get_image_data")
 def get_image_data():
     athlete = get_user()
+    if not athlete:
+        return jsonify({"error": "Not authenticated"}), 401
     activities = get_activities(athlete.id, update_db=should_update_activities())
     top_images = get_cached_top_images(athlete.id, activities)
     return jsonify({"urls": top_images})
@@ -680,6 +654,8 @@ def get_image_data():
 @app.route("/get_profile_data")
 def get_profile_data():
     athlete = get_user()
+    if not athlete:
+        return jsonify({"error": "Not authenticated"}), 401
     activities = get_activities(athlete.id, update_db=should_update_activities())
     stats = utils.get_stats(activities)
     gear = utils.get_gear(activities)
@@ -703,10 +679,11 @@ def get_cached_gear_distances(user_id, activities):
 @app.route("/get_gear_data")
 def get_gear_data():
     athlete = get_user()
+    if not athlete:
+        return jsonify({"error": "Not authenticated"}), 401
     activities = get_activities(athlete.id, update_db=should_update_activities())
     lines = get_cached_gear_distances(athlete.id, activities)
-    data = {"lines": lines}
-    return jsonify(data)
+    return jsonify({"lines": lines})
 
 
 @app.route("/get_data", methods=["POST"])
@@ -727,9 +704,8 @@ def get_data():
         data = get_trends(activities, activity_types=activity_types)
         return jsonify({"data": json.dumps(data)})
     except Exception as e:
-        import traceback
-        app.logger.error(f"Error in /get_data: {e}\n{traceback.format_exc()}")
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"Error in /get_data: {e}", exc_info=True)
+        return jsonify({"error": "Failed to load activity data"}), 500
 
 
 @app.route("/get_activity_types")
@@ -746,6 +722,8 @@ def get_activity_types():
 @app.route("/get_heatmap")
 def get_heatmap():
     strava_athlete = get_user()
+    if not strava_athlete:
+        return jsonify({"error": "Not authenticated"}), 401
     athlete_folder = os.path.join("app", "static", "temp", str(strava_athlete.id))
     os.makedirs(athlete_folder, exist_ok=True)
     activities = get_activities(strava_athlete.id, update_db=should_update_activities())
@@ -756,7 +734,7 @@ def get_heatmap():
             try:
                 num = int(file.read())
             except Exception as e:
-                print(f"There was a problem reading the number: {e}")
+                logger.warning(f"Problem reading heatmap counter: {e}")
     relative_path = os.path.join("temp", str(strava_athlete.id), "heatmap.html")
     save_path = os.path.join("app", "static", relative_path)
     if num < len(activities):
@@ -774,7 +752,7 @@ def _load_api_user():
 
     api_key = request.args.get("key") or request.headers.get("X-API-Key")
     expected_key = os.getenv("TRMNL_API_KEY")
-    if not expected_key or api_key != expected_key:
+    if not expected_key or not api_key or not hmac.compare_digest(api_key, expected_key):
         return None, (jsonify({"error": "Unauthorized"}), 401)
 
     strava_athlete_id = os.getenv("STRAVA_ATHLETE_ID")
@@ -789,10 +767,10 @@ def _load_api_user():
 
     if user.strava_token_expires_at and time.time() > user.strava_token_expires_at:
         try:
-            response = client.exchange_code_for_token(
-                client_id=os.getenv("STRAVA_CLIENT_ID"),
-                client_secret=os.getenv("STRAVA_CLIENT_SECRET"),
-                code=user.strava_refresh_token,
+            response = client.refresh_access_token(
+                client_id=int(os.environ["STRAVA_CLIENT_ID"]),
+                client_secret=os.environ["STRAVA_CLIENT_SECRET"],
+                refresh_token=user.strava_refresh_token,
             )
             user.strava_access_token = response["access_token"]
             user.strava_refresh_token = response["refresh_token"]

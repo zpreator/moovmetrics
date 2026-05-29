@@ -1,11 +1,13 @@
+import logging
 import os
 import pickle
-from datetime import date, datetime
-from typing import List, Optional, Dict, Any
-import time
+from datetime import date
+from typing import List, Optional
 
 from openai import OpenAI
 from pydantic import BaseModel
+
+logger = logging.getLogger("moovmetrics")
 
 
 class Workout(BaseModel):
@@ -58,19 +60,15 @@ def generate_training_plan(
     Returns:
         TrainingPlan object with the generated plan
     """
-    # TODO Reimplement cache system
-
-    # Try to load from cache if requested
     if use_dummy:
-        dummy_file = f"app/cache/dummy_plan.pkl"
+        dummy_file = "app/cache/dummy_plan.pkl"
         try:
             with open(dummy_file, "rb") as f:
                 cached_plan = pickle.load(f)
-                print(f"Loaded cached training plan from {dummy_file}")
-                time.sleep(3)
+                logger.debug(f"Loaded dummy training plan from {dummy_file}")
                 return cached_plan
         except Exception as e:
-            print(f"Error loading cached plan: {e}")
+            logger.warning(f"Could not load dummy plan, generating live: {e}")
 
     # Generate new plan using OpenAI
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -113,15 +111,6 @@ The weekly summaries should show clear progression through the training cycle an
     if training_plan is None:
         raise Exception("Failed to generate training plan from OpenAI")
 
-    # # Save the plan to cache
-    # try:
-    #     os.makedirs(os.path.dirname(cache_file), exist_ok=True)
-    #     with open(cache_file, "wb") as f:
-    #         pickle.dump(training_plan, f)
-    #     print(f"Saved training plan to cache: {cache_file}")
-    # except Exception as e:
-    #     print(f"Error saving plan to cache: {e}")
-
     return training_plan
 
 
@@ -129,7 +118,7 @@ def serialize_training_plan(training_plan: TrainingPlan) -> dict:
     """
     Serialize a TrainingPlan to a dictionary with date objects converted to ISO strings.
     """
-    data = training_plan.dict()
+    data = training_plan.model_dump()
 
     # Convert date objects to ISO strings
     if data.get("start_date"):

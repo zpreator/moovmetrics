@@ -3,7 +3,7 @@
 // Chart.js, chartjs-adapter-date-fns, chartjs-plugin-datalabels are loaded via CDN in the template
 
 // --- Main Dashboard Logic ---
-function hide_spinner(spinner_id){
+function hide_spinner(spinner_id) {
     var el = document.getElementById(spinner_id);
     if (el) el.style.display = "none";
 }
@@ -61,7 +61,8 @@ function getData() {
     hide_spinner("spinner-1");
   })
   .catch(error => {
-    console.error('[DEBUG getData] error:', error);
+    console.error('[getData] error:', error);
+    hide_spinner("spinner-1");
   });
 }
 
@@ -92,7 +93,9 @@ function getEffortData() {
     hide_spinner("spinner-3");
   })
   .catch(error => {
-    console.error('There was an error with the request:', error);
+    console.error('[getEffortData] error:', error);
+    hide_spinner("spinner-2");
+    hide_spinner("spinner-3");
   });
 }
 
@@ -260,10 +263,6 @@ function updateEffortChart() {
 }
 }
 
-function hide_spinner(spinner_id){
-  document.getElementById(spinner_id).style.display = "none";
-}
-
 function updateWindow(newTimeWindow) {
   timeWindow = newTimeWindow;
   document.querySelectorAll('.window').forEach(btn => btn.classList.remove('active'));
@@ -354,7 +353,8 @@ async function loadImageData() {
       });
       hide_spinner("spinner-image");
   } catch (error) {
-      console.error('Error getting image info:', error);
+      console.error('[loadImageData] error:', error);
+      hide_spinner("spinner-image");
   }
 }
 
@@ -416,7 +416,9 @@ async function loadProfileData() {
       });
       hide_spinner("spinner-clubs");
   } catch (error) {
-      console.error('Error getting profile info:', error);
+      console.error('[loadProfileData] error:', error);
+      hide_spinner("spinner-sports");
+      hide_spinner("spinner-clubs");
   }
 }
 
@@ -427,7 +429,7 @@ async function loadHeatmap() {
       const heatmapFrame = document.getElementById('heatmapFrame');
       heatmapFrame.src = data.heatmap_path;
   } catch (error) {
-      console.error('Error loading heatmap:', error);
+      console.error('[loadHeatmap] error:', error);
   }
 }
 
@@ -446,7 +448,7 @@ async function loadActivityTypes() {
           buttonContainer.appendChild(button);
       });
   } catch (error) {
-      console.error('Error loading activity types:', error);
+      console.error('[loadActivityTypes] error:', error);
   }
 }
 

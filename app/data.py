@@ -3,7 +3,6 @@ from app import db, client
 from app.models import Activity, StreamData, BestEffort, User, Split, Segment
 from app.auth import get_strava_athlete
 from datetime import datetime
-import time
 
 logger = logging.getLogger("moovmetrics")
 
@@ -119,12 +118,10 @@ def get_all_best_efforts(user_id, activities=None, batch_size=5):
     for activity in activities:
         best_efforts = BestEffort.query.filter_by(activity_id=activity.strava_id).all()
         if not best_efforts:
-            logger.info(f"Getting activity number: {i}")
+            logger.info(f"Fetching PR efforts for activity {i}: {activity.strava_id}")
             best_efforts = get_pr_efforts_for_activity(activity.strava_id)
             i += 1
         all_best_efforts.extend(best_efforts)
-        if i % batch_size == 0 and i > 0:
-            time.sleep(30)
     return all_best_efforts
 
 
@@ -156,7 +153,7 @@ def get_new_activities(after_date):
             all_activities.extend(activities)
         return all_activities
     except Exception as e:
-        logging.error(f"Error fetching new activities: {e}")
+        logger.error(f"Error fetching new activities: {e}")
         return []
 
 
@@ -206,7 +203,7 @@ def _update_activities_database(user_id):
                     instagram_primary_photo=activity.instagram_primary_photo,
                     kilojoules=activity.kilojoules,
                     kudos_count=activity.kudos_count,
-                    map=activity.map.summary_polyline,
+                    map=activity.map.summary_polyline if activity.map else None,
                     max_heartrate=activity.max_heartrate,
                     max_speed=activity.max_speed,
                     max_watts=activity.max_watts,
@@ -236,19 +233,20 @@ def _update_activities_database(user_id):
                 )
                 db.session.add(new_activity)
             except Exception as e:
-                logging.error(f"Error adding new activity to database: {e}")
+                logger.error(f"Error adding new activity to database: {e}")
     try:
         db.session.commit()
     except Exception as e:
-        logging.error(f"Error committing changes to database: {e}")
+        logger.error(f"Error committing activity changes to database: {e}")
         db.session.rollback()
+        raise
 
 
 def _update_splits_database(strava_id, activity):
     try:
         existing_split_data = Split.query.filter_by(activity_id=strava_id).all()
         if existing_split_data:
-            logging.info(f"Split data already exists for activity ID {strava_id}")
+            logger.info(f"Split data already exists for activity ID {strava_id}")
             return existing_split_data
 
         for split in activity.splits_standard:
@@ -265,7 +263,7 @@ def _update_splits_database(strava_id, activity):
             db.session.add(new_split)
         db.session.commit()
     except Exception as e:
-        logging.error(f"Error adding new splits to database for {strava_id}: {e}")
+        logger.error(f"Error adding new splits to database for {strava_id}: {e}")
         db.session.rollback()
 
 
@@ -273,7 +271,7 @@ def _update_segments_database(strava_id, activity):
     try:
         existing_segment_data = Split.query.filter_by(activity_id=strava_id).all()
         if existing_segment_data:
-            logging.info(f"Split data already exists for activity ID {strava_id}")
+            logger.info(f"Split data already exists for activity ID {strava_id}")
             return existing_segment_data
 
         for segment in activity.segment_efforts:
@@ -289,7 +287,7 @@ def _update_segments_database(strava_id, activity):
             db.session.add(new_segment)
         db.session.commit()
     except Exception as e:
-        logging.error(f"Error adding new segments to database for {strava_id}: {e}")
+        logger.error(f"Error adding new segments to database for {strava_id}: {e}")
         db.session.rollback()
 
 
@@ -300,7 +298,7 @@ def _update_streams_database(strava_id, data_type=None):
             activity_id=strava_id, data_type=data_type
         ).all()
         if existing_stream_data:
-            logging.info(f"Stream data already exists for activity ID {strava_id}")
+            logger.info(f"Stream data already exists for activity ID {strava_id}")
             return existing_stream_data
 
         # Fetch stream data for each type from external source
@@ -313,11 +311,11 @@ def _update_streams_database(strava_id, data_type=None):
                 db.session.add(stream_data_entry)
 
         db.session.commit()
-        logging.info(
+        logger.info(
             f"Stream data successfully fetched and stored for activity ID {strava_id}"
         )
     except Exception as e:
-        logging.error(
+        logger.error(
             f"Error fetching and storing stream data for activity ID {strava_id}: {e}"
         )
         db.session.rollback()
@@ -344,7 +342,7 @@ def _update_user_database(athlete):
         db.session.add(new_athlete)
         db.session.commit()
     except Exception as e:
-        logging.error(f"Error with saving user: {athlete.id}")
+        logger.error(f"Error with saving user: {athlete.id}")
         db.session.rollback()
 
 
@@ -388,7 +386,7 @@ def get_pr_efforts_for_activity(strava_id):
             db.session.add(be)
             best_efforts.append(be)
         db.session.commit()
-        logging.info(f"PR efforts stored for activity: {strava_id} ({len(best_efforts)} PRs)")
+        logger.info(f"PR efforts stored for activity: {strava_id} ({len(best_efforts)} PRs)")
         return best_efforts
     except Exception as e:
         logger.error(f"[DEBUG best_efforts] activity {strava_id}: exception: {e}")

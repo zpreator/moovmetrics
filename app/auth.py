@@ -7,15 +7,6 @@ import time
 
 logger = logging.getLogger("moovmetrics")
 
-# def get_strava_athlete():
-#     authenticated = authenticate()
-#     if not authenticated:
-#         return None
-#     client.access_token = session['access_token']
-#     strava_athlete = client.get_athlete()
-#     return strava_athlete
-
-
 def get_strava_athlete():
     authenticated = authenticate()
     if not authenticated:
@@ -54,18 +45,16 @@ def authenticate():
             if "refresh_token" not in session:
                 return False
             try:
-                response = client.exchange_code_for_token(
-                    client_id=os.getenv("STRAVA_CLIENT_ID"),  # type: ignore
-                    client_secret=os.getenv("STRAVA_CLIENT_SECRET"),  # type: ignore
-                    code=session["refresh_token"],
+                response = client.refresh_access_token(
+                    client_id=int(os.environ["STRAVA_CLIENT_ID"]),
+                    client_secret=os.environ["STRAVA_CLIENT_SECRET"],
+                    refresh_token=session["refresh_token"],
                 )
             except stravalib.exc.AccessUnauthorized:
-                # The user will need to reauthenticate
-                logger.error("Could not refresh, not authenticated")
+                logger.error("Could not refresh token: not authorized")
                 return False
             except Exception as e:
-                logger.error(f"Unkown error: {e}")
-                print("Unkown error: ", e)
+                logger.error(f"Unknown error refreshing token: {e}")
                 return False
 
             # Store access token in the session for the user
@@ -74,7 +63,6 @@ def authenticate():
             session["token_expires_at"] = response["expires_at"]
             return True
         else:
-            print("Already authenticted")
             return True
     else:
         return False
