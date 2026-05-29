@@ -1,8 +1,10 @@
+import hmac
 import time
 import json
 import logging
 import os
 from collections import Counter
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import stravalib.exc
@@ -24,30 +26,48 @@ from app.pdf_generator import create_pdf_response
 
 logger = logging.getLogger("moovmetrics")
 
-app.secret_key = "your_secret_key_here"
 if os.path.exists("settings.env"):
     load_dotenv("settings.env")
+_secret_key = os.getenv("SECRET_KEY")
+if not _secret_key:
+    raise RuntimeError("SECRET_KEY environment variable is not set. Add it to settings.env.")
+app.secret_key = _secret_key
 
 FLASK_ENV = os.environ.get("FLASK_ENV", "dev")
 
 RUNNING = {}
 
 
+def _save_tokens_to_db(strava_id, access_token, refresh_token, expires_at):
+    from app.models import User
+    user = User.query.filter_by(strava_id=str(strava_id)).first()
+    if user:
+        user.strava_access_token = access_token
+        user.strava_refresh_token = refresh_token
+        user.strava_token_expires_at = float(expires_at)
+        try:
+            from app import db
+            db.session.commit()
+        except Exception as e:
+            logger.error(f"Error saving tokens to DB: {e}")
+            from app import db
+            db.session.rollback()
+
+
 def should_update_activities():
     last_fetch = session.get("last_activities_fetch")
     now = int(time.time())
-    # 2 hours = 7200 seconds
     if not last_fetch or now - last_fetch > 7200:
         session["last_activities_fetch"] = now
-        print("Fetching new activities from Strava")
+        logger.debug("Fetching new activities from Strava")
         return True
-    print("Using cached activities")
+    logger.debug("Using cached activities")
     return False
 
 
 @app.errorhandler(Exception)
 def handle_all_exceptions(error):
-    print(error)
+    logger.error(f"Unhandled exception: {error}")
     return redirect(url_for("fail"))
 
 
@@ -63,9 +83,10 @@ def index():
     try:
         authenticated = authenticate()
         if authenticated:
-            return redirect(url_for("mainapp"))
+            return redirect(url_for("profile"))
         return render_template(
-            "index.html", flask_env=FLASK_ENV, cow_path=utils.get_cow_path()
+            "index.html", flask_env=FLASK_ENV, cow_path=utils.get_cow_path(),
+            show_particles=True
         )
     except stravalib.exc.AccessUnauthorized:
         return redirect(url_for("logout"))
@@ -100,15 +121,13 @@ def strava_login():
     # Redirect user to Strava authorization URL
     redirect_uri = url_for("strava_callback", _external=True)
     url = client.authorization_url(
-        client_id=os.getenv("STRAVA_CLIENT_ID"),
+        client_id=int(os.environ["STRAVA_CLIENT_ID"]),
         redirect_uri=redirect_uri,
         state=session["state"],
         approval_prompt="auto",
     )
 
-    # Debugging statements
-    logger.info(f"Here is the redirect: {redirect_uri}")
-    logger.info(f"Here is the url: {url}")
+    logger.debug(f"Strava redirect_uri: {redirect_uri}")
     return redirect(url)
 
 
@@ -353,9 +372,7 @@ def recommendation():
         if intermediate_races:
             form_data["intermediate_races"] = intermediate_races
 
-        # Check if we should use cached plan (for testing)
         use_dummy = os.getenv("USE_DUMMY", "false").lower() == "true"
-        print(f"Using dummy plan: {use_dummy}")
 
         # Generate training plan using LLM
         training_plan = generate_training_plan(
@@ -423,26 +440,10 @@ def recommendation():
                 )
                 training_plan.weeks.append(week_summary)
 
-        # For now, just print the results
-        print("Generated Training Plan:")
-        print(f"Title: {training_plan.title}")
-        print(f"Duration: {training_plan.duration_weeks} weeks")
-        print(f"Goal: {training_plan.goal}")
-        print(f"Number of workouts: {len(training_plan.workouts)}")
-
-        for i, workout in enumerate(
-            training_plan.workouts[:5]
-        ):  # Print first 5 workouts
-            print(
-                f"Workout {i + 1}: Week {workout.week}, {workout.day_of_week} - {workout.workout_type}"
-            )
-            if workout.distance_km:
-                print(f"  Distance: {workout.distance_km} km")
-            if workout.duration_minutes:
-                print(f"  Duration: {workout.duration_minutes} minutes")
-
-        if len(training_plan.workouts) > 5:
-            print(f"... and {len(training_plan.workouts) - 5} more workouts")
+        logger.debug(
+            f"Generated training plan: {training_plan.title!r}, "
+            f"{training_plan.duration_weeks} weeks, {len(training_plan.workouts)} workouts"
+        )
 
         # Store the training plan in session for PDF generation using proper serialization
         session["current_training_plan"] = serialize_training_plan(training_plan)
@@ -452,8 +453,8 @@ def recommendation():
         return redirect(url_for("mainapp"))
 
     except Exception as e:
-        print(f"Error generating training plan: {e}")
-        session["error_message"] = str(e)
+        logger.error(f"Error generating training plan: {e}")
+        session["error_message"] = "Failed to generate training plan. Please try again."
         return redirect(url_for("mainapp"))
 
 
@@ -461,26 +462,15 @@ def recommendation():
 def download_pdf():
     """Download the current training plan as a PDF calendar."""
     try:
-        # Get the training plan from session
         plan_data = session.get("current_training_plan")
         if not plan_data:
-            print("No training plan data found in session")
             return redirect(url_for("mainapp"))
 
-        # Reconstruct the TrainingPlan object using proper deserialization
-        print(f"Plan data keys: {plan_data.keys()}")
         training_plan = deserialize_training_plan(plan_data)
-
-        print(f"Successfully reconstructed TrainingPlan: {training_plan.title}")
-
-        # Generate and return PDF
         return create_pdf_response(training_plan)
 
     except Exception as e:
-        print(f"Error generating PDF: {e}")
-        import traceback
-
-        traceback.print_exc()
+        logger.error(f"Error generating PDF: {e}")
         return redirect(url_for("mainapp"))
 
 
@@ -501,8 +491,8 @@ def strava_callback():
             return "Invalid state. Possible CSRF attack."
         code = request.args.get("code")
         response = client.exchange_code_for_token(
-            client_id=os.getenv("STRAVA_CLIENT_ID"),
-            client_secret=os.getenv("STRAVA_CLIENT_SECRET"),
+            client_id=int(os.environ["STRAVA_CLIENT_ID"]),
+            client_secret=os.environ["STRAVA_CLIENT_SECRET"],
             code=code,
         )
         session["access_token"] = response["access_token"]
@@ -511,6 +501,7 @@ def strava_callback():
         client.access_token = session["access_token"]
         strava_athlete = client.get_athlete()
         session["user_id"] = strava_athlete.id
+        _save_tokens_to_db(strava_athlete.id, response["access_token"], response["refresh_token"], response["expires_at"])
         return redirect(url_for("profile"))
     else:
         return redirect(url_for("index"))
@@ -526,8 +517,119 @@ def profile():
         cow_path=utils.get_cow_path(),
         flask_env=FLASK_ENV,
         athlete=strava_athlete,
-        races=list(RACES),
+        active_page="profile",
     )
+
+
+@app.route("/dashboard")
+def dashboard():
+    strava_athlete = get_user()
+    if not strava_athlete:
+        return redirect(url_for("index"))
+    athlete_id = getattr(strava_athlete, "id", None)
+    activities = get_activities(athlete_id, update_db=should_update_activities()) if athlete_id else []
+    types_raw = [a.type.lower() for a in activities if a and getattr(a, "type", None)]
+    type_counts = Counter(types_raw)
+    activity_types = [t for t, _ in type_counts.most_common()]
+    return render_template(
+        "dashboard.html",
+        athlete=strava_athlete,
+        activity_types=activity_types,
+        active_page="dashboard",
+    )
+
+
+@app.route("/tools")
+def tools():
+    strava_athlete = get_user()
+    is_strava = strava_athlete is not None
+    return render_template(
+        "tools.html",
+        athlete=strava_athlete,
+        is_strava=is_strava,
+        active_page="tools",
+    )
+
+
+_CANONICAL_DISTANCES = [400, 805, 1000, 1609, 3219, 5000, 10000, 15000, 16093, 20000, 21097, 42195]
+_CANONICAL_NAMES = {
+    400: "400m",
+    805: "1/2 Mile",
+    1000: "1K",
+    1609: "1 Mile",
+    3219: "2 Mile",
+    5000: "5K",
+    10000: "10K",
+    15000: "15K",
+    16093: "10 Mile",
+    20000: "20K",
+    21097: "Half Marathon",
+    42195: "Marathon",
+}
+# Distances that match the Reference Distance dropdown in the race predictor
+_REF_DISTANCE_KEYS = {1609, 5000, 10000, 21097, 42195}
+
+def _canonical_dist_key(distance):
+    return min(_CANONICAL_DISTANCES, key=lambda d: abs(d - distance))
+
+
+@app.route("/api/best-efforts")
+def best_efforts():
+    from app.models import BestEffort, Activity
+    from app import db
+    from app.data import get_pr_efforts_for_activity
+    strava_athlete = get_user()
+    if not strava_athlete:
+        return jsonify({"efforts": []})
+    client.access_token = session["access_token"]
+    athlete_id = getattr(strava_athlete, "id", None)
+    if athlete_id:
+        unprocessed = (
+            Activity.query.filter_by(user_id=athlete_id, type="Run")
+            .filter(Activity.pr_count > 0)
+            .filter(~Activity.best_efforts.any())
+            .order_by(Activity.start_date_local.desc())
+            .limit(10)
+            .all()
+        )
+        for activity in unprocessed:
+            get_pr_efforts_for_activity(activity.strava_id)
+
+    all_efforts = (
+        db.session.query(BestEffort, Activity.start_date_local)
+        .join(Activity, BestEffort.activity_id == Activity.strava_id)
+        .filter(Activity.user_id == athlete_id)
+        .all()
+    ) if athlete_id else []
+
+    # Build best time per canonical distance, restricted to ref-distance dropdown options
+    best_by_distance = {}
+    for e, act_date in all_efforts:
+        if e.elapsed_time is None:
+            continue
+        dist_key = _canonical_dist_key(e.distance)
+        if dist_key not in _REF_DISTANCE_KEYS:
+            continue
+        if dist_key not in best_by_distance or e.elapsed_time < best_by_distance[dist_key]["seconds"]:
+            best_by_distance[dist_key] = {
+                "name": _CANONICAL_NAMES[dist_key],
+                "distance_m": dist_key,
+                "seconds": e.elapsed_time,
+                "date": act_date.isoformat() if act_date else None,
+            }
+
+    # Filter out pace-inconsistent entries: a shorter distance must have a faster pace
+    # than any longer distance (otherwise the data point is from a bad race).
+    sorted_efforts = sorted(best_by_distance.items(), reverse=True)  # longest first
+    consistent = []
+    fastest_pace = float("inf")  # seconds per meter; lower = faster
+    for dist_key, effort in sorted_efforts:
+        pace = effort["seconds"] / dist_key
+        if pace <= fastest_pace:
+            fastest_pace = pace
+            consistent.append(effort)
+
+    return jsonify({"efforts": list(reversed(consistent))})
 
 
 def get_cached_top_images(user_id, activities):
@@ -542,6 +644,8 @@ def get_cached_top_images(user_id, activities):
 @app.route("/get_image_data")
 def get_image_data():
     athlete = get_user()
+    if not athlete:
+        return jsonify({"error": "Not authenticated"}), 401
     activities = get_activities(athlete.id, update_db=should_update_activities())
     top_images = get_cached_top_images(athlete.id, activities)
     return jsonify({"urls": top_images})
@@ -550,6 +654,8 @@ def get_image_data():
 @app.route("/get_profile_data")
 def get_profile_data():
     athlete = get_user()
+    if not athlete:
+        return jsonify({"error": "Not authenticated"}), 401
     activities = get_activities(athlete.id, update_db=should_update_activities())
     stats = utils.get_stats(activities)
     gear = utils.get_gear(activities)
@@ -573,38 +679,51 @@ def get_cached_gear_distances(user_id, activities):
 @app.route("/get_gear_data")
 def get_gear_data():
     athlete = get_user()
+    if not athlete:
+        return jsonify({"error": "Not authenticated"}), 401
     activities = get_activities(athlete.id, update_db=should_update_activities())
     lines = get_cached_gear_distances(athlete.id, activities)
-    data = {"lines": lines}
-    return jsonify(data)
+    return jsonify({"lines": lines})
 
 
 @app.route("/get_data", methods=["POST"])
 def get_data():
-    activity_types = request.get_json()["activity_types"]
-    client.access_token = session["access_token"]
-    strava_athlete = get_user()
-    if not strava_athlete:
-        raise Exception("Could not get user")
-    activities = get_activities(strava_athlete.id, update_db=should_update_activities())
-    data = get_trends(activities, activity_types=activity_types)
-    return jsonify({"data": json.dumps(data)})
+    try:
+        body = request.get_json()
+        activity_types = body["activity_types"]
+
+        if "access_token" not in session:
+            return jsonify({"error": "No access token in session"}), 401
+
+        client.access_token = session["access_token"]
+        strava_athlete = get_user()
+        if not strava_athlete:
+            return jsonify({"error": "Could not get user"}), 500
+
+        activities = get_activities(strava_athlete.id, update_db=should_update_activities())
+        data = get_trends(activities, activity_types=activity_types)
+        return jsonify({"data": json.dumps(data)})
+    except Exception as e:
+        logger.error(f"Error in /get_data: {e}", exc_info=True)
+        return jsonify({"error": "Failed to load activity data"}), 500
 
 
 @app.route("/get_activity_types")
 def get_activity_types():
     strava_athlete = get_user()
-    activities = get_activities(athlete.id, update_db=should_update_activities())
-
-    activity_types = list(set([x.type.lower() for x in activities]))
-    type_counts = Counter(x.type.lower() for x in activities)
-    activity_types = [x for x, _ in type_counts.most_common()]
+    if not strava_athlete:
+        return jsonify({"activity_types": []})
+    activities = get_activities(strava_athlete.id, update_db=should_update_activities())
+    type_counts = Counter(a.type.lower() for a in activities if a and getattr(a, "type", None))
+    activity_types = [t for t, _ in type_counts.most_common()]
     return jsonify({"activity_types": activity_types})
 
 
 @app.route("/get_heatmap")
 def get_heatmap():
     strava_athlete = get_user()
+    if not strava_athlete:
+        return jsonify({"error": "Not authenticated"}), 401
     athlete_folder = os.path.join("app", "static", "temp", str(strava_athlete.id))
     os.makedirs(athlete_folder, exist_ok=True)
     activities = get_activities(strava_athlete.id, update_db=should_update_activities())
@@ -615,7 +734,7 @@ def get_heatmap():
             try:
                 num = int(file.read())
             except Exception as e:
-                print(f"There was a problem reading the number: {e}")
+                logger.warning(f"Problem reading heatmap counter: {e}")
     relative_path = os.path.join("temp", str(strava_athlete.id), "heatmap.html")
     save_path = os.path.join("app", "static", relative_path)
     if num < len(activities):
@@ -624,6 +743,254 @@ def get_heatmap():
         utils.generate_map(activities, save_path)
     heatmap_path = url_for("static", filename=relative_path)
     return jsonify({"heatmap_path": heatmap_path})
+
+
+def _load_api_user():
+    """Validate the API key and return an authenticated (token-refreshed) User, or a JSON error tuple."""
+    from app.models import User
+    from app import db
+
+    api_key = request.args.get("key") or request.headers.get("X-API-Key")
+    expected_key = os.getenv("TRMNL_API_KEY")
+    if not expected_key or not api_key or not hmac.compare_digest(api_key, expected_key):
+        return None, (jsonify({"error": "Unauthorized"}), 401)
+
+    strava_athlete_id = os.getenv("STRAVA_ATHLETE_ID")
+    user = (
+        User.query.filter_by(strava_id=strava_athlete_id).first()
+        if strava_athlete_id
+        else User.query.first()
+    )
+
+    if not user or not user.strava_access_token:
+        return None, (jsonify({"error": "No authenticated user. Log in via the web app first."}), 503)
+
+    if user.strava_token_expires_at and time.time() > user.strava_token_expires_at:
+        try:
+            response = client.refresh_access_token(
+                client_id=int(os.environ["STRAVA_CLIENT_ID"]),
+                client_secret=os.environ["STRAVA_CLIENT_SECRET"],
+                refresh_token=user.strava_refresh_token,
+            )
+            user.strava_access_token = response["access_token"]
+            user.strava_refresh_token = response["refresh_token"]
+            user.strava_token_expires_at = float(response["expires_at"])
+            db.session.commit()
+        except Exception as e:
+            logger.error(f"API token refresh failed: {e}")
+            return None, (jsonify({"error": "Token refresh failed"}), 503)
+
+    client.access_token = user.strava_access_token
+    return user, None
+
+
+@app.route("/api/trmnl")
+def trmnl():
+    from app.models import Activity
+    from stravalib import unithelper
+
+    user, err = _load_api_user()
+    if err:
+        return err
+    assert user is not None
+
+    week_ago = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=7)
+    weekly_activities = Activity.query.filter(
+        Activity.user_id == int(user.strava_id),
+        Activity.start_date_local >= week_ago,
+        Activity.type == "Run",
+    ).all()
+    weekly_miles = round(sum(float(a.distance or 0) for a in weekly_activities) / 1609.34, 1)
+
+    gear_ids = set(a.gear_id for a in Activity.query.filter_by(user_id=int(user.strava_id)).all() if a.gear_id)
+    shoes = []
+    for gear_id in gear_ids:
+        try:
+            gear_item = client.get_gear(gear_id)
+            if gear_item.frame_type is None and gear_item.distance:
+                miles = int(unithelper.miles(gear_item.distance))  # type: ignore[arg-type]
+                shoes.append({"name": gear_item.name, "miles": miles})
+        except Exception:
+            pass
+    shoes.sort(key=lambda x: x["miles"], reverse=True)
+
+    return jsonify({"weekly_miles": weekly_miles, "shoes": shoes})
+
+
+@app.route("/api/weekly")
+def weekly_progress():
+    from app.models import Activity
+
+    user, err = _load_api_user()
+    if err:
+        return err
+    assert user is not None
+
+    today = datetime.now(timezone.utc).replace(tzinfo=None).date()
+    # ISO week: Monday=0 … Sunday=6
+    week_start = today - timedelta(days=today.weekday())
+    week_end = week_start + timedelta(days=6)
+    days_remaining = (week_end - today).days + 1  # inclusive of today
+
+    activity_type = os.getenv("WEEKLY_ACTIVITY_TYPE", "Run")
+    week_activities = Activity.query.filter(
+        Activity.user_id == int(user.strava_id),
+        Activity.start_date_local >= datetime.combine(week_start, datetime.min.time()),
+        Activity.type == activity_type,
+    ).all()
+    miles_this_week = round(sum(float(a.distance or 0) for a in week_activities) / 1609.34, 1)
+
+    goal_miles = float(os.getenv("WEEKLY_GOAL_MILES", "30"))
+    percent = min(100, round(miles_this_week / goal_miles * 100)) if goal_miles else 0
+
+    return jsonify({
+        "miles_this_week": miles_this_week,
+        "goal_miles": goal_miles,
+        "percent": percent,
+        "days_remaining": days_remaining,
+        "week_start": week_start.isoformat(),
+        "week_end": week_end.isoformat(),
+        "activity_type": activity_type,
+    })
+
+
+@app.route("/api/hr-vo2max")
+def hr_vo2max():
+    from app.models import Activity
+    strava_athlete = get_user()
+    if not strava_athlete:
+        return jsonify({"activities": []})
+    athlete_id = getattr(strava_athlete, "id", None)
+    if not athlete_id:
+        return jsonify({"activities": []})
+
+    n_activities = int(request.args.get("n_activities", 30))
+    hrmax  = float(request.args.get("hrmax",   190))
+    hr_rest = float(request.args.get("hr_rest", 60))
+
+    activities = (
+        Activity.query
+        .filter_by(user_id=athlete_id, type="Run")
+        .filter(Activity.average_heartrate.isnot(None))
+        .filter(Activity.average_speed.isnot(None))
+        .filter(Activity.elapsed_time > timedelta(seconds=1200))
+        .order_by(Activity.start_date_local.desc())
+        .limit(n_activities)
+        .all()
+    )
+
+    results = []
+    for a in activities:
+        try:
+            hr         = float(a.average_heartrate)
+            speed_mps  = float(a.average_speed)
+            v          = speed_mps * 60          # m/s → m/min
+            vo2_at_v   = 0.000104 * v * v + 0.182258 * v - 4.60
+            pct        = (hr - hr_rest) / (hrmax - hr_rest)
+            if pct <= 0:
+                continue
+            vo2max = vo2_at_v / pct
+            if not (20 < vo2max < 90):
+                continue
+            distance_miles = round(float(a.distance or 0) / 1609.34, 2)
+            date_str = a.start_date_local.strftime("%b %d, %Y") if a.start_date_local else ""
+            results.append({
+                "date":           date_str,
+                "distance_miles": distance_miles,
+                "avg_hr":         round(hr, 1),
+                "vo2max":         round(vo2max, 1),
+            })
+        except Exception as e:
+            logger.warning(f"Skipping activity for HR vo2max: {e}")
+
+    return jsonify({"activities": results})
+
+
+@app.route("/gear")
+def gear():
+    strava_athlete = get_user()
+    if not strava_athlete:
+        return redirect(url_for("index"))
+    return render_template(
+        "gear.html",
+        flask_env=FLASK_ENV,
+        athlete=strava_athlete,
+        active_page="gear",
+    )
+
+
+@app.route("/api/gear")
+def api_gear():
+    from stravalib import unithelper as uh
+
+    if "access_token" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+    client.access_token = session["access_token"]
+
+    strava_athlete = get_user()
+    if not strava_athlete:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    athlete_id = getattr(strava_athlete, "id", None)
+    if not athlete_id:
+        return jsonify({"shoes": []})
+
+    activities = get_activities(athlete_id, update_db=should_update_activities())
+
+    gear_activities = {}
+    for activity in activities:
+        if not activity:
+            continue
+        gear_id = getattr(activity, "gear_id", None)
+        if gear_id:
+            if gear_id not in gear_activities:
+                gear_activities[gear_id] = []
+            gear_activities[gear_id].append(activity)
+
+    result = []
+    for gear_id, acts in gear_activities.items():
+        try:
+            gear_item = client.get_gear(gear_id)
+            if gear_item.frame_type is not None:
+                continue
+
+            acts_with_date = sorted(
+                [a for a in acts if a.start_date_local],
+                key=lambda a: a.start_date_local,
+            )
+            first_date = acts_with_date[0].start_date_local if acts_with_date else None
+
+            run_acts = [a for a in acts if getattr(a, "type", None) == "Run"]
+            speeds = [float(a.average_speed) for a in run_acts if a.average_speed and float(a.average_speed) > 0]
+            heart_rates = [float(a.average_heartrate) for a in run_acts if a.average_heartrate]
+
+            avg_speed_mps = sum(speeds) / len(speeds) if speeds else None
+            avg_hr = sum(heart_rates) / len(heart_rates) if heart_rates else None
+            avg_pace_mpm = (26.8224 / avg_speed_mps) if avg_speed_mps else None
+
+            total_miles = 0.0
+            if gear_item.distance:
+                total_miles = round(float(uh.miles(gear_item.distance)), 1)  # type: ignore[arg-type]
+
+            age_days = (datetime.now() - first_date).days if first_date else None
+
+            result.append({
+                "gear_id": gear_id,
+                "name": gear_item.name or "Unknown",
+                "nickname": getattr(gear_item, "nickname", None) or None,
+                "total_miles": total_miles,
+                "first_activity_date": first_date.strftime("%b %d, %Y") if first_date else None,
+                "age_days": age_days,
+                "avg_pace_mpm": round(avg_pace_mpm, 3) if avg_pace_mpm else None,
+                "avg_hr": round(avg_hr, 1) if avg_hr else None,
+                "retired": bool(getattr(gear_item, "retired", False)),
+                "activity_count": len(acts),
+            })
+        except Exception as e:
+            logger.warning(f"Skipping gear {gear_id}: {e}")
+
+    result.sort(key=lambda x: (x["retired"], -x["total_miles"]))
+    return jsonify({"shoes": result})
 
 
 if __name__ == "__main__":

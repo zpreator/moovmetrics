@@ -2,170 +2,11 @@
 // External libraries
 // Chart.js, chartjs-adapter-date-fns, chartjs-plugin-datalabels are loaded via CDN in the template
 
-// --- Shared Data Fetching for Gear Data ---
-let gearDataCache = null;
-let gearDataPromise = null;
-async function getGearData() {
-    if (gearDataCache) return gearDataCache;
-    if (!gearDataPromise) {
-        gearDataPromise = fetch('/get_gear_data')
-            .then(response => response.json())
-            .then(jsonData => {
-                gearDataCache = jsonData;
-                return jsonData;
-            });
-    }
-    return gearDataPromise;
-}
-
-// --- Gear Bar Chart JS ---
-const predefinedColors = [
-    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#E7E9ED', '#4D4D4D'
-];
-function hexToRgba(hex, alpha = 0.3) {
-    hex = hex.replace(/^#/, '');
-    let r = parseInt(hex.substring(0, 2), 16);
-    let g = parseInt(hex.substring(2, 4), 16);
-    let b = parseInt(hex.substring(4, 6), 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-async function fetchLineData() {
-    const jsonData = await getGearData();
-    return jsonData.lines;
-}
-function hide_spinner(spinner_id){
+// --- Main Dashboard Logic ---
+function hide_spinner(spinner_id) {
     var el = document.getElementById(spinner_id);
     if (el) el.style.display = "none";
 }
-async function createDistanceChart() {
-    const lines = await fetchLineData();
-    const distances = lines.map(line => {
-        const lastPoint = line.data[line.data.length - 1];
-        return lastPoint.y || lastPoint;
-    });
-    const labels = lines.map(line => line.label);
-    const transparentColors = predefinedColors.map(color => hexToRgba(color, 0.3));
-    const ctx = document.getElementById('distanceChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                data: distances,
-                backgroundColor: transparentColors,
-                borderColor: predefinedColors,
-                borderWidth: 1
-            }]
-        },
-        options: {
-            spanGaps: true,
-            maintainAspectRatio: false,
-            indexAxis: 'y',
-            plugins: { legend: { display: false } },
-            scales: {
-                y: {
-                    ticks: {
-                        font: { size: 14, weight: 'bold' },
-                        color: 'black',
-                        padding: 20,
-                        autoSkip: false,
-                        mirror: true
-                    }
-                },
-                x: {
-                    title: { display: true, text: 'Distance (mi)' },
-                    beginAtZero: true
-                },
-            },
-        }
-    });
-    hide_spinner("spinner-1-gear");
-}
-// --- End Gear Bar Chart JS ---
-
-// --- Cumulative Shoe Distances Chart JS ---
-async function fetchShoeData() {
-    const jsonData = await getGearData();
-    return jsonData.lines;
-}
-async function createShoeChart() {
-    const lines = await fetchShoeData();
-    const datasets = lines.map((line, index) => ({
-        label: line.label,
-        data: line.data,
-        borderColor: predefinedColors[index % predefinedColors.length],
-        fill: false
-    }));
-    const ctx = document.getElementById('shoeChart').getContext('2d');
-    window.shoeChartInstance = new Chart(ctx, {
-        type: 'line',
-        data: {
-            datasets: datasets
-        },
-        options: {
-            scales: {
-                x: {
-                    type: 'time',
-                    time: {
-                        unit: 'day'
-                    },
-                    title: {
-                        display: true,
-                        text: 'Time'
-                    }
-                },
-                y: {
-                    title: {
-                        display: true,
-                        text: 'Distance (mi)'
-                    },
-                    type: 'logarithmic',
-                }
-            },
-            plugins: {
-                title: {
-                  display: false,
-                  text: "Cumulative Shoe Distances",
-                },
-                legend: {
-                    display: false
-                }
-            }
-        }
-    });
-    renderShoeCheckboxes(lines);
-    hide_spinner("spinner-2-gear");
-}
-function renderShoeCheckboxes(lines) {
-    const checkboxesDiv = document.getElementById('checkboxes');
-    checkboxesDiv.innerHTML = '';
-    lines.forEach((line, index) => {
-        const checkboxWrapper = document.createElement('div');
-        checkboxWrapper.className = 'checkbox-label';
-
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.className = 'custom-checkbox';
-        checkbox.style.borderColor = predefinedColors[index % predefinedColors.length];
-        checkbox.style.color = predefinedColors[index % predefinedColors.length];
-        checkbox.checked = true;
-        checkbox.addEventListener('change', () => {
-            const meta = window.shoeChartInstance.getDatasetMeta(index);
-            meta.hidden = !meta.hidden;
-            window.shoeChartInstance.update();
-        });
-        checkboxWrapper.appendChild(checkbox);
-
-        const label = document.createElement('label');
-        label.textContent = line.label;
-        checkboxWrapper.appendChild(label);
-
-        checkboxesDiv.appendChild(checkboxWrapper);
-    });
-}
-// --- End Cumulative Shoe Distances Chart JS ---
-
-// --- Main Dashboard Logic ---
 let myChart;
 let effortChart;
 let activityData;
@@ -188,7 +29,7 @@ var minDate = new Date(today);
 minDate.setDate(today.getDate() - 7);
 
 function getData() {
-  // AJAX call to Flask endpoint
+  console.log("[DEBUG getData] fetching /get_data with activity_types:", activityTypes);
   fetch('/get_data', {
     method: 'POST',
     headers: {
@@ -197,21 +38,31 @@ function getData() {
     body: JSON.stringify({"activity_types": activityTypes})
   })
   .then(response => {
-    // Log the response content to inspect it
-    console.log("Response content:", response);
-
+    console.log("[DEBUG getData] response status:", response.status, response.statusText);
     if (!response.ok) {
-      throw new Error('Network response was not ok');
+      return response.text().then(text => {
+        console.error("[DEBUG getData] error body:", text);
+        throw new Error(`Network response not ok: ${response.status} - ${text}`);
+      });
     }
     return response.json();
   })
   .then(data => {
-    activityData = JSON.parse(data.data);
+    console.log("[DEBUG getData] raw data keys:", Object.keys(data));
+    try {
+      activityData = JSON.parse(data.data);
+      console.log("[DEBUG getData] parsed activityData keys:", Object.keys(activityData));
+      console.log("[DEBUG getData] 'w' dates length:", activityData['w']?.dates?.length, "'m' dates length:", activityData['m']?.dates?.length);
+    } catch(e) {
+      console.error("[DEBUG getData] failed to parse data.data:", e, "raw:", data.data);
+      throw e;
+    }
     updateChart();
     hide_spinner("spinner-1");
   })
   .catch(error => {
-    console.error('There was an error with the request:', error);
+    console.error('[getData] error:', error);
+    hide_spinner("spinner-1");
   });
 }
 
@@ -242,7 +93,9 @@ function getEffortData() {
     hide_spinner("spinner-3");
   })
   .catch(error => {
-    console.error('There was an error with the request:', error);
+    console.error('[getEffortData] error:', error);
+    hide_spinner("spinner-2");
+    hide_spinner("spinner-3");
   });
 }
 
@@ -410,10 +263,6 @@ function updateEffortChart() {
 }
 }
 
-function hide_spinner(spinner_id){
-  document.getElementById(spinner_id).style.display = "none";
-}
-
 function updateWindow(newTimeWindow) {
   timeWindow = newTimeWindow;
   document.querySelectorAll('.window').forEach(btn => btn.classList.remove('active'));
@@ -504,7 +353,8 @@ async function loadImageData() {
       });
       hide_spinner("spinner-image");
   } catch (error) {
-      console.error('Error getting image info:', error);
+      console.error('[loadImageData] error:', error);
+      hide_spinner("spinner-image");
   }
 }
 
@@ -566,7 +416,9 @@ async function loadProfileData() {
       });
       hide_spinner("spinner-clubs");
   } catch (error) {
-      console.error('Error getting profile info:', error);
+      console.error('[loadProfileData] error:', error);
+      hide_spinner("spinner-sports");
+      hide_spinner("spinner-clubs");
   }
 }
 
@@ -577,7 +429,7 @@ async function loadHeatmap() {
       const heatmapFrame = document.getElementById('heatmapFrame');
       heatmapFrame.src = data.heatmap_path;
   } catch (error) {
-      console.error('Error loading heatmap:', error);
+      console.error('[loadHeatmap] error:', error);
   }
 }
 
@@ -596,18 +448,14 @@ async function loadActivityTypes() {
           buttonContainer.appendChild(button);
       });
   } catch (error) {
-      console.error('Error loading activity types:', error);
+      console.error('[loadActivityTypes] error:', error);
   }
 }
 
 window.addEventListener('DOMContentLoaded', function() {
-    createDistanceChart();
-    createShoeChart();
     loadImageData();
     loadActivityTypes();
     loadProfileData();
     loadHeatmap();
     getData();
-    // getEffortData();
-    // createDistanceChart();
 });

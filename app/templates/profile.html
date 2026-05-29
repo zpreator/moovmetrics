@@ -1,182 +1,100 @@
 {% extends 'layout.html' %}
 
+{% block title %}Profile — Moov Metrics{% endblock %}
+
 {% block body %}
-<link rel="stylesheet" href="/static/css/dashboard.css">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script> 
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
-<script src="/static/js/dashboard.js" defer></script>
+<div class="inner-page">
+  <div class="profile-card">
 
-<!-- Page Container -->
-<div class="w3-margin-top page-content" >
-  <!-- The Grid -->
-  <div class="w3-row-padding">
-    <!-- Right Column -->
-    <div class="w3-third">
-      <div class="w3-white w3-text-grey w3-card-4">
-        <div class="w3-display-container">
-          
-          <div class="athlete-center-container">
-            <h2 class="athlete-name">{{ athlete.firstname }} {{ athlete.lastname }}</h2>
-            <div class="athlete-btn-group">
-              <a href="/logout" class="btn athlete-btn logout">Logout</a>
-              <a href="/mainapp" class="btn athlete-btn plan">Generate Fitness Plan</a>
-            </div>
-          </div>
-        </div>
-        <div class="image-container" id="image-container">
-          <div class="loading-spinner" id="spinner-image"></div>
-        </div>
-        <br>
-        <br>
-        <div class="w3-container profile-section">
-          <!-- Stats section-->
-          <p class="w3-large w3-text-theme"><b><i class="fa fa-bar-chart fa-fw w3-margin-right w3-text-teal"></i>Stats</b></p>
-          <div id="sports-container">
-            <div class="loading-spinner" id="spinner-sports"></div>
-          </div>
-          <br>
-          <!-- Gear Bar Chart Section -->
-          <div style="margin-bottom: 20px;">
-            <p class="w3-large w3-text-theme"><b><i class="fa fa-tags fa-fw w3-margin-right w3-text-teal"></i>Gear</b></p>
-            
-                <div class="w3-container" style="height: 500px;">
-                    <div class="loading-spinner" id="spinner-1-gear"></div>
-                    <canvas id="distanceChart" style="height: 100%;">Loading...</canvas>
-                </div>
-
-          </div>
-          <!-- Groups Section-->
-          <p class="w3-large"><b><i class="fa fa-users fa-fw w3-margin-right w3-text-teal"></i>Groups</b></p>
-          <div id="clubs-container">
-            <div class="loading-spinner" id="spinner-clubs"></div>
-          </div>
-          <br>
-        </div>
-      </div>
-      <br>
-    </div>
-
-    <!-- Left Column -->
-    <div class="w3-twothird">
-      <!-- Trends Chart -->
-      <div class="w3-container w3-card w3-white w3-margin-bottom" style="margin-bottom: 32px;">
-        <h2 class="w3-text-grey w3-padding-16"><i class="fa fa-line-chart fa-fw w3-margin-right w3-xxlarge w3-text-teal"></i>Trends</h2>
-        <div class="chart-buttons-container">
-          <div class="chart-buttons types">
-            <button class="chart-button type active" id="all" onclick="updateType('all')">All</button>
-            {% for activity_type in activity_types %}
-            <button class="chart-button type" id="{{activity_type}}" onclick="updateType('{{activity_type}}')">{{activity_type | title }}</button>
-            {% endfor %}
-            <div id="activityTypeButtons">
-              <!-- Buttons will be dynamically inserted here -->
-            </div>
-
-          </div>
-        </div>
-        <div class="chart-buttons-container">
-          <div class="chart-buttons windows">
-            <button class="chart-button window active" id="w" onclick="updateWindow('w')">W</button>
-            <button class="chart-button window" id="m" onclick="updateWindow('m')">M</button>
-            <button class="chart-button window" id="6m" onclick="updateWindow('6m')">6M</button>
-            <button class="chart-button window" id="y" onclick="updateWindow('y')">Y</button>
-            <!-- Add more buttons for different time windows -->
-          </div>
-        </div>
-
-        <div class="canvas-container">
-          <div class="loading-spinner" id="spinner-1"></div>
-          <canvas id="canvas" style="height: 100%">Loading...</canvas>
-        </div>
-        <div class="chart-buttons-container">
-          <div class="chart-buttons datasets">
-            <button class="chart-button dataset active" id="hr" onclick="updateDataset('hr')">Heart Rate</button>
-            <button class="chart-button dataset" id="avg_speed" onclick="updateDataset('avg_speed')">Speed</button>
-            <button class="chart-button dataset" id="kudos" onclick="updateDataset('kudos')">Kudos</button>
-            <button class="chart-button dataset" id="vo2_max" onclick="updateDataset('vo2_max')">VO2 Max</button>
-            <button class="chart-button dataset" id="pr_count" onclick="updateDataset('pr_count')">PRs</button>
-            <button class="chart-button dataset" id="distance" onclick="updateDataset('distance')">Distance</button>
-            <!-- Add more buttons for different time windows -->
-          </div>
-        </div>
-      </div>
-      <!-- Cumulative Shoe Distances Chart -->
-      <div class="w3-container w3-card w3-white w3-margin-bottom" style="margin-bottom: 32px;">
-        <h2>Cumulative Gear Distances</h2>
-        <div class="w3-container">
-            <div class="loading-spinner" id="spinner-2-gear"></div>
-            <canvas id="shoeChart">Loading...</canvas>
-        </div>
-        <div id="checkboxes"></div>
-      </div>
-      <!-- Activity Map -->
-      <div class="w3-container w3-card w3-white w3-margin-bottom">
-        <h2>Activity Map</h2>
-        <p>See a heatmap of all your activities. Use the filter tool to select specific activities</p>
-        <iframe id="heatmapFrame" src="" width="100%" height="800px">Loading...</iframe>
+    <!-- Athlete header -->
+    <div class="profile-header">
+      {% if athlete.profile %}
+      <img src="{{ athlete.profile }}" alt="Profile Photo" class="profile-avatar">
+      {% endif %}
+      <div class="profile-info">
+        <h1 class="profile-name">{{ athlete.firstname }} {{ athlete.lastname }}</h1>
+        {% if athlete.city or athlete.country %}
+        <p class="profile-location">
+          <i class="fa fa-map-marker"></i>
+          {{ [athlete.city, athlete.country] | select | join(', ') }}
+        </p>
+        {% endif %}
       </div>
     </div>
-    
-  <!-- End Grid -->
+
+    <!-- Summary stats -->
+    <div class="stat-cards" id="stat-cards">
+      <div class="stat-card">
+        <div class="stat-value" id="stat-activities">—</div>
+        <div class="stat-label">Activities</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-miles">—</div>
+        <div class="stat-label">Total Miles</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-top-sport">—</div>
+        <div class="stat-label">Top Sport</div>
+      </div>
+    </div>
+
+    <!-- Activity breakdown -->
+    <div class="activity-breakdown" id="activity-breakdown">
+      <div class="loading-spinner" id="spinner-profile"></div>
+    </div>
+
+    <!-- Actions -->
+    <div class="profile-actions">
+      <a href="/dashboard" class="btn-action primary">
+        <i class="fa fa-bar-chart"></i> Dashboard
+      </a>
+      <a href="/tools" class="btn-action secondary">
+        <i class="fa fa-calculator"></i> Tools
+      </a>
+      <a href="/logout" class="btn-action danger">
+        <i class="fa fa-sign-out"></i> Logout
+      </a>
+    </div>
+
   </div>
-
-  <!-- End Page Container -->
 </div>
-<style>
-.athlete-center-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 18px;
-}
-.athlete-name {
-  text-align: center;
-  margin-bottom: 12px;
-  color: #ffffff;
-  font-size: 2em;
-  font-weight: bold;
-}
-.athlete-btn-group {
-  display: flex;
-  gap: 16px;
-  justify-content: center;
-  margin-bottom: 18px;
-}
-.athlete-btn {
-  padding: 8px 20px;
-  border-radius: 5px;
-  text-decoration: none;
-  font-weight: bold;
-  font-size: 1em;
-  border: none;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s;
-  background: #007bff;
-  color: #fff;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.07);
-}
-.athlete-btn:hover {
-  cursor: pointer;
-}
-.athlete-btn.logout {
-  background: #dc3545;
-}
-.athlete-btn.logout:hover {
-  background: #a71d2a;
-  cursor: pointer;
-}
-.athlete-btn.plan {
-  background: #28a745;
-}
-.athlete-btn.plan:hover {
-  background: #1e7e34;
-  cursor: pointer;
+
+<script>
+async function loadStats() {
+  try {
+    const res = await fetch('/get_profile_data');
+    const data = await res.json();
+
+    const stats = data.stats;
+    const sorted = Object.entries(stats).sort((a, b) => b[1].count - a[1].count);
+
+    const totalActivities = sorted.reduce((s, [, v]) => s + v.count, 0);
+    const totalMiles = sorted.reduce((s, [, v]) => s + v.distance, 0);
+    const topSport = sorted.length ? sorted[0][0] : '—';
+
+    document.getElementById('stat-activities').textContent = totalActivities.toLocaleString();
+    document.getElementById('stat-miles').textContent = totalMiles.toFixed(0).toLocaleString();
+    document.getElementById('stat-top-sport').textContent = topSport.charAt(0).toUpperCase() + topSport.slice(1);
+
+    const breakdown = document.getElementById('activity-breakdown');
+    breakdown.innerHTML = '';
+    sorted.forEach(([sport, d]) => {
+      const row = document.createElement('div');
+      row.className = 'breakdown-row';
+      row.innerHTML = `
+        <span class="breakdown-sport">${sport.charAt(0).toUpperCase() + sport.slice(1)}</span>
+        <span class="breakdown-count">${d.count} activities</span>
+        <span class="breakdown-miles">${d.distance.toFixed(0)} mi</span>
+      `;
+      breakdown.appendChild(row);
+    });
+    document.getElementById('spinner-profile').style.display = 'none';
+  } catch (e) {
+    console.error('Error loading profile stats:', e);
+    document.getElementById('spinner-profile').style.display = 'none';
+  }
 }
 
-.page-content {
-  position: relative;
-  z-index: 10;
-}
-</style>
+window.addEventListener('DOMContentLoaded', loadStats);
+</script>
 {% endblock %}

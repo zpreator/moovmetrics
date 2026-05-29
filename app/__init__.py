@@ -1,8 +1,13 @@
+import logging
+import os
+
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from requests.adapters import HTTPAdapter
 from stravalib import Client
-import os
+
+logger = logging.getLogger("moovmetrics")
 
 # Quick dictionary for getting common race names and distances
 RACES = [
@@ -30,8 +35,16 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # Disable track modificati
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
-# Initialize Strava client
+# Initialize Strava client with a 30-second timeout on all API calls
+class _TimeoutAdapter(HTTPAdapter):
+    def send(self, request, **kwargs):
+        kwargs.setdefault("timeout", 30)
+        return super().send(request, **kwargs)
+
 client = Client()
+_adapter = _TimeoutAdapter()
+client.protocol.rsession.mount("https://", _adapter)
+client.protocol.rsession.mount("http://", _adapter)
 
 from app import routes  # noqa
 from app.models import *
@@ -40,10 +53,10 @@ from app.models import *
 def create_db_if_not_exists():
     if not os.path.exists(db_dir):
         os.makedirs(os.path.dirname(db_dir), exist_ok=True)
-        print("Database not found, creating a new one...")
+        logger.info("Database not found, creating a new one...")
         with app.app_context():
             db.create_all()
-            print("Database created.")
+            logger.info("Database created.")
 
 # Call the function to ensure database is created
 create_db_if_not_exists()
