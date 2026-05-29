@@ -1,0 +1,461 @@
+{% extends 'layout.html' %}
+
+{% block title %}Gear — Moov Metrics{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+{% endblock %}
+
+{% block body %}
+<div class="inner-page">
+
+  <div class="tools-header">
+    <h1 class="tools-title">Gear Metrics</h1>
+    <p class="tools-subtitle">Mileage, stats, and history for all your shoes</p>
+  </div>
+
+  <!-- Summary bar -->
+  <div id="gear-summary" class="gear-summary-row" style="display:none;">
+    <div class="gear-summary-stat">
+      <div class="stat-value" id="summary-count">–</div>
+      <div class="stat-label">Shoes</div>
+    </div>
+    <div class="gear-summary-stat">
+      <div class="stat-value" id="summary-miles">–</div>
+      <div class="stat-label">Total Miles</div>
+    </div>
+    <div class="gear-summary-stat">
+      <div class="stat-value" id="summary-avg">–</div>
+      <div class="stat-label">Avg Miles / Shoe</div>
+    </div>
+    <div class="gear-summary-stat">
+      <div class="stat-value" id="summary-fav" style="font-size:1rem; line-height:1.3;">–</div>
+      <div class="stat-label">Most Used</div>
+    </div>
+  </div>
+
+  <!-- Bar chart (full width) -->
+  <section class="dash-section" id="bar-section" style="display:none;">
+    <div class="chart-card">
+      <h2 class="section-title" id="bar-chart-title">Mileage Comparison</h2>
+      <div class="chart-buttons-container" style="margin-bottom:0.75rem;">
+        <div class="chart-buttons" id="bar-metric-btns">
+          <button class="chart-button active" onclick="setBarMetric('miles', this)">Miles</button>
+          <button class="chart-button" onclick="setBarMetric('speed', this)">Speed</button>
+          <button class="chart-button" onclick="setBarMetric('hr', this)">Heart Rate</button>
+          <button class="chart-button" onclick="setBarMetric('activities', this)">Activities</button>
+          <button class="chart-button" onclick="setBarMetric('age', this)">Age</button>
+          <button class="chart-button" onclick="setBarMetric('efficiency', this)">Efficiency</button>
+        </div>
+      </div>
+      <div id="bar-chart-container" style="position:relative;">
+        <canvas id="bar-chart"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- Speed vs. Effort scatter -->
+  <section class="dash-section" id="efficiency-section" style="display:none;">
+    <div class="chart-card">
+      <h2 class="section-title" style="margin-bottom:0.2rem;">Speed vs. Effort</h2>
+      <p class="shoe-progress-label" style="margin:0 0 1rem;">Upper-left = faster speed at lower heart rate = better efficiency. Dots above the dotted line are more efficient than the group average.</p>
+      <div style="position:relative; height:380px;">
+        <canvas id="efficiency-chart"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- Cumulative line chart -->
+  <section class="dash-section" id="cumulative-section" style="display:none;">
+    <div class="chart-card">
+      <h2 class="section-title">Cumulative Mileage Over Time</h2>
+      <div id="cumulative-loading" class="loading-hint">Loading chart data…</div>
+      <div style="position:relative; height:340px;">
+        <canvas id="line-chart" style="display:none;"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- Shoe cards -->
+  <section class="dash-section">
+    <div id="gear-loading" style="text-align:center; padding:3rem 0;">
+      <div class="loading-spinner" style="margin:0 auto;"></div>
+    </div>
+    <div id="shoe-cards" class="shoe-cards-grid" style="display:none;"></div>
+  </section>
+
+</div>
+
+<script>
+const COLORS = ['#1db954','#60a5fa','#fb923c','#a78bfa','#34d399','#f472b6','#fbbf24','#38bdf8'];
+
+const chartDefaults = {
+  color: 'rgba(255,255,255,0.5)',
+};
+Chart.defaults.color = chartDefaults.color;
+
+function fmtPace(mpm) {
+  if (!mpm) return '—';
+  const min = Math.floor(mpm);
+  const sec = Math.round((mpm - min) * 60);
+  return `${min}:${String(sec).padStart(2,'0')} /mi`;
+}
+
+function fmtAge(days) {
+  if (days == null) return '—';
+  if (days < 30)  return `${days}d`;
+  if (days < 365) return `${Math.floor(days / 30)} mo`;
+  const yr = Math.floor(days / 365);
+  const mo = Math.floor((days % 365) / 30);
+  return mo > 0 ? `${yr}y ${mo}mo` : `${yr} yr`;
+}
+
+function progressColor(miles) {
+  if (miles >= 500) return '#ef4444';
+  if (miles >= 400) return '#fb923c';
+  return '#1db954';
+}
+
+function renderSummary(shoes) {
+  const totalMiles = shoes.reduce((s, sh) => s + sh.total_miles, 0);
+  const avgMiles   = shoes.length ? Math.round(totalMiles / shoes.length) : 0;
+  const favorite   = shoes.reduce((best, sh) => sh.activity_count > (best ? best.activity_count : -1) ? sh : best, null);
+
+  document.getElementById('summary-count').textContent = shoes.length;
+  document.getElementById('summary-miles').textContent = Math.round(totalMiles).toLocaleString();
+  document.getElementById('summary-avg').textContent   = avgMiles.toLocaleString() + ' mi';
+  document.getElementById('summary-fav').textContent   = favorite ? (favorite.nickname || favorite.name) : '–';
+  document.getElementById('gear-summary').style.display = '';
+}
+
+function renderCards(shoes) {
+  const grid = document.getElementById('shoe-cards');
+  grid.innerHTML = '';
+
+  shoes.forEach(shoe => {
+    const barWidth = Math.min((shoe.total_miles / 500) * 100, 100);
+    const barColor = progressColor(shoe.total_miles);
+    const lifeLabel = shoe.total_miles >= 500
+      ? `${shoe.total_miles.toLocaleString()} mi — past 500mi threshold`
+      : `${shoe.total_miles.toLocaleString()} mi of 500mi`;
+
+    const nickname = shoe.nickname
+      ? `<div class="shoe-nickname">${shoe.nickname}</div>` : '';
+    const pace = shoe.avg_pace_mpm ? fmtPace(shoe.avg_pace_mpm) : '—';
+    const hr = shoe.avg_hr ? `${shoe.avg_hr} bpm` : '—';
+
+    const card = document.createElement('div');
+    card.className = `shoe-card${shoe.retired ? ' shoe-card-retired' : ''}`;
+    card.innerHTML = `
+      <div class="shoe-card-header">
+        <div class="shoe-name">${shoe.name}</div>
+        <span class="shoe-badge ${shoe.retired ? 'badge-retired' : 'badge-active'}">${shoe.retired ? 'Retired' : 'Active'}</span>
+      </div>
+      ${nickname}
+      <div class="shoe-mileage">
+        <span class="shoe-miles">${shoe.total_miles.toLocaleString()}</span>
+        <span class="shoe-miles-unit">mi</span>
+      </div>
+      <div>
+        <div class="shoe-progress-wrap">
+          <div class="shoe-progress-fill" style="width:${barWidth}%;background:${barColor};"></div>
+        </div>
+        <div class="shoe-progress-label">${lifeLabel}</div>
+      </div>
+      <div class="shoe-stats-grid">
+        <div class="shoe-stat">
+          <div class="shoe-stat-val">${fmtAge(shoe.age_days)}</div>
+          <div class="shoe-stat-lbl">Age</div>
+        </div>
+        <div class="shoe-stat">
+          <div class="shoe-stat-val">${shoe.activity_count}</div>
+          <div class="shoe-stat-lbl">Activities</div>
+        </div>
+        <div class="shoe-stat">
+          <div class="shoe-stat-val">${shoe.first_activity_date || '—'}</div>
+          <div class="shoe-stat-lbl">First Activity</div>
+        </div>
+        <div class="shoe-stat">
+          <div class="shoe-stat-val">${pace}</div>
+          <div class="shoe-stat-lbl">Avg Pace</div>
+        </div>
+        <div class="shoe-stat">
+          <div class="shoe-stat-val">${hr}</div>
+          <div class="shoe-stat-lbl">Avg HR</div>
+        </div>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+
+  document.getElementById('gear-loading').style.display = 'none';
+  grid.style.display = '';
+}
+
+let barChart = null, lineChart = null;
+let shoesData = [];
+let shoeColorMap = {};  // gear_id → stable color, assigned once at load
+let currentMetric = 'miles';
+
+const METRICS = {
+  miles:      { title: 'Mileage Comparison',   getValue: s => s.total_miles,                                             fmtTip: v => `${Number(v).toLocaleString()} mi`,  fmtAxis: v => `${v} mi`  },
+  speed:      { title: 'Avg Speed Comparison', getValue: s => s.avg_pace_mpm ? +((60 / s.avg_pace_mpm).toFixed(2)) : 0, fmtTip: v => `${v} mph`,                          fmtAxis: v => `${v} mph` },
+  hr:         { title: 'Avg Heart Rate',       getValue: s => s.avg_hr || 0,                                             fmtTip: v => `${v} bpm`,                          fmtAxis: v => `${v}`     },
+  activities: { title: 'Activity Count',       getValue: s => s.activity_count,                                          fmtTip: v => `${v} activities`,                   fmtAxis: v => `${v}`     },
+  age:        { title: 'Shoe Age',             getValue: s => s.age_days || 0,                                           fmtTip: v => fmtAge(v),                           fmtAxis: v => v < 365 ? `${Math.floor(v/30)}mo` : `${(v/365).toFixed(1)}y` },
+  efficiency: { title: 'Efficiency Score',     getValue: s => s.avg_hr && s.avg_pace_mpm ? +((60/s.avg_pace_mpm/s.avg_hr*100).toFixed(2)) : 0, fmtTip: v => `${v} (mph/bpm ×100)`, fmtAxis: v => `${v}` },
+};
+
+function setBarMetric(metric, btn) {
+  currentMetric = metric;
+  document.querySelectorAll('#bar-metric-btns .chart-button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderBarChart(shoesData);
+}
+
+function renderBarChart(shoes) {
+  const m = METRICS[currentMetric];
+  const sorted = [...shoes].sort((a, b) => m.getValue(b) - m.getValue(a));
+  document.getElementById('bar-chart-title').textContent = m.title;
+
+  const container = document.getElementById('bar-chart-container');
+  container.style.height = Math.max(160, sorted.length * 46 + 40) + 'px';
+
+  const ctx = document.getElementById('bar-chart').getContext('2d');
+  if (barChart) barChart.destroy();
+  barChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: sorted.map(s => s.name),
+      datasets: [{
+        data: sorted.map(s => m.getValue(s)),
+        backgroundColor: sorted.map(s => s.retired ? 'rgba(255,255,255,0.15)' : shoeColorMap[s.gear_id]),
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => ` ${m.fmtTip(c.raw)}` } },
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { color: 'rgba(255,255,255,0.4)', font: { size: 11 }, callback: v => m.fmtAxis(v) },
+        },
+        y: {
+          grid: { display: false },
+          ticks: { color: 'rgba(255,255,255,0.65)', font: { size: 11 }, autoSkip: false },
+        },
+      },
+    },
+  });
+}
+
+let efficiencyChart = null;
+
+function renderEfficiencyChart(shoes) {
+  const eligible = shoes.filter(s => s.avg_hr && s.avg_pace_mpm);
+  if (eligible.length < 2) {
+    document.getElementById('efficiency-section').style.display = 'none';
+    return;
+  }
+
+  const hrs    = eligible.map(s => s.avg_hr);
+  const speeds = eligible.map(s => +(60 / s.avg_pace_mpm).toFixed(3));
+  const hrPad  = Math.max((Math.max(...hrs)    - Math.min(...hrs))    * 0.3, 3);
+  const spPad  = Math.max((Math.max(...speeds) - Math.min(...speeds)) * 0.3, 0.3);
+
+  // Linear regression: y = slope*x + intercept
+  const n       = eligible.length;
+  const sumX    = hrs.reduce((a, b) => a + b, 0);
+  const sumY    = speeds.reduce((a, b) => a + b, 0);
+  const sumXY   = hrs.reduce((acc, x, i) => acc + x * speeds[i], 0);
+  const sumX2   = hrs.reduce((acc, x) => acc + x * x, 0);
+  const slope   = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+  const intercept = (sumY - slope * sumX) / n;
+  const xMin = Math.floor(Math.min(...hrs) - hrPad);
+  const xMax = Math.ceil( Math.max(...hrs) + hrPad);
+
+  const ctx = document.getElementById('efficiency-chart').getContext('2d');
+  if (efficiencyChart) efficiencyChart.destroy();
+
+  efficiencyChart = new Chart(ctx, {
+    type: 'scatter',
+    data: {
+      datasets: [
+        // Trend line first so it renders behind the dots
+        {
+          type: 'line',
+          label: '_trend',
+          data: [
+            { x: xMin, y: +(slope * xMin + intercept).toFixed(3) },
+            { x: xMax, y: +(slope * xMax + intercept).toFixed(3) },
+          ],
+          borderColor: 'rgba(255,255,255,0.28)',
+          borderWidth: 1.5,
+          borderDash: [6, 5],
+          pointRadius: 0,
+          fill: false,
+          tension: 0,
+        },
+        ...eligible.map(s => ({
+          label: s.name,
+          data: [{ x: s.avg_hr, y: +(60 / s.avg_pace_mpm).toFixed(3) }],
+          backgroundColor: s.retired ? 'rgba(255,255,255,0.2)' : shoeColorMap[s.gear_id] + 'cc',
+          borderColor:     s.retired ? 'rgba(255,255,255,0.3)' : shoeColorMap[s.gear_id],
+          borderWidth: 2,
+          pointRadius: 8,
+          pointHoverRadius: 11,
+        })),
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            color: 'rgba(255,255,255,0.55)',
+            font: { size: 11 },
+            boxWidth: 12,
+            padding: 12,
+            filter: item => !item.text.startsWith('_'),
+          },
+        },
+        tooltip: {
+          filter: item => !item.dataset.label.startsWith('_'),
+          callbacks: {
+            label: c => ` ${c.dataset.label}: ${c.parsed.y.toFixed(2)} mph @ ${c.parsed.x} bpm`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          title: { display: true, text: '← Lower effort    Avg Heart Rate (bpm)', color: 'rgba(255,255,255,0.35)', font: { size: 11 } },
+          min: xMin,
+          max: xMax,
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { color: 'rgba(255,255,255,0.4)', font: { size: 11 }, callback: v => `${v} bpm` },
+        },
+        y: {
+          title: { display: true, text: 'Avg Speed (mph)    Faster →', color: 'rgba(255,255,255,0.35)', font: { size: 11 } },
+          min: +(Math.min(...speeds) - spPad).toFixed(1),
+          max: +(Math.max(...speeds) + spPad).toFixed(1),
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { color: 'rgba(255,255,255,0.4)', font: { size: 11 }, callback: v => `${v} mph` },
+        },
+      },
+    },
+  });
+}
+
+async function loadCumulativeData() {
+  try {
+    const res = await fetch('/get_gear_data');
+    const data = await res.json();
+    const lines = (data.lines || []).filter(l => l.label.startsWith('👟'));
+    const loadEl = document.getElementById('cumulative-loading');
+    const canvas = document.getElementById('line-chart');
+
+    if (!lines.length) {
+      loadEl.textContent = 'No cumulative data available.';
+      return;
+    }
+
+    loadEl.style.display = 'none';
+    canvas.style.display = '';
+
+    if (lineChart) lineChart.destroy();
+    lineChart = new Chart(canvas.getContext('2d'), {
+      type: 'line',
+      data: {
+        datasets: lines.map((line, i) => ({
+          label: line.label.replace('👟 ', ''),
+          data: line.data,
+          borderColor: COLORS[i % COLORS.length],
+          backgroundColor: 'transparent',
+          borderWidth: 2.5,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          tension: 0.3,
+          fill: false,
+        })),
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        parsing: { xAxisKey: 'x', yAxisKey: 'y' },
+        interaction: { mode: 'nearest', intersect: true },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { color: 'rgba(255,255,255,0.55)', font: { size: 11 }, boxWidth: 20, padding: 12 },
+          },
+          tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.y.toFixed(1)} mi` } },
+        },
+        scales: {
+          x: {
+            type: 'time',
+            time: { unit: 'month', displayFormats: { month: 'MMM yy' } },
+            grid: { color: 'rgba(255,255,255,0.05)' },
+            ticks: { color: 'rgba(255,255,255,0.4)', font: { size: 10 }, maxTicksLimit: 10 },
+          },
+          y: {
+            grid: { color: 'rgba(255,255,255,0.05)' },
+            ticks: {
+              color: 'rgba(255,255,255,0.4)',
+              font: { size: 10 },
+              callback: v => `${v} mi`,
+            },
+          },
+        },
+      },
+    });
+  } catch (e) {
+    console.error('Cumulative chart error:', e);
+    document.getElementById('cumulative-loading').textContent = 'Could not load chart data.';
+  }
+}
+
+async function loadGearData() {
+  try {
+    const res = await fetch('/api/gear');
+    const data = await res.json();
+    const shoes = data.shoes || [];
+
+    if (shoes.length === 0) {
+      document.getElementById('gear-loading').innerHTML =
+        '<p class="loading-hint" style="text-align:center;">No shoe data found. Make sure your activities have gear assigned in Strava.</p>';
+      return;
+    }
+
+    shoesData = shoes;
+    shoeColorMap = {};
+    shoes.forEach((s, i) => { shoeColorMap[s.gear_id] = COLORS[i % COLORS.length]; });
+    renderSummary(shoes);
+    renderCards(shoes);
+    renderBarChart(shoes);
+    renderEfficiencyChart(shoes);
+
+    document.getElementById('bar-section').style.display = '';
+    document.getElementById('efficiency-section').style.display = '';
+    document.getElementById('cumulative-section').style.display = '';
+
+    loadCumulativeData();
+  } catch (e) {
+    console.error('Gear load error:', e);
+    document.getElementById('gear-loading').innerHTML =
+      '<p class="loading-hint" style="text-align:center;">Error loading gear data.</p>';
+  }
+}
+
+window.addEventListener('DOMContentLoaded', loadGearData);
+</script>
+{% endblock %}

@@ -928,6 +928,93 @@ def hr_vo2max():
     return jsonify({"activities": results})
 
 
+@app.route("/gear")
+def gear():
+    strava_athlete = get_user()
+    if not strava_athlete:
+        return redirect(url_for("index"))
+    return render_template(
+        "gear.html",
+        flask_env=FLASK_ENV,
+        athlete=strava_athlete,
+        active_page="gear",
+    )
+
+
+@app.route("/api/gear")
+def api_gear():
+    from stravalib import unithelper as uh
+
+    if "access_token" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+    client.access_token = session["access_token"]
+
+    strava_athlete = get_user()
+    if not strava_athlete:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    athlete_id = getattr(strava_athlete, "id", None)
+    if not athlete_id:
+        return jsonify({"shoes": []})
+
+    activities = get_activities(athlete_id, update_db=should_update_activities())
+
+    gear_activities = {}
+    for activity in activities:
+        if not activity:
+            continue
+        gear_id = getattr(activity, "gear_id", None)
+        if gear_id:
+            if gear_id not in gear_activities:
+                gear_activities[gear_id] = []
+            gear_activities[gear_id].append(activity)
+
+    result = []
+    for gear_id, acts in gear_activities.items():
+        try:
+            gear_item = client.get_gear(gear_id)
+            if gear_item.frame_type is not None:
+                continue
+
+            acts_with_date = sorted(
+                [a for a in acts if a.start_date_local],
+                key=lambda a: a.start_date_local,
+            )
+            first_date = acts_with_date[0].start_date_local if acts_with_date else None
+
+            run_acts = [a for a in acts if getattr(a, "type", None) == "Run"]
+            speeds = [float(a.average_speed) for a in run_acts if a.average_speed and float(a.average_speed) > 0]
+            heart_rates = [float(a.average_heartrate) for a in run_acts if a.average_heartrate]
+
+            avg_speed_mps = sum(speeds) / len(speeds) if speeds else None
+            avg_hr = sum(heart_rates) / len(heart_rates) if heart_rates else None
+            avg_pace_mpm = (26.8224 / avg_speed_mps) if avg_speed_mps else None
+
+            total_miles = 0.0
+            if gear_item.distance:
+                total_miles = round(float(uh.miles(gear_item.distance)), 1)  # type: ignore[arg-type]
+
+            age_days = (datetime.now() - first_date).days if first_date else None
+
+            result.append({
+                "gear_id": gear_id,
+                "name": gear_item.name or "Unknown",
+                "nickname": getattr(gear_item, "nickname", None) or None,
+                "total_miles": total_miles,
+                "first_activity_date": first_date.strftime("%b %d, %Y") if first_date else None,
+                "age_days": age_days,
+                "avg_pace_mpm": round(avg_pace_mpm, 3) if avg_pace_mpm else None,
+                "avg_hr": round(avg_hr, 1) if avg_hr else None,
+                "retired": bool(getattr(gear_item, "retired", False)),
+                "activity_count": len(acts),
+            })
+        except Exception as e:
+            logger.warning(f"Skipping gear {gear_id}: {e}")
+
+    result.sort(key=lambda x: (x["retired"], -x["total_miles"]))
+    return jsonify({"shoes": result})
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5001))
     app.run(host="0.0.0.0", port=port, debug=True)

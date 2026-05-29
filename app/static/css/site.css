@@ -905,11 +905,131 @@ select option { background: #23272b; }
 /* =====================================================
    Responsive
    ===================================================== */
+/* =====================================================
+   Gear Page
+   ===================================================== */
+.gear-summary-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+.gear-summary-stat {
+  background: #1e2328;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  text-align: center;
+}
+.shoe-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.25rem;
+}
+.shoe-card {
+  background: #1e2328;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 16px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  transition: border-color 0.15s;
+}
+.shoe-card:hover { border-color: rgba(255,255,255,0.18); }
+.shoe-card-retired { opacity: 0.65; }
+.shoe-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+.shoe-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #fff;
+  flex: 1;
+  line-height: 1.3;
+}
+.shoe-nickname {
+  font-size: 0.82rem;
+  color: rgba(255,255,255,0.4);
+  font-style: italic;
+  margin-top: -0.45rem;
+}
+.shoe-badge {
+  flex-shrink: 0;
+  padding: 0.2rem 0.6rem;
+  border-radius: 5px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.badge-active  { background: rgba(29,185,84,0.15);  color: #1db954; }
+.badge-retired { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.4); }
+.shoe-mileage {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+.shoe-miles {
+  font-size: 2.6rem;
+  font-weight: 700;
+  color: #1db954;
+  line-height: 1;
+}
+.shoe-miles-unit {
+  font-size: 1rem;
+  color: rgba(255,255,255,0.35);
+}
+.shoe-progress-wrap {
+  height: 5px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.shoe-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.6s ease;
+}
+.shoe-progress-label {
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.28);
+  margin-top: 0.3rem;
+}
+.shoe-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+.shoe-stat {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 8px;
+  padding: 0.55rem 0.75rem;
+}
+.shoe-stat-val {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #e8eaed;
+}
+.shoe-stat-lbl {
+  font-size: 0.68rem;
+  color: rgba(255,255,255,0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 0.1rem;
+}
+
 @media (max-width: 768px) {
   .dash-two-col { grid-template-columns: 1fr; }
   .stat-cards   { grid-template-columns: repeat(2, 1fr); }
   .image-wrapper { width: calc(50% - 0.25rem); }
   .tools-page   { max-width: 100%; }
+  .gear-summary-row { grid-template-columns: repeat(2, 1fr); }
+  .shoe-cards-grid  { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 480px) {
