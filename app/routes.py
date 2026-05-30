@@ -906,6 +906,233 @@ def hr_vo2max():
     return jsonify({"activities": results})
 
 
+@app.route("/training-plan")
+def training_plan_page():
+    athlete = get_user()
+    strava_data = None
+
+    if athlete:
+        activities = get_activities(athlete.id)
+        runs = [a for a in activities if a and getattr(a, "type", None) and a.type.lower() == "run"]
+
+        from app.training_plan_algo import (
+            weekly_avg_miles, detect_training_days, best_pr_vdot,
+            avg_hr_vo2max, pace_zones,
+        )
+
+        athlete_id = getattr(athlete, "id", None)
+        avg_miles = weekly_avg_miles(runs)
+        days = detect_training_days(runs)
+        pr = best_pr_vdot(athlete_id)
+        vdot = pr["vdot"] if pr else None
+        zones = pace_zones(vdot) if vdot else None
+        hr_vo2max = avg_hr_vo2max(athlete_id) if athlete_id else None
+
+        strava_data = {
+            "avg_weekly_miles": avg_miles,
+            "days_per_week": days,
+            "best_pr": pr,
+            "vdot": vdot,
+            "pace_zones": zones,
+            "hr_vo2max": hr_vo2max,
+        }
+
+    current_plan = None
+    if athlete:
+        from app.models import SavedPlan
+        import json as _json
+        strava_id = str(getattr(athlete, "id", None))
+        saved = SavedPlan.query.filter_by(strava_athlete_id=strava_id).first()
+        if saved:
+            try:
+                current_plan = _json.loads(saved.plan_json)
+            except Exception as e:
+                logger.warning(f"Could not load saved plan: {e}")
+
+    return render_template(
+        "training_plan.html",
+        athlete=athlete,
+        strava_data=strava_data,
+        current_plan=current_plan,
+        active_page="training-plan",
+    )
+
+
+@app.route("/api/training-plan/generate", methods=["POST"])
+def generate_plan_api():
+    try:
+        from datetime import date as _date
+        from app.training_plan_algo import (
+            weekly_avg_miles, best_pr_vdot, detect_training_days, build_plan_skeleton
+        )
+        from app.training_plan_llm import enrich_plan
+
+        data = request.get_json(force=True)
+        race_distance_m = float(data["race_distance_m"])
+        race_date = _date.fromisoformat(data["race_date"])
+        days_per_week = max(3, min(7, int(data.get("days_per_week", 5))))
+        goal_time_s = float(data["goal_time_s"]) if data.get("goal_time_s") else None
+
+        athlete = get_user()
+        if athlete:
+            activities = get_activities(athlete.id)
+            runs = [a for a in activities if a and getattr(a, "type", None) and a.type.lower() == "run"]
+            base_miles = float(data.get("base_miles") or weekly_avg_miles(runs) or 20.0)
+            pr = best_pr_vdot(getattr(athlete, "id", None))
+            vdot = pr["vdot"] if pr else float(data.get("vdot", 40))
+        else:
+            base_miles = float(data.get("base_miles", 20))
+            vdot = float(data.get("vdot", 40))
+
+        base_miles = max(5.0, min(120.0, base_miles))
+        vdot = max(25.0, min(85.0, vdot))
+
+        skeleton = build_plan_skeleton(
+            base_miles=base_miles,
+            days_per_week=days_per_week,
+            vdot=vdot,
+            race_distance_m=race_distance_m,
+            race_date=race_date,
+            goal_time_s=goal_time_s,
+        )
+
+        use_dummy = os.getenv("USE_DUMMY", "false").lower() == "true"
+        if not use_dummy:
+            skeleton = enrich_plan(skeleton)
+
+        # Persist to DB (upsert — one active plan per user)
+        if athlete:
+            from app.models import SavedPlan
+            from app import db as _db
+            import json as _json
+            strava_id = str(getattr(athlete, "id", None))
+            if strava_id:
+                saved = SavedPlan.query.filter_by(strava_athlete_id=strava_id).first()
+                plan_json_str = _json.dumps(skeleton)
+                if saved:
+                    saved.plan_json = plan_json_str
+                    saved.race_name = skeleton.get("race_distance", "")
+                    saved.race_date = race_date
+                    saved.created_at = datetime.utcnow()
+                else:
+                    _db.session.add(SavedPlan(
+                        strava_athlete_id=strava_id,
+                        plan_json=plan_json_str,
+                        race_name=skeleton.get("race_distance", ""),
+                        race_date=race_date,
+                    ))
+                _db.session.commit()
+
+        return jsonify({"success": True, "plan": skeleton})
+
+    except Exception as e:
+        logger.error(f"Error generating training plan: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+def _build_ics(plan: dict) -> str:
+    """Generate an ICS calendar string from a training plan dict."""
+    from datetime import date as _date, timedelta
+
+    def fold(line: str) -> str:
+        """Fold long lines per RFC 5545 (max 75 octets)."""
+        result, buf = [], ""
+        for ch in line:
+            if len((buf + ch).encode()) > 74:
+                result.append(buf)
+                buf = " " + ch
+            else:
+                buf += ch
+        result.append(buf)
+        return "\r\n".join(result)
+
+    title = plan.get("title", "Training Plan")
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//MoovMetrics//Training Plan//EN",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        f"X-WR-CALNAME:{title}",
+    ]
+
+    for week in plan.get("weeks", []):
+        for day in week.get("days", []):
+            if day.get("workout_type") == "Rest":
+                continue
+            try:
+                day_date = _date.fromisoformat(day["date"])
+            except (KeyError, ValueError):
+                continue
+
+            workout_type = day.get("workout_type", "Workout")
+            miles = day.get("miles") or 0
+            pace = day.get("pace") or ""
+            description = day.get("description") or ""
+
+            if workout_type == "Race":
+                summary = f"Race Day — {plan.get('race_distance', '')} ({miles} mi)"
+            else:
+                summary = f"{workout_type} — {miles} mi"
+
+            desc_parts = []
+            if pace:
+                desc_parts.append(f"Pace: {pace}/mi")
+            if description:
+                desc_parts.append(description)
+            desc_text = "\\n".join(desc_parts)
+
+            uid = (
+                f"moovmetrics-w{week['number']}"
+                f"-{day['day_name'][:3].lower()}"
+                f"-{day_date.strftime('%Y%m%d')}@moovmetrics"
+            )
+            next_day = (day_date + timedelta(days=1)).strftime("%Y%m%d")
+
+            lines += [
+                "BEGIN:VEVENT",
+                fold(f"UID:{uid}"),
+                f"DTSTART;VALUE=DATE:{day_date.strftime('%Y%m%d')}",
+                f"DTEND;VALUE=DATE:{next_day}",
+                fold(f"SUMMARY:{summary}"),
+                fold(f"DESCRIPTION:{desc_text}"),
+                "CATEGORIES:Running",
+                "END:VEVENT",
+            ]
+
+    lines.append("END:VCALENDAR")
+    return "\r\n".join(lines)
+
+
+@app.route("/training-plan/export.ics")
+def export_training_plan_ics():
+    from flask import Response
+    athlete = get_user()
+    if not athlete:
+        return redirect(url_for("index"))
+
+    from app.models import SavedPlan
+    import json as _json
+    strava_id = str(getattr(athlete, "id", None))
+    saved = SavedPlan.query.filter_by(strava_athlete_id=strava_id).first()
+    if not saved:
+        return "No saved plan found. Generate a plan first.", 404
+
+    try:
+        plan = _json.loads(saved.plan_json)
+    except Exception as e:
+        logger.error(f"ICS export parse error: {e}")
+        return "Error reading saved plan.", 500
+
+    ics = _build_ics(plan)
+    filename = plan.get("title", "training-plan").replace(" ", "-").lower() + ".ics"
+    return Response(
+        ics,
+        mimetype="text/calendar; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @app.route("/gear")
 def gear():
     strava_athlete = get_user()

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from app import db
 
 class User(db.Model):
@@ -124,6 +124,16 @@ class Split(db.Model):
     elapsed_time = db.Column(db.Interval)
     distance = db.Column(db.Float)
     pace_zone = db.Column(db.Integer)
+
+class SavedPlan(db.Model):
+    """One active training plan per Strava athlete (upserted on each generate)."""
+    id = db.Column(db.Integer, primary_key=True)
+    strava_athlete_id = db.Column(db.String(50), unique=True, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    plan_json = db.Column(db.Text, nullable=False)
+    race_name = db.Column(db.String(100))
+    race_date = db.Column(db.Date)
+
 
 class Segment(db.Model):
     id = db.Column(db.Integer, primary_key=True)

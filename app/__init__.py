@@ -49,14 +49,12 @@ client.protocol.rsession.mount("http://", _adapter)
 from app import routes  # noqa
 from app.models import *
 
-# Function to create the database if it doesn't exist
+# Ensure all model tables exist (safe to call even on an existing DB).
+# db.create_all() is idempotent: it only creates tables that are missing,
+# and never drops or modifies existing ones.
 def create_db_if_not_exists():
-    if not os.path.exists(db_dir):
-        os.makedirs(os.path.dirname(db_dir), exist_ok=True)
-        logger.info("Database not found, creating a new one...")
-        with app.app_context():
-            db.create_all()
-            logger.info("Database created.")
+    os.makedirs(os.path.dirname(db_dir), exist_ok=True)
+    with app.app_context():
+        db.create_all()
 
-# Call the function to ensure database is created
 create_db_if_not_exists()

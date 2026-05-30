@@ -30,6 +30,7 @@
       {% if session.get('access_token') %}
       <a href="/dashboard" class="btn-nav{% if active_page == 'dashboard' %} active{% endif %}">Dashboard</a>
       <a href="/tools" class="btn-nav{% if active_page == 'tools' %} active{% endif %}">Tools</a>
+      <a href="/training-plan" class="btn-nav{% if active_page == 'training-plan' %} active{% endif %}">Plan</a>
       <a href="/gear" class="btn-nav{% if active_page == 'gear' %} active{% endif %}">Gear</a>
       <a href="/profile" class="btn-nav{% if active_page == 'profile' %} active{% endif %}">
         {% if athlete and athlete.profile %}

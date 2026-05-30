@@ -1,0 +1,759 @@
+{% extends 'layout.html' %}
+{% block title %}Training Plan Generator — Moov Metrics{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Page layout ── */
+.tp-page { max-width: 960px; margin: 0 auto; padding: 0 1rem 4rem; }
+.tp-header { text-align: center; padding: 2.5rem 0 2rem; }
+.tp-header h1 { font-size: 2rem; margin: 0 0 0.5rem; }
+.tp-header p  { color: var(--text-muted, #aaa); margin: 0; }
+
+/* ── Single-column layout ── */
+.tp-card-wrap { max-width: 560px; margin: 0 auto; }
+
+/* ── Form elements ── */
+.tp-form-group { margin-bottom: 1.25rem; }
+.tp-form-group label {
+  display: block;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted, #aaa);
+  margin-bottom: 0.4rem;
+  font-weight: 600;
+}
+.tp-form-group select,
+.tp-form-group input[type="date"],
+.tp-form-group input[type="number"] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.6rem 0.8rem;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 8px;
+  color: var(--text, #fff);
+  font-size: 0.95rem;
+  appearance: none;
+}
+.tp-form-group select:focus,
+.tp-form-group input:focus {
+  outline: none;
+  border-color: rgba(255,255,255,0.35);
+}
+.optional-hint { color: var(--text-muted, #888); font-size: 0.82rem; font-weight: 400; text-transform: none; letter-spacing: 0; }
+
+/* ── Days selector ── */
+.days-row { display: flex; gap: 0.4rem; }
+.day-btn {
+  flex: 1;
+  padding: 0.55rem 0;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.04);
+  color: var(--text, #ddd);
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: background 0.15s, border-color 0.15s;
+}
+.day-btn.active {
+  background: var(--accent, #E55B30);
+  border-color: var(--accent, #E55B30);
+  color: #fff;
+}
+
+/* ── Goal-time row ── */
+.goal-time-row { display: flex; align-items: center; gap: 0.35rem; }
+.goal-time-row input {
+  width: 60px !important;
+  text-align: center;
+  padding: 0.55rem 0.4rem !important;
+}
+.goal-time-sep { color: var(--text-muted, #aaa); font-size: 1.1rem; }
+
+/* ── Weeks info line ── */
+.weeks-hint {
+  font-size: 0.82rem;
+  color: var(--text-muted, #aaa);
+  margin-top: -0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+/* ── Generate button ── */
+.tp-generate-btn {
+  width: 100%;
+  padding: 0.85rem;
+  font-size: 1rem;
+  margin-top: 0.25rem;
+}
+
+/* ── Embedded fitness block ── */
+.tp-fitness-block {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1.25rem;
+}
+.tp-fitness-header {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted, #aaa);
+  font-weight: 700;
+  margin-bottom: 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.tp-fitness-header::before {
+  content: '';
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #FC4C02;
+}
+.tp-metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem 1rem;
+  margin-bottom: 0.75rem;
+}
+.tp-metric-lbl { font-size: 0.78rem; color: var(--text-muted, #aaa); }
+.tp-metric-val { font-size: 0.9rem; font-weight: 600; }
+
+/* ── Insight rows (kept for pred-section internal use) ── */
+.insight-lbl { color: var(--text-muted, #aaa); }
+.insight-val { font-weight: 600; }
+
+/* ── Pace zone pills ── */
+.pace-zones-list { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem 0.5rem; }
+.pz-row { display: flex; align-items: center; gap: 0.45rem; font-size: 0.85rem; }
+.pz-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 5px;
+  font-size: 0.75rem; font-weight: 800; flex-shrink: 0;
+}
+.pz-E { background: #2980B9; color: #fff; }
+.pz-M { background: #27AE60; color: #fff; }
+.pz-T { background: #E67E22; color: #fff; }
+.pz-I { background: #C0392B; color: #fff; }
+.pz-R { background: #8E44AD; color: #fff; }
+.pz-pace { color: var(--text-muted, #aaa); margin-left: auto; }
+.pz-label { color: var(--text, #ddd); font-size: 0.88rem; }
+
+/* ── No-strava VDOT section ── */
+.vdot-group { display: flex; gap: 0.75rem; align-items: flex-end; }
+.vdot-group .tp-form-group { flex: 1; margin-bottom: 0; }
+.vdot-hint { font-size: 0.8rem; color: var(--text-muted, #999); margin-top: 0.35rem; }
+
+/* ── Prediction slider section ── */
+.pred-section { margin-top: 1.1rem; padding-top: 1.1rem; border-top: 1px solid rgba(255,255,255,0.08); display: none; }
+.pred-title { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted,#aaa); font-weight: 600; margin-bottom: 0.6rem; }
+.pred-race-info { font-size: 0.82rem; color: var(--text-muted,#aaa); margin-bottom: 0.75rem; }
+.pred-labels { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted,#aaa); margin-bottom: 0.25rem; }
+.pred-times { display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; }
+.pred-time-conserv { color: #2980B9; }
+.pred-time-expect  { color: var(--text,#fff); font-size: 0.95rem; }
+.pred-time-aggress { color: #C0392B; }
+.pred-slider {
+  width: 100%; cursor: pointer;
+  accent-color: var(--accent, #E55B30);
+  margin-bottom: 0.55rem;
+}
+.pred-selected { text-align: center; font-size: 1.05rem; font-weight: 700; margin-bottom: 0.3rem; }
+.pred-footer { font-size: 0.78rem; color: var(--text-muted,#aaa); margin-bottom: 0.75rem; text-align: center; }
+.pred-use-btn {
+  width: 100%; padding: 0.5rem; font-size: 0.85rem;
+  border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.06);
+  color: var(--text,#fff); border-radius: 7px; cursor: pointer;
+  transition: background 0.15s;
+}
+.pred-use-btn:hover { background: rgba(255,255,255,0.12); }
+.vdot-breakdown { margin-top: 0.6rem; }
+.vdot-breakdown-row { display: flex; justify-content: space-between; font-size: 0.8rem; padding: 0.25rem 0; color: var(--text-muted,#aaa); }
+.vdot-breakdown-row span:last-child { font-weight: 600; color: var(--text,#ddd); }
+
+/* ── Loading ── */
+.tp-loading { text-align: center; padding: 3rem 1rem; display: none; }
+.tp-spinner {
+  width: 40px; height: 40px; margin: 0 auto 1rem;
+  border: 3px solid rgba(255,255,255,0.1);
+  border-top-color: var(--accent, #E55B30);
+  border-radius: 50%;
+  animation: tp-spin 0.75s linear infinite;
+}
+@keyframes tp-spin { to { transform: rotate(360deg); } }
+.tp-loading p { color: var(--text-muted, #aaa); margin: 0; }
+
+/* ── Plan output ── */
+#tp-output { display: none; margin-top: 2.5rem; }
+
+/* ── Plan overview card ── */
+.plan-hero { margin-bottom: 1.5rem; }
+.plan-hero h2 { font-size: 1.4rem; margin: 0 0 0.75rem; }
+.plan-meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin-bottom: 0.9rem; }
+.plan-meta-item { font-size: 0.88rem; color: var(--text-muted, #aaa); }
+.plan-meta-item strong { color: var(--text, #fff); }
+.plan-overview-text { font-style: italic; color: var(--text-muted, #aaa); font-size: 0.9rem; margin: 0 0 1rem; line-height: 1.5; }
+.plan-zone-legend { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.pzl-item { display: flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; color: var(--text-muted, #aaa); }
+
+/* ── Week accordion ── */
+.plan-weeks { display: flex; flex-direction: column; gap: 0.6rem; }
+.week-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.week-hdr {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.85rem 1.1rem;
+  cursor: pointer; user-select: none;
+  transition: background 0.15s;
+}
+.week-hdr:hover { background: rgba(255,255,255,0.04); }
+.week-hdr-left { display: flex; align-items: center; gap: 0.75rem; }
+.week-num { font-size: 0.78rem; font-weight: 700; color: var(--text-muted, #aaa); text-transform: uppercase; letter-spacing: 0.05em; }
+.week-theme { font-weight: 600; font-size: 0.95rem; }
+.week-hdr-right { display: flex; align-items: center; gap: 1rem; }
+.week-miles { font-size: 0.85rem; color: var(--text-muted, #aaa); }
+.week-chevron { color: var(--text-muted, #aaa); font-size: 0.75rem; transition: transform 0.2s; }
+.week-card.open .week-chevron { transform: rotate(180deg); }
+.week-body { display: none; padding: 0 1.1rem 0.9rem; }
+.week-card.open .week-body { display: block; }
+.week-focus { font-size: 0.85rem; color: var(--text-muted, #aaa); font-style: italic; margin: 0 0 0.75rem; line-height: 1.4; }
+
+/* ── Workout rows ── */
+.workout-table { width: 100%; border-collapse: collapse; }
+.workout-row td { padding: 0.5rem 0.3rem; border-bottom: 1px solid rgba(255,255,255,0.06); vertical-align: middle; }
+.workout-row:last-child td { border-bottom: none; }
+.workout-row.rest-row { opacity: 0.45; }
+.wr-day { font-size: 0.82rem; color: var(--text-muted, #aaa); width: 42px; white-space: nowrap; }
+.wr-badge {
+  display: inline-flex; align-items: center;
+  padding: 3px 9px; border-radius: 5px;
+  font-size: 0.78rem; font-weight: 700;
+  white-space: nowrap;
+}
+.wr-miles { text-align: right; font-size: 0.88rem; font-weight: 600; white-space: nowrap; padding-right: 0.5rem; width: 55px; }
+.wr-pace  { font-size: 0.8rem; color: var(--text-muted, #aaa); white-space: nowrap; width: 110px; }
+.wr-desc  { font-size: 0.82rem; color: var(--text-muted, #aaa); font-style: italic; line-height: 1.35; }
+@media (max-width: 540px) {
+  .wr-pace, .wr-desc { display: none; }
+  .wr-miles { width: auto; }
+}
+
+/* ── Divider between form and plan ── */
+.tp-divider { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 2.5rem 0 0; }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="inner-page tp-page">
+
+  <div class="tp-header">
+    <h1>Training Plan Generator</h1>
+    <p>A Daniels VDOT-based plan calibrated to your Strava data</p>
+  </div>
+
+  <!-- ── Single form card ── -->
+  <div class="tp-card-wrap">
+    <div class="tool-card">
+      <h2 class="tool-card-title">Build Your Plan</h2>
+
+      <!-- Race distance -->
+      <div class="tp-form-group">
+        <label>Race Distance</label>
+        <select id="tp-distance" onchange="tpUpdatePrediction(window._predState?.nWeeks)">
+          <option value="5000">5K (3.1 mi)</option>
+          <option value="10000">10K (6.2 mi)</option>
+          <option value="21097" selected>Half Marathon (13.1 mi)</option>
+          <option value="42195">Marathon (26.2 mi)</option>
+        </select>
+      </div>
+
+      <!-- Race date -->
+      <div class="tp-form-group">
+        <label>Race Date</label>
+        <input type="date" id="tp-race-date" oninput="tpUpdateWeeks()">
+      </div>
+
+      <!-- Weeks hint -->
+      <div class="weeks-hint" id="tp-weeks-hint" style="display:none;">
+        Plan starts next Monday — <strong id="tp-weeks-num">—</strong> weeks of training
+      </div>
+
+      {% if strava_data %}
+      <!-- Embedded fitness block (logged-in users only) -->
+      <div class="tp-fitness-block">
+        <div class="tp-fitness-header">Your current fitness — from Strava</div>
+
+        <div class="tp-metrics-grid">
+          <div>
+            <div class="tp-metric-lbl">Weekly mileage</div>
+            <div class="tp-metric-val">{{ strava_data.avg_weekly_miles }} mi</div>
+          </div>
+          {% if strava_data.best_pr %}
+          <div>
+            <div class="tp-metric-lbl">Best {{ strava_data.best_pr.distance }}</div>
+            <div class="tp-metric-val">{{ strava_data.best_pr.time_str }}</div>
+          </div>
+          <div>
+            <div class="tp-metric-lbl">VDOT</div>
+            <div class="tp-metric-val">{{ strava_data.vdot }}</div>
+          </div>
+          {% endif %}
+          {% if strava_data.hr_vo2max %}
+          <div>
+            <div class="tp-metric-lbl">VO₂max (HR est.)</div>
+            <div class="tp-metric-val">{{ strava_data.hr_vo2max }} mL/kg/min</div>
+          </div>
+          {% endif %}
+        </div>
+
+        {% if strava_data.pace_zones %}
+        <div class="pace-zones-list">
+          <div class="pz-row"><span class="pz-badge pz-E">E</span><span class="pz-label">Easy</span><span class="pz-pace">{{ strava_data.pace_zones.E }}/mi</span></div>
+          <div class="pz-row"><span class="pz-badge pz-M">M</span><span class="pz-label">Marathon</span><span class="pz-pace">{{ strava_data.pace_zones.M }}/mi</span></div>
+          <div class="pz-row"><span class="pz-badge pz-T">T</span><span class="pz-label">Threshold</span><span class="pz-pace">{{ strava_data.pace_zones.T }}/mi</span></div>
+          <div class="pz-row"><span class="pz-badge pz-I">I</span><span class="pz-label">Interval</span><span class="pz-pace">{{ strava_data.pace_zones.I }}/mi</span></div>
+        </div>
+        {% endif %}
+
+        <!-- Prediction slider (appears once race date is set) -->
+        <div class="pred-section" id="pred-section">
+          <div class="pred-title">Predicted Race Time</div>
+          <div class="pred-race-info" id="pred-race-info"></div>
+          <div class="pred-labels">
+            <span>Conservative</span>
+            <span>Expected</span>
+            <span>Aggressive</span>
+          </div>
+          <div class="pred-times">
+            <span class="pred-time-conserv" id="pred-conserv">—</span>
+            <span class="pred-time-expect"  id="pred-expect">—</span>
+            <span class="pred-time-aggress" id="pred-aggress">—</span>
+          </div>
+          <input type="range" class="pred-slider" id="pred-slider" min="0" max="100" value="50" oninput="tpUpdateSlider()">
+          <div class="pred-selected" id="pred-selected">—</div>
+          <div class="pred-footer" id="pred-vdot-info"></div>
+          <button class="pred-use-btn" onclick="tpUseGoal()">↑ Use as goal time</button>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Goal time (optional) -->
+      <div class="tp-form-group">
+        <label>Goal Time <span class="optional-hint">(optional)</span></label>
+        <div class="goal-time-row">
+          <input type="number" id="tp-goal-h" placeholder="h"  min="0" max="23">
+          <span class="goal-time-sep">:</span>
+          <input type="number" id="tp-goal-m" placeholder="mm" min="0" max="59">
+          <span class="goal-time-sep">:</span>
+          <input type="number" id="tp-goal-s" placeholder="ss" min="0" max="59">
+        </div>
+      </div>
+
+      <!-- Days per week -->
+      <div class="tp-form-group">
+        <label>Training Days / Week</label>
+        <div class="days-row" id="tp-days-row">
+          <button class="day-btn" data-d="3" onclick="tpSetDays(3)">3</button>
+          <button class="day-btn" data-d="4" onclick="tpSetDays(4)">4</button>
+          <button class="day-btn active" data-d="5" onclick="tpSetDays(5)">5</button>
+          <button class="day-btn" data-d="6" onclick="tpSetDays(6)">6</button>
+          <button class="day-btn" data-d="7" onclick="tpSetDays(7)">7</button>
+        </div>
+      </div>
+
+      {% if not athlete %}
+      <!-- Manual VDOT / mileage for non-Strava users -->
+      <div class="tp-form-group">
+        <label>Experience Level</label>
+        <select id="tp-vdot-preset" onchange="tpVdotFromPreset()">
+          <option value="30">Beginner — just getting started</option>
+          <option value="38" selected>Recreational — run a few times a week</option>
+          <option value="45">Intermediate — 20+ miles/week, have raced</option>
+          <option value="55">Advanced — competitive, sub-20 5K</option>
+        </select>
+      </div>
+      <div class="tp-form-group">
+        <label>Current Weekly Mileage</label>
+        <input type="number" id="tp-base-miles" value="20" min="5" max="120" step="1">
+      </div>
+      {% endif %}
+
+      <button class="btn-cta tp-generate-btn" id="tp-generate-btn" onclick="tpGenerate()">
+        Generate Plan
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Loading ── -->
+  <div class="tp-loading" id="tp-loading">
+    <div class="tp-spinner"></div>
+    <p>Generating your plan — this takes about 15 seconds…</p>
+  </div>
+
+  <!-- ── Plan output ── -->
+  <div id="tp-output">
+    <hr class="tp-divider">
+
+    <!-- Saved-plan banner (hidden after fresh generate) -->
+    <p id="tp-saved-banner" style="display:none;text-align:center;font-size:0.85rem;color:var(--text-muted,#aaa);margin:1rem 0 0;">
+      Your saved plan — <span id="tp-saved-date"></span>
+    </p>
+
+    <!-- Overview card -->
+    <div class="tool-card plan-hero" id="tp-hero"></div>
+
+    <!-- Week accordions -->
+    <div class="plan-weeks" id="tp-weeks"></div>
+
+    <!-- Actions -->
+    <div style="display:flex;justify-content:center;gap:1rem;margin-top:1.5rem;flex-wrap:wrap;">
+      <a href="/training-plan/export.ics" class="btn-nav" id="tp-ics-btn" style="cursor:pointer;">⬇ Download Calendar (.ics)</a>
+      <button class="btn-nav" onclick="tpReset()" style="cursor:pointer;">↩ Regenerate</button>
+    </div>
+  </div>
+
+</div><!-- /.tp-page -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let _days = {{ strava_data.days_per_week if strava_data else 5 }};
+const _stravaVdot = {{ strava_data.vdot if strava_data and strava_data.vdot else 'null' }};
+const _stravaMiles = {{ strava_data.avg_weekly_miles if strava_data else 'null' }};
+const _savedPlan = {{ current_plan | tojson if current_plan else 'null' }};
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function tpSetDays(n) {
+  _days = n;
+  document.querySelectorAll('.day-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.d) === n);
+  });
+}
+
+function tpUpdateWeeks() {
+  const val = document.getElementById('tp-race-date').value;
+  const hint = document.getElementById('tp-weeks-hint');
+  if (!val) { hint.style.display = 'none'; return; }
+
+  const today = new Date();
+  const daysToMon = ((8 - today.getDay()) % 7) || 7;
+  const start = new Date(today);
+  start.setDate(today.getDate() + daysToMon);
+
+  const race = new Date(val + 'T12:00:00');
+  const weeks = Math.max(4, Math.floor((race - start) / (7 * 86400000)));
+  document.getElementById('tp-weeks-num').textContent = weeks;
+  hint.style.display = 'block';
+
+  tpUpdatePrediction(weeks);
+}
+
+// ── Daniels VDOT formulas (client-side for instant slider updates) ─────────
+
+function _vdotToRaceTime(vdot, distanceM) {
+  let T = distanceM / 200;
+  for (let i = 0; i < 30; i++) {
+    const pct = 0.8 + 0.1894393 * Math.exp(-0.012778 * T)
+                    + 0.2989558 * Math.exp(-0.1932605 * T);
+    const target = vdot * pct;
+    const a = 0.000104, b = 0.182258, c = -(4.60 + target);
+    const V = (-b + Math.sqrt(b * b - 4 * a * c)) / (2 * a);
+    const Tnew = distanceM / V;
+    if (Math.abs(Tnew - T) < 0.001) break;
+    T = Tnew;
+  }
+  return Math.round(T * 60);
+}
+
+function _expectedVdotGain(vdot, nWeeks, distanceM) {
+  let perCycle;
+  if (vdot < 38)      perCycle = 3.5;
+  else if (vdot < 48) perCycle = 2.5;
+  else if (vdot < 58) perCycle = 1.5;
+  else                perCycle = 0.8;
+
+  perCycle *= Math.min(nWeeks, 16) / 12;
+
+  if (distanceM >= 42195)      perCycle *= 1.2;
+  else if (distanceM >= 21097) perCycle *= 1.1;
+  else if (distanceM < 5000)   perCycle *= 0.85;
+
+  return Math.round(perCycle * 10) / 10;
+}
+
+function _fmtTime(secs) {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+function _raceName(distM) {
+  if (Math.abs(distM - 42195) < 500) return 'Marathon';
+  if (Math.abs(distM - 21097) < 300) return 'Half Marathon';
+  if (Math.abs(distM - 10000) < 200) return '10K';
+  if (Math.abs(distM - 5000)  < 200) return '5K';
+  return `${(distM/1000).toFixed(1)}K`;
+}
+
+// ── Prediction slider ──────────────────────────────────────────────────────
+
+function tpUpdatePrediction(nWeeks) {
+  if (!_stravaVdot) return;
+  const distM = parseFloat(document.getElementById('tp-distance').value);
+  if (!nWeeks) return;
+
+  const gain = _expectedVdotGain(_stravaVdot, nWeeks, distM);
+  window._predState = { vdot: _stravaVdot, gain, distM, nWeeks };
+
+  document.getElementById('pred-race-info').textContent =
+    `${_raceName(distM)} in ${nWeeks} weeks`;
+  document.getElementById('pred-section').style.display = 'block';
+  tpUpdateSlider();
+}
+
+function tpUpdateSlider() {
+  const state = window._predState;
+  if (!state) return;
+  const { vdot, gain, distM, nWeeks } = state;
+
+  const pos = parseInt(document.getElementById('pred-slider').value);
+  // slider 0 → 0.3× gain (conservative), 50 → 1.0× (expected), 100 → 1.7× (aggressive)
+  const mult = 0.3 + pos * 0.014;
+  const selectedVdot = Math.min(85, vdot + gain * mult);
+
+  const conservSecs = _vdotToRaceTime(vdot + gain * 0.3, distM);
+  const expectSecs  = _vdotToRaceTime(vdot + gain * 1.0, distM);
+  const aggressSecs = _vdotToRaceTime(vdot + gain * 1.7, distM);
+  const selectedSecs = _vdotToRaceTime(selectedVdot, distM);
+
+  document.getElementById('pred-conserv').textContent = _fmtTime(conservSecs);
+  document.getElementById('pred-expect').textContent  = _fmtTime(expectSecs);
+  document.getElementById('pred-aggress').textContent = _fmtTime(aggressSecs);
+  document.getElementById('pred-selected').textContent = _fmtTime(selectedSecs);
+  document.getElementById('pred-vdot-info').textContent =
+    `VDOT now: ${vdot} → ~${(vdot + gain).toFixed(1)} at race day (+${gain} pts over ${nWeeks} wks)`;
+
+  window._selectedGoalSecs = selectedSecs;
+}
+
+function tpUseGoal() {
+  const secs = window._selectedGoalSecs;
+  if (!secs) return;
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  const hEl = document.getElementById('tp-goal-h');
+  const mEl = document.getElementById('tp-goal-m');
+  const sEl = document.getElementById('tp-goal-s');
+  if (hEl) hEl.value = h || '';
+  if (mEl) mEl.value = String(m).padStart(2, '0');
+  if (sEl) sEl.value = String(s).padStart(2, '0');
+  // Scroll to form so user sees the filled time
+  document.getElementById('tp-goal-h')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function tpVdotFromPreset() {
+  // no-op; value read at generate time
+}
+
+function tpGoalSeconds() {
+  const h = parseInt(document.getElementById('tp-goal-h')?.value) || 0;
+  const m = parseInt(document.getElementById('tp-goal-m')?.value) || 0;
+  const s = parseInt(document.getElementById('tp-goal-s')?.value) || 0;
+  const total = h * 3600 + m * 60 + s;
+  return total > 0 ? total : null;
+}
+
+// ── Generate ───────────────────────────────────────────────────────────────
+async function tpGenerate() {
+  const raceDate = document.getElementById('tp-race-date').value;
+  if (!raceDate) {
+    alert('Please select a race date first.');
+    return;
+  }
+
+  const raceDist = parseFloat(document.getElementById('tp-distance').value);
+  const goalTime = tpGoalSeconds();
+
+  // VDOT: prefer Strava; fallback to preset; fallback to 40
+  const vdot = _stravaVdot
+    || (document.getElementById('tp-vdot-preset')
+        ? parseFloat(document.getElementById('tp-vdot-preset').value)
+        : 40);
+
+  const baseMiles = _stravaMiles
+    || (document.getElementById('tp-base-miles')
+        ? parseFloat(document.getElementById('tp-base-miles').value)
+        : 20);
+
+  const payload = {
+    race_distance_m: raceDist,
+    race_date: raceDate,
+    days_per_week: _days,
+    goal_time_s: goalTime,
+    vdot: vdot,
+    base_miles: baseMiles,
+  };
+
+  const btn = document.getElementById('tp-generate-btn');
+  btn.disabled = true;
+  btn.textContent = 'Generating…';
+  document.getElementById('tp-loading').style.display = 'block';
+  document.getElementById('tp-output').style.display = 'none';
+
+  try {
+    const resp = await fetch('/api/training-plan/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    if (data.success) {
+      tpRenderPlan(data.plan);
+    } else {
+      alert('Could not generate plan: ' + (data.error || 'Unknown error'));
+    }
+  } catch (e) {
+    alert('Network error — please try again.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Generate Plan';
+    document.getElementById('tp-loading').style.display = 'none';
+  }
+}
+
+// ── Rendering ──────────────────────────────────────────────────────────────
+const TYPE_COLOR = {
+  'Rest':             ['#666', '#66666620'],
+  'Easy Run':         ['#2980B9', '#2980B920'],
+  'Long Run':         ['#1A5276', '#1A527620'],
+  'Medium Long Run':  ['#2471A3', '#2471A320'],
+  'Threshold Run':    ['#E67E22', '#E67E2220'],
+  'Tempo Run':        ['#CA6F1E', '#CA6F1E20'],
+  'Interval Run':     ['#C0392B', '#C0392B20'],
+  'Race':             ['#D4AC0D', '#D4AC0D25'],
+};
+
+function typeColors(t) {
+  return TYPE_COLOR[t] || ['#777', '#77777720'];
+}
+
+function fmtDate(iso) {
+  const d = new Date(iso + 'T12:00:00');
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function tpRenderPlan(plan, fromSave = false) {
+  const zones = plan.pace_zones;
+  const ZONE_NAMES = { E: 'Easy', M: 'Marathon', T: 'Threshold', I: 'Interval', R: 'Repetition' };
+
+  // ── Overview hero ──
+  const zoneHtml = Object.entries(zones).map(([k, v]) =>
+    `<div class="pzl-item">
+       <span class="pz-badge pz-${k}">${k}</span>
+       <span>${ZONE_NAMES[k] || k} — ${v}/mi</span>
+     </div>`
+  ).join('');
+
+  document.getElementById('tp-hero').innerHTML = `
+    <h2 style="font-size:1.35rem;margin:0 0 0.75rem;">${plan.title}</h2>
+    <div class="plan-meta">
+      <div class="plan-meta-item">Starts <strong>${fmtDate(plan.start_date)}</strong></div>
+      <div class="plan-meta-item">Race <strong>${fmtDate(plan.race_date)}</strong></div>
+      <div class="plan-meta-item"><strong>${plan.n_weeks}</strong> weeks</div>
+      <div class="plan-meta-item">VDOT <strong>${plan.vdot}</strong></div>
+      <div class="plan-meta-item">Peak <strong>${plan.peak_miles} mi/wk</strong></div>
+    </div>
+    ${plan.overview ? `<p class="plan-overview-text">${plan.overview}</p>` : ''}
+    <div class="plan-zone-legend">${zoneHtml}</div>
+  `;
+
+  // ── Week cards ──
+  const weeksEl = document.getElementById('tp-weeks');
+  weeksEl.innerHTML = '';
+
+  plan.weeks.forEach((week, wi) => {
+    const card = document.createElement('div');
+    card.className = 'week-card' + (wi === 0 ? ' open' : '');
+
+    const rowsHtml = week.days.map(day => {
+      const isRest = day.workout_type === 'Rest';
+      const [fg, bg] = typeColors(day.workout_type);
+      const badge = `<span class="wr-badge" style="color:${fg};background:${bg};">${day.workout_type}</span>`;
+      const miles = isRest ? '' : `${day.miles} mi`;
+      const pace  = day.pace  || '';
+      const desc  = day.description || '';
+      return `<tr class="workout-row${isRest ? ' rest-row' : ''}">
+        <td class="wr-day">${day.day_name.slice(0,3)}</td>
+        <td>${badge}</td>
+        <td class="wr-miles">${miles}</td>
+        <td class="wr-pace">${pace ? pace + '/mi' : ''}</td>
+        <td class="wr-desc">${desc}</td>
+      </tr>`;
+    }).join('');
+
+    card.innerHTML = `
+      <div class="week-hdr" onclick="this.parentElement.classList.toggle('open')">
+        <div class="week-hdr-left">
+          <span class="week-num">Week ${week.number}</span>
+          <span class="week-theme">${week.theme}</span>
+        </div>
+        <div class="week-hdr-right">
+          <span class="week-miles">${week.total_miles} mi</span>
+          <span class="week-chevron">▾</span>
+        </div>
+      </div>
+      <div class="week-body">
+        ${week.focus ? `<p class="week-focus">${week.focus}</p>` : ''}
+        <table class="workout-table"><tbody>${rowsHtml}</tbody></table>
+      </div>
+    `;
+    weeksEl.appendChild(card);
+  });
+
+  const banner = document.getElementById('tp-saved-banner');
+  if (fromSave && plan.race_date) {
+    banner.style.display = 'block';
+    document.getElementById('tp-saved-date').textContent =
+      plan.title + ' · ' + fmtDate(plan.race_date);
+  } else {
+    banner.style.display = 'none';
+  }
+
+  const out = document.getElementById('tp-output');
+  out.style.display = 'block';
+  if (!fromSave) out.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  tpSetDays(_days);
+
+  // Set minimum race date (at least 4 weeks out)
+  const minDate = new Date();
+  minDate.setDate(minDate.getDate() + 28);
+  document.getElementById('tp-race-date').min = minDate.toISOString().split('T')[0];
+
+  // Restore saved plan from DB if present
+  if (_savedPlan) {
+    tpRenderPlan(_savedPlan, /*fromSave=*/true);
+  }
+});
+
+function tpReset() {
+  document.getElementById('tp-output').style.display = 'none';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+{% endblock %}
