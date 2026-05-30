@@ -49,14 +49,25 @@ client.protocol.rsession.mount("http://", _adapter)
 from app import routes  # noqa
 from app.models import *
 
-# Function to create the database if it doesn't exist
+# Ensure all model tables exist (safe to call even on an existing DB).
+# db.create_all() is idempotent: it only creates tables that are missing,
+# and never drops or modifies existing ones.
 def create_db_if_not_exists():
-    if not os.path.exists(db_dir):
-        os.makedirs(os.path.dirname(db_dir), exist_ok=True)
-        logger.info("Database not found, creating a new one...")
-        with app.app_context():
-            db.create_all()
-            logger.info("Database created.")
+    os.makedirs(os.path.dirname(db_dir), exist_ok=True)
+    with app.app_context():
+        db.create_all()
+        # Add columns introduced after initial schema (SQLite doesn't support
+        # IF NOT EXISTS on ALTER TABLE, so we rely on the exception to detect
+        # an already-existing column — safe and idempotent).
+        from sqlalchemy import text
+        with db.engine.connect() as _conn:
+            for stmt in [
+                "ALTER TABLE saved_plan ADD COLUMN current_vdot FLOAT",
+            ]:
+                try:
+                    _conn.execute(text(stmt))
+                    _conn.commit()
+                except Exception:
+                    _conn.rollback()
 
-# Call the function to ensure database is created
 create_db_if_not_exists()
