@@ -62,6 +62,11 @@ def create_db_if_not_exists():
         from sqlalchemy import text
         with db.engine.connect() as _conn:
             for stmt in [
+                # user: columns added after initial schema
+                "ALTER TABLE user ADD COLUMN strava_access_token VARCHAR(512)",
+                "ALTER TABLE user ADD COLUMN strava_refresh_token VARCHAR(512)",
+                "ALTER TABLE user ADD COLUMN strava_token_expires_at FLOAT",
+                # saved_plan: columns added after initial schema
                 "ALTER TABLE saved_plan ADD COLUMN current_vdot FLOAT",
             ]:
                 try:
