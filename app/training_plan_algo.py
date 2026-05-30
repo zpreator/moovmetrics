@@ -260,6 +260,47 @@ def expected_vdot_gain(vdot: float, n_weeks: int, race_distance_m: float) -> flo
     return round(per_cycle, 2)
 
 
+# ── Live fitness update ────────────────────────────────────────────────────
+
+def patch_future_paces(plan: dict, new_vdot: float) -> int:
+    """
+    Re-derive training paces from new_vdot and overwrite them for every
+    future (today+) workout in place.  Also updates plan["pace_zones"] and
+    plan["vdot"].  Returns the number of future weeks that were touched.
+    """
+    today = date.today()
+    zones = pace_zones(new_vdot)
+
+    _pace_map = {
+        "Easy Run":         zones["E"],
+        "Long Run":         zones["E"],
+        "Medium Long Run":  zones["E"],
+        "Threshold Run":    zones["T"],
+        "Tempo Run":        zones["T"],
+        "Interval Run":     zones["I"],
+        # Race stays "Goal pace"; Rest stays None
+    }
+
+    plan["pace_zones"] = zones
+    plan["vdot"] = round(new_vdot, 1)
+
+    weeks_updated = 0
+    for week in plan.get("weeks", []):
+        week_touched = False
+        for day in week.get("days", []):
+            try:
+                day_date = date.fromisoformat(day["date"])
+            except (KeyError, ValueError):
+                continue
+            if day_date >= today and day.get("workout_type") in _pace_map:
+                day["pace"] = _pace_map[day["workout_type"]]
+                week_touched = True
+        if week_touched:
+            weeks_updated += 1
+
+    return weeks_updated
+
+
 # ── Plan Skeleton Generation ───────────────────────────────────────────────
 
 # Day-of-week templates by number of training days (Mon=0 … Sun=6)

@@ -133,6 +133,7 @@ class SavedPlan(db.Model):
     plan_json = db.Column(db.Text, nullable=False)
     race_name = db.Column(db.String(100))
     race_date = db.Column(db.Date)
+    current_vdot = db.Column(db.Float)  # smoothed VDOT updated on each visit
 
 
 class Segment(db.Model):

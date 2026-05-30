@@ -910,6 +910,8 @@ def hr_vo2max():
 def training_plan_page():
     athlete = get_user()
     strava_data = None
+    current_plan = None
+    fitness_update = None
 
     if athlete:
         activities = get_activities(athlete.id)
@@ -917,8 +919,11 @@ def training_plan_page():
 
         from app.training_plan_algo import (
             weekly_avg_miles, detect_training_days, best_pr_vdot,
-            avg_hr_vo2max, pace_zones,
+            avg_hr_vo2max, pace_zones, patch_future_paces,
         )
+        from app.models import SavedPlan
+        from app import db as _db
+        import json as _json
 
         athlete_id = getattr(athlete, "id", None)
         avg_miles = weekly_avg_miles(runs)
@@ -937,11 +942,8 @@ def training_plan_page():
             "hr_vo2max": hr_vo2max,
         }
 
-    current_plan = None
-    if athlete:
-        from app.models import SavedPlan
-        import json as _json
-        strava_id = str(getattr(athlete, "id", None))
+        # Load saved plan
+        strava_id = str(athlete_id)
         saved = SavedPlan.query.filter_by(strava_athlete_id=strava_id).first()
         if saved:
             try:
@@ -949,11 +951,41 @@ def training_plan_page():
             except Exception as e:
                 logger.warning(f"Could not load saved plan: {e}")
 
+        # Fitness EMA update — runs whenever the user has both a plan and fresh Strava VDOT
+        if current_plan and vdot:
+            try:
+                plan_vdot = float(current_plan.get("vdot", vdot))
+
+                # Initialise smoothed VDOT on first visit after plan generation
+                stored = float(saved.current_vdot) if saved.current_vdot is not None else plan_vdot
+
+                # Exponential moving average: 30% latest, 70% history
+                new_ema = round(0.3 * float(vdot) + 0.7 * stored, 1)
+                delta = round(new_ema - plan_vdot, 1)
+
+                if abs(delta) >= 0.5:
+                    weeks_updated = patch_future_paces(current_plan, new_ema)
+
+                    saved.current_vdot = new_ema
+                    saved.plan_json = _json.dumps(current_plan)
+                    _db.session.commit()
+
+                    if abs(delta) >= 2.0 and weeks_updated > 0:
+                        fitness_update = {
+                            "delta": abs(delta),
+                            "direction": "up" if delta > 0 else "down",
+                            "new_vdot": new_ema,
+                            "weeks_updated": weeks_updated,
+                        }
+            except Exception as e:
+                logger.warning(f"Fitness EMA update failed: {e}")
+
     return render_template(
         "training_plan.html",
         athlete=athlete,
         strava_data=strava_data,
         current_plan=current_plan,
+        fitness_update=fitness_update,
         active_page="training-plan",
     )
 

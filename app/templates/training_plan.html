@@ -248,6 +248,20 @@
 
 /* ── Divider between form and plan ── */
 .tp-divider { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 2.5rem 0 0; }
+
+/* ── Discard warning ── */
+.tp-discard-warning {
+  display: none;
+  background: rgba(229, 91, 48, 0.1);
+  border: 1px solid rgba(229, 91, 48, 0.35);
+  border-radius: 8px;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.85rem;
+  color: #f0a070;
+  margin-bottom: 1.25rem;
+}
+.tp-discard-warning a { color: var(--text-muted, #aaa); }
+.tp-discard-warning a:hover { color: var(--text, #fff); }
 </style>
 {% endblock %}
 
@@ -255,14 +269,20 @@
 <div class="inner-page tp-page">
 
   <div class="tp-header">
-    <h1>Training Plan Generator</h1>
-    <p>A Daniels VDOT-based plan calibrated to your Strava data</p>
+    <h1 id="tp-page-title">Training Plan Generator</h1>
+    <p id="tp-page-sub">A Daniels VDOT-based plan calibrated to your Strava data</p>
   </div>
 
   <!-- ── Single form card ── -->
   <div class="tp-card-wrap">
     <div class="tool-card">
       <h2 class="tool-card-title">Build Your Plan</h2>
+
+      <!-- Discard warning (shown when user opens form over an existing saved plan) -->
+      <div class="tp-discard-warning" id="tp-discard-warning">
+        Generating a new plan will <strong>replace your current saved plan</strong>.
+        &nbsp;<a href="#" onclick="tpCancelNew(event)">Cancel</a>
+      </div>
 
       <!-- Race distance -->
       <div class="tp-form-group">
@@ -407,6 +427,23 @@
       Your saved plan — <span id="tp-saved-date"></span>
     </p>
 
+    <!-- Fitness update banner (server-rendered; only present when EMA delta ≥ 2 pts) -->
+    {% if fitness_update %}
+    <div style="margin:0.75rem 0 0;padding:0.6rem 1rem;border-radius:8px;font-size:0.85rem;text-align:center;
+      {% if fitness_update.direction == 'up' %}
+        background:rgba(39,174,96,0.1);border:1px solid rgba(39,174,96,0.25);color:#7dce9e;
+      {% else %}
+        background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:var(--text-muted,#aaa);
+      {% endif %}
+    ">
+      {% if fitness_update.direction == 'up' %}
+        ↑ Your fitness improved +{{ fitness_update.delta }} VDOT pts since last check — paces updated for {{ fitness_update.weeks_updated }} upcoming week{{ 's' if fitness_update.weeks_updated != 1 else '' }} (VDOT {{ fitness_update.new_vdot }})
+      {% else %}
+        ↺ Paces recalibrated for {{ fitness_update.weeks_updated }} upcoming week{{ 's' if fitness_update.weeks_updated != 1 else '' }} based on recent training (VDOT {{ fitness_update.new_vdot }})
+      {% endif %}
+    </div>
+    {% endif %}
+
     <!-- Overview card -->
     <div class="tool-card plan-hero" id="tp-hero"></div>
 
@@ -416,7 +453,7 @@
     <!-- Actions -->
     <div style="display:flex;justify-content:center;gap:1rem;margin-top:1.5rem;flex-wrap:wrap;">
       <a href="/training-plan/export.ics" class="btn-nav" id="tp-ics-btn" style="cursor:pointer;">⬇ Download Calendar (.ics)</a>
-      <button class="btn-nav" onclick="tpReset()" style="cursor:pointer;">↩ Regenerate</button>
+      <button class="btn-nav" id="tp-regen-btn" onclick="tpShowNewPlanForm()" style="cursor:pointer;">↩ Generate New Plan</button>
     </div>
   </div>
 
@@ -621,6 +658,9 @@ async function tpGenerate() {
     const data = await resp.json();
     if (data.success) {
       tpRenderPlan(data.plan);
+      // Collapse the form now that the plan is visible
+      document.querySelector('.tp-card-wrap').style.display = 'none';
+      document.getElementById('tp-discard-warning').style.display = 'none';
     } else {
       alert('Could not generate plan: ' + (data.error || 'Unknown error'));
     }
@@ -745,14 +785,36 @@ document.addEventListener('DOMContentLoaded', () => {
   minDate.setDate(minDate.getDate() + 28);
   document.getElementById('tp-race-date').min = minDate.toISOString().split('T')[0];
 
-  // Restore saved plan from DB if present
   if (_savedPlan) {
+    // "My Plan" view: render saved plan, hide the form
+    document.getElementById('tp-page-title').textContent = 'My Plan';
+    document.getElementById('tp-page-sub').textContent = 'Your saved training plan';
+    document.querySelector('.tp-card-wrap').style.display = 'none';
     tpRenderPlan(_savedPlan, /*fromSave=*/true);
   }
 });
 
+// Show the generate form (with discard warning if a plan already exists)
+function tpShowNewPlanForm() {
+  const wrap = document.querySelector('.tp-card-wrap');
+  wrap.style.display = 'block';
+  if (_savedPlan) {
+    document.getElementById('tp-discard-warning').style.display = 'block';
+  }
+  wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Cancel out of the new-plan form — return to viewing the existing plan
+function tpCancelNew(e) {
+  e.preventDefault();
+  document.querySelector('.tp-card-wrap').style.display = 'none';
+  document.getElementById('tp-discard-warning').style.display = 'none';
+  document.getElementById('tp-output').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function tpReset() {
   document.getElementById('tp-output').style.display = 'none';
+  document.querySelector('.tp-card-wrap').style.display = 'block';
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 </script>

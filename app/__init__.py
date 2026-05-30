@@ -56,5 +56,18 @@ def create_db_if_not_exists():
     os.makedirs(os.path.dirname(db_dir), exist_ok=True)
     with app.app_context():
         db.create_all()
+        # Add columns introduced after initial schema (SQLite doesn't support
+        # IF NOT EXISTS on ALTER TABLE, so we rely on the exception to detect
+        # an already-existing column — safe and idempotent).
+        from sqlalchemy import text
+        with db.engine.connect() as _conn:
+            for stmt in [
+                "ALTER TABLE saved_plan ADD COLUMN current_vdot FLOAT",
+            ]:
+                try:
+                    _conn.execute(text(stmt))
+                    _conn.commit()
+                except Exception:
+                    _conn.rollback()
 
 create_db_if_not_exists()
