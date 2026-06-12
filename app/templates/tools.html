@@ -208,9 +208,10 @@
             <span style="display:inline-block; width:22px; height:2px; background:rgba(29,185,84,0.5); vertical-align:middle;"></span>
             <span>Your curve</span>
           </span>
+          <button id="profile-toggle" class="profile-toggle-btn" onclick="toggleProfileDistances()">Show all distances</button>
         </div>
-        <table class="predictions-table" style="margin-top:1rem;">
-          <thead><tr><th>Distance</th><th>Your PR</th><th>Curve predicts</th><th>Difference</th><th></th></tr></thead>
+        <table class="predictions-table profile-table" style="margin-top:1rem;">
+          <thead><tr><th>Distance</th><th>Time</th><th class="col-curve">Curve predicts</th><th>Difference</th><th></th></tr></thead>
           <tbody id="profile-table-body"></tbody>
         </table>
       </div>
@@ -444,14 +445,31 @@ window.addEventListener('DOMContentLoaded', updateDanielsPredictions);
 // Performance Profile (Strava only)
 // ============================================================
 {% if is_strava %}
+const MAIN_DISTANCES = new Set([5000, 10000, 21097, 42195]);
+const ALL_XTICKS = [
+  {d:1609,l:'1 mi'},{d:3219,l:'2 mi'},{d:5000,l:'5K'},{d:10000,l:'10K'},
+  {d:15000,l:'15K'},{d:16093,l:'10 mi'},{d:21097,l:'Half'},{d:30000,l:'30K'},{d:42195,l:'Mar'}
+];
+let showAllDistances = false;
+
 function fitLinearRegression(xs, ys) {
   const n=xs.length, mx=xs.reduce((s,x)=>s+x,0)/n, my=ys.reduce((s,y)=>s+y,0)/n;
   const slope=xs.reduce((s,x,i)=>s+(x-mx)*(ys[i]-my),0)/xs.reduce((s,x)=>s+(x-mx)**2,0);
   return {slope, intercept:my-slope*mx};
 }
+function visibleEfforts() {
+  return showAllDistances ? profileEfforts : profileEfforts.filter(e=>MAIN_DISTANCES.has(e.distance_m));
+}
+function toggleProfileDistances() {
+  showAllDistances = !showAllDistances;
+  const btn = document.getElementById('profile-toggle');
+  btn.textContent = showAllDistances ? 'Show main distances' : 'Show all distances';
+  btn.classList.toggle('active', showAllDistances);
+  renderProfileTable(); setTimeout(renderProfileChart, 10);
+}
 async function loadProfileData() {
   try {
-    const res=await fetch('/api/best-efforts'), data=await res.json();
+    const res=await fetch('/api/activity-bests'), data=await res.json();
     profileEfforts=data.efforts;
     if (profileEfforts.length<2){document.getElementById('profile-loading').textContent='Need at least 2 PR distances to build a profile.';return;}
     profileRegression=fitLinearRegression(profileEfforts.map(e=>Math.log(e.distance_m)),profileEfforts.map(e=>Math.log(e.seconds)));
@@ -468,13 +486,14 @@ function renderProfileSummary() {
 }
 function renderProfileTable() {
   const tbody=document.getElementById('profile-table-body'); tbody.innerHTML='';
-  [...profileEfforts].sort((a,b)=>a.distance_m-b.distance_m).forEach(e=>{
+  [...visibleEfforts()].sort((a,b)=>a.distance_m-b.distance_m).forEach(e=>{
     const predT=Math.exp(profileRegression.intercept+profileRegression.slope*Math.log(e.distance_m));
     const diff=e.seconds-predT;
     const diffStr=diff>1?`+${fmtTime(Math.abs(diff))} slower`:diff<-1?`−${fmtTime(Math.abs(diff))} faster`:'on curve';
-    const badge=diff>30?'<span class="profile-badge opportunity">room to improve</span>':diff<-30?'<span class="profile-badge strength">strength</span>':'';
+    const pct=Math.abs(diff)/predT;
+    const badge=pct>0.005?(diff>0?'<span class="profile-badge opportunity">potential</span>':'<span class="profile-badge strength">strength</span>'):'';
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${e.name}</td><td>${fmtTime(e.seconds)}</td><td>${fmtTime(predT)}</td><td>${diffStr}</td><td>${badge}</td>`;
+    tr.innerHTML=`<td>${e.name}</td><td>${fmtTime(e.seconds)}</td><td class="col-curve">${fmtTime(predT)}</td><td>${diffStr}</td><td>${badge}</td>`;
     tbody.appendChild(tr);
   });
 }
@@ -484,27 +503,28 @@ function renderProfileChart() {
   const H=250; canvas.width=W; canvas.height=H;
   const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,W,H);
   const ML=68,MR=18,MT=18,MB=46, cW=W-ML-MR, cH=H-MT-MB;
-  const ldMin=Math.log(1200), ldMax=Math.log(50000);
 
-  // Pace range covering both dots and curve at standard distances
-  const gridD=[1609,5000,10000,21097,42195];
-  const predPaces=gridD.map(d=>Math.exp(profileRegression.intercept+profileRegression.slope*Math.log(d))/(d/1609.34));
-  const effortPaces=profileEfforts.map(e=>e.seconds/(e.distance_m/1609.34));
+  const vis = visibleEfforts();
+  const xticks = ALL_XTICKS.filter(t=>vis.some(e=>e.distance_m===t.d));
+  const dists = vis.map(e=>e.distance_m);
+  const ldMin=Math.log(Math.min(...dists)*0.85), ldMax=Math.log(Math.max(...dists)*1.15);
+
+  // Pace range covering dots + curve
+  const predPaces=dists.map(d=>Math.exp(profileRegression.intercept+profileRegression.slope*Math.log(d))/(d/1609.34));
+  const effortPaces=vis.map(e=>e.seconds/(e.distance_m/1609.34));
   const allPaces=[...predPaces,...effortPaces];
   const paceMin=Math.min(...allPaces)*0.92, paceMax=Math.max(...allPaces)*1.10;
 
-  // Faster pace → higher on chart (smaller y pixel)
   const toX=d=>ML+(Math.log(d)-ldMin)/(ldMax-ldMin)*cW;
   const toY=pace=>MT+(pace-paceMin)/(paceMax-paceMin)*cH;
 
-  // Vertical grid at standard distances
-  const xticks=[{d:1609,l:'1 mi'},{d:5000,l:'5K'},{d:10000,l:'10K'},{d:21097,l:'Half'},{d:42195,l:'Mar'}];
+  // Vertical grid
   ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=1;
   xticks.forEach(({d})=>{const x=toX(d); ctx.beginPath(); ctx.moveTo(x,MT); ctx.lineTo(x,MT+cH); ctx.stroke();});
 
   // Horizontal pace grid
-  const span=paceMax-paceMin, step=span<120?30:span<300?60:120;
   ctx.font='10px system-ui,sans-serif';
+  const span=paceMax-paceMin, step=span<120?30:span<300?60:120;
   for (let p=Math.ceil(paceMin/step)*step; p<=paceMax; p+=step) {
     const y=toY(p);
     ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=1;
@@ -517,9 +537,13 @@ function renderProfileChart() {
   ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=1;
   ctx.beginPath(); ctx.moveTo(ML,MT); ctx.lineTo(ML,MT+cH); ctx.lineTo(ML+cW,MT+cH); ctx.stroke();
 
-  // X labels
+  // X labels — skip any that would overlap with neighbours
   ctx.fillStyle='rgba(255,255,255,0.28)'; ctx.textAlign='center';
-  xticks.forEach(({d,l})=>ctx.fillText(l,toX(d),MT+cH+16));
+  let lastX=-999;
+  xticks.forEach(({d,l})=>{
+    const x=toX(d);
+    if(x-lastX>28){ctx.fillText(l,x,MT+cH+16); lastX=x;}
+  });
 
   // Y-axis label
   ctx.save(); ctx.translate(12,MT+cH/2); ctx.rotate(-Math.PI/2);
@@ -536,8 +560,8 @@ function renderProfileChart() {
   }
   ctx.strokeStyle='rgba(29,185,84,0.5)'; ctx.lineWidth=2; ctx.stroke();
 
-  // PR dots (colored by recency)
-  profileEfforts.forEach(e=>{
+  // PR dots
+  vis.forEach(e=>{
     const x=toX(e.distance_m), y=toY(e.seconds/(e.distance_m/1609.34));
     let fill='rgba(29,185,84,0.9)';
     if (e.date){

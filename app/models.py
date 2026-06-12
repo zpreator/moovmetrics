@@ -112,6 +112,7 @@ class BestEffort(db.Model):
     race_name = db.Column(db.String(100), nullable=False)
     distance = db.Column(db.Float, nullable=False)
     elapsed_time = db.Column(db.Float)
+    pr_rank = db.Column(db.Integer)  # 1=all-time PR, 2=2nd best, 3=3rd; None=old record (re-fetch needed)
 
 
 class Split(db.Model):

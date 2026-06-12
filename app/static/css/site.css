@@ -742,6 +742,19 @@ select option { background: #23272b; }
   flex-wrap: wrap;
   margin-bottom: 0.5rem;
 }
+.profile-toggle-btn {
+  margin-left: auto;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.5);
+  font-size: 0.72rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 20px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.profile-toggle-btn:hover { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.75); }
+.profile-toggle-btn.active { background: rgba(29,185,84,0.12); border-color: rgba(29,185,84,0.35); color: #1db954; }
 .profile-badge {
   display: inline-block;
   padding: 0.15rem 0.55rem;
@@ -1138,4 +1151,10 @@ select option { background: #23272b; }
   .profile-header { flex-direction: column; text-align: center; }
   .profile-actions { flex-direction: column; }
   .hero-title    { font-size: 1.7rem; }
+
+  /* Performance profile table: hide "Curve predicts" column, tighten padding */
+  .profile-table .col-curve { display: none; }
+  .profile-table th,
+  .profile-table td { padding: 0.45rem 0.35rem; font-size: 0.8rem; }
+  .profile-badge { font-size: 0.68rem; padding: 0.12rem 0.4rem; }
 }

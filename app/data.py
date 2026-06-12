@@ -353,11 +353,16 @@ def _is_strava_distance(distance):
 
 
 def get_pr_efforts_for_activity(strava_id):
-    """Fetch the detailed activity from Strava and store only all-time PR efforts (pr_rank == 1)."""
+    """Fetch the detailed activity from Strava and store all named best efforts with their pr_rank."""
     existing = BestEffort.query.filter_by(activity_id=strava_id).all()
     if existing:
-        # If existing entries have old-style distances (not from Strava API), delete and re-fetch
-        if any(not _is_strava_distance(e.distance) for e in existing):
+        # Re-fetch if: old-style distances, sentinel __none__, or stored before pr_rank column existed (pr_rank is None)
+        needs_refetch = (
+            any(not _is_strava_distance(e.distance) for e in existing)
+            or any(e.race_name == "__none__" for e in existing)
+            or all(e.pr_rank is None for e in existing)
+        )
+        if needs_refetch:
             for e in existing:
                 db.session.delete(e)
             db.session.commit()
@@ -369,24 +374,26 @@ def get_pr_efforts_for_activity(strava_id):
         raw_efforts = strava_activity.best_efforts or []
 
         if not raw_efforts:
-            db.session.add(BestEffort(activity_id=strava_id, race_name="__none__", distance=0, elapsed_time=None))
+            # Sentinel so we don't re-fetch this activity repeatedly
+            db.session.add(BestEffort(activity_id=strava_id, race_name="__none__", distance=0, elapsed_time=None, pr_rank=0))
             db.session.commit()
             return []
 
         best_efforts = []
         for effort in raw_efforts:
-            if effort.pr_rank != 1 or effort.elapsed_time is None or effort.distance is None or not effort.name:
+            if effort.elapsed_time is None or effort.distance is None or not effort.name:
                 continue
             be = BestEffort(
                 activity_id=strava_id,
                 race_name=effort.name.lower(),
                 distance=float(effort.distance),
                 elapsed_time=effort.elapsed_time.total_seconds(),
+                pr_rank=effort.pr_rank,
             )
             db.session.add(be)
             best_efforts.append(be)
         db.session.commit()
-        logger.info(f"PR efforts stored for activity: {strava_id} ({len(best_efforts)} PRs)")
+        logger.info(f"Best efforts stored for activity: {strava_id} ({len(best_efforts)} efforts)")
         return best_efforts
     except Exception as e:
         logger.error(f"[DEBUG best_efforts] activity {strava_id}: exception: {e}")

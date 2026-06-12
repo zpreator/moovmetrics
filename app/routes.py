@@ -577,7 +577,7 @@ def tools():
     )
 
 
-_CANONICAL_DISTANCES = [400, 805, 1000, 1609, 3219, 5000, 10000, 15000, 16093, 20000, 21097, 42195]
+_CANONICAL_DISTANCES = [400, 805, 1000, 1609, 3219, 5000, 10000, 15000, 16093, 20000, 21097, 30000, 42195]
 _CANONICAL_NAMES = {
     400: "400m",
     805: "1/2 Mile",
@@ -590,13 +590,17 @@ _CANONICAL_NAMES = {
     16093: "10 Mile",
     20000: "20K",
     21097: "Half Marathon",
+    30000: "30K",
     42195: "Marathon",
 }
 # Distances that match the Reference Distance dropdown in the race predictor
 _REF_DISTANCE_KEYS = {1609, 5000, 10000, 21097, 42195}
 
 def _canonical_dist_key(distance):
-    return min(_CANONICAL_DISTANCES, key=lambda d: abs(d - distance))
+    closest = min(_CANONICAL_DISTANCES, key=lambda d: abs(d - distance))
+    if abs(distance - closest) / closest > 0.15:
+        return None
+    return closest
 
 
 @app.route("/api/best-efforts")
@@ -630,13 +634,17 @@ def best_efforts():
         .all()
     ) if athlete_id else []
 
-    # Build best time per canonical distance, restricted to ref-distance dropdown options
+    all_distances = request.args.get("all_distances", "0") == "1"
+
+    # Build best time per canonical distance
     best_by_distance = {}
     for e, act_date in all_efforts:
         if e.elapsed_time is None:
             continue
         dist_key = _canonical_dist_key(e.distance)
-        if dist_key not in _REF_DISTANCE_KEYS:
+        if dist_key is None:
+            continue
+        if not all_distances and dist_key not in _REF_DISTANCE_KEYS:
             continue
         if dist_key not in best_by_distance or e.elapsed_time < best_by_distance[dist_key]["seconds"]:
             best_by_distance[dist_key] = {
@@ -651,6 +659,104 @@ def best_efforts():
     sorted_efforts = sorted(best_by_distance.items(), reverse=True)  # longest first
     consistent = []
     fastest_pace = float("inf")  # seconds per meter; lower = faster
+    for dist_key, effort in sorted_efforts:
+        pace = effort["seconds"] / dist_key
+        if pace <= fastest_pace:
+            fastest_pace = pace
+            consistent.append(effort)
+
+    return jsonify({"efforts": list(reversed(consistent))})
+
+
+_RIEGEL_EXPONENT  = 1.08
+_RIEGEL_MARGIN    = 1.20
+_BEST_EFFORT_DAYS = 365
+
+
+def _riegel_pace(anchor_dist, anchor_time, target_dist):
+    """Predicted pace (s/m) at target_dist using Riegel from a single anchor."""
+    return anchor_time * (target_dist / anchor_dist) ** _RIEGEL_EXPONENT / target_dist
+
+
+@app.route("/api/activity-bests")
+def activity_bests():
+    """
+    Use a Riegel-based heuristic to identify candidate activities within the last year,
+    deep-dive only those via Strava API, then return the fastest named effort per
+    canonical distance across all candidates.
+    """
+    from app.models import Activity, BestEffort
+    from app.data import get_pr_efforts_for_activity
+
+    strava_athlete = get_user()
+    if not strava_athlete:
+        return jsonify({"efforts": []})
+    athlete_id = getattr(strava_athlete, "id", None)
+    if not athlete_id:
+        return jsonify({"efforts": []})
+
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=_BEST_EFFORT_DAYS)
+
+    runs = (
+        Activity.query.filter_by(user_id=athlete_id, type="Run")
+        .filter(Activity.distance.isnot(None), Activity.elapsed_time.isnot(None))
+        .filter(Activity.distance > 400)
+        .filter(Activity.start_date_local >= cutoff)
+        .order_by(Activity.start_date_local.desc())
+        .all()
+    )
+
+    if not runs:
+        return jsonify({"efforts": []})
+
+    # Seed: fastest activity-level pace across all runs in window
+    anchor_dist, anchor_time = min(
+        ((a.distance, a.elapsed_time.total_seconds()) for a in runs),
+        key=lambda x: x[1] / x[0],
+    )
+
+    # Walk back through time, deep-dive candidates that could contain a PR
+    client.access_token = session["access_token"]
+    candidate_ids = []
+    for act in runs:
+        pace      = act.elapsed_time.total_seconds() / act.distance
+        threshold = _riegel_pace(anchor_dist, anchor_time, act.distance) * _RIEGEL_MARGIN
+        if pace <= threshold:
+            candidate_ids.append(act.strava_id)
+            if pace < _riegel_pace(anchor_dist, anchor_time, act.distance):
+                anchor_dist  = act.distance
+                anchor_time  = act.elapsed_time.total_seconds()
+
+    # Deep-dive candidates that aren't fully stored yet
+    for strava_id in candidate_ids:
+        get_pr_efforts_for_activity(strava_id)
+
+    # Pull all stored efforts for candidates, find fastest per canonical distance
+    all_efforts = (
+        BestEffort.query
+        .filter(BestEffort.activity_id.in_(candidate_ids))
+        .filter(BestEffort.elapsed_time.isnot(None))
+        .filter(BestEffort.race_name != "__none__")
+        .all()
+    )
+
+    best_by_distance = {}
+    for e in all_efforts:
+        dist_key = _canonical_dist_key(e.distance)
+        if dist_key is None or dist_key < 1609:  # skip sub-mile distances
+            continue
+        if dist_key not in best_by_distance or e.elapsed_time < best_by_distance[dist_key]["seconds"]:
+            best_by_distance[dist_key] = {
+                "name": _CANONICAL_NAMES[dist_key],
+                "distance_m": dist_key,
+                "seconds": e.elapsed_time,
+                "date": None,
+            }
+
+    # Pace consistency filter: shorter distances must be faster pace than longer ones
+    sorted_efforts = sorted(best_by_distance.items(), reverse=True)
+    consistent = []
+    fastest_pace = float("inf")
     for dist_key, effort in sorted_efforts:
         pace = effort["seconds"] / dist_key
         if pace <= fastest_pace:
