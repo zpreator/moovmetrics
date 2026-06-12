@@ -37,6 +37,9 @@ FLASK_ENV = os.environ.get("FLASK_ENV", "dev")
 
 RUNNING = {}
 
+MAX_ACTIVITIES = 200   # cap for general activity queries (stats, trends, training plan)
+PR_WINDOW_DAYS = 365   # how far back to look for unprocessed PR activities
+
 
 def _save_tokens_to_db(strava_id, access_token, refresh_token, expires_at):
     from app.models import User
@@ -229,7 +232,7 @@ def mainapp():
     recommendations = None
     athlete = get_user()
     if athlete:
-        activities = get_activities(athlete.id)
+        activities = get_activities(athlete.id, top_n=MAX_ACTIVITIES)
         if activities:
             # Generate Strava context
             strava_context = "Strava Stats:\n"
@@ -550,7 +553,7 @@ def dashboard():
     if not strava_athlete:
         return redirect(url_for("index"))
     athlete_id = getattr(strava_athlete, "id", None)
-    activities = get_activities(athlete_id, update_db=should_update_activities()) if athlete_id else []
+    activities = get_activities(athlete_id, update_db=should_update_activities(), top_n=MAX_ACTIVITIES) if athlete_id else []
     types_raw = [a.type.lower() for a in activities if a and getattr(a, "type", None)]
     type_counts = Counter(types_raw)
     activity_types = [t for t, _ in type_counts.most_common()]
@@ -607,9 +610,11 @@ def best_efforts():
     client.access_token = session["access_token"]
     athlete_id = getattr(strava_athlete, "id", None)
     if athlete_id:
+        pr_cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=PR_WINDOW_DAYS)
         unprocessed = (
             Activity.query.filter_by(user_id=athlete_id, type="Run")
             .filter(Activity.pr_count > 0)
+            .filter(Activity.start_date_local >= pr_cutoff)
             .filter(~Activity.best_efforts.any())
             .order_by(Activity.start_date_local.desc())
             .limit(10)
@@ -669,7 +674,7 @@ def get_image_data():
     athlete = get_user()
     if not athlete:
         return jsonify({"error": "Not authenticated"}), 401
-    activities = get_activities(athlete.id, update_db=should_update_activities())
+    activities = get_activities(athlete.id, update_db=should_update_activities(), top_n=MAX_ACTIVITIES)
     top_images = get_cached_top_images(athlete.id, activities)
     return jsonify({"urls": top_images})
 
@@ -679,7 +684,7 @@ def get_profile_data():
     athlete = get_user()
     if not athlete:
         return jsonify({"error": "Not authenticated"}), 401
-    activities = get_activities(athlete.id, update_db=should_update_activities())
+    activities = get_activities(athlete.id, update_db=should_update_activities(), top_n=MAX_ACTIVITIES)
     stats = utils.get_stats(activities)
     gear = utils.get_gear(activities)
     clubs = client.get_athlete_clubs()
@@ -723,7 +728,7 @@ def get_data():
         if not strava_athlete:
             return jsonify({"error": "Could not get user"}), 500
 
-        activities = get_activities(strava_athlete.id, update_db=should_update_activities())
+        activities = get_activities(strava_athlete.id, update_db=should_update_activities(), top_n=MAX_ACTIVITIES)
         data = get_trends(activities, activity_types=activity_types)
         return jsonify({"data": json.dumps(data)})
     except Exception as e:
@@ -736,7 +741,7 @@ def get_activity_types():
     strava_athlete = get_user()
     if not strava_athlete:
         return jsonify({"activity_types": []})
-    activities = get_activities(strava_athlete.id, update_db=should_update_activities())
+    activities = get_activities(strava_athlete.id, update_db=should_update_activities(), top_n=MAX_ACTIVITIES)
     type_counts = Counter(a.type.lower() for a in activities if a and getattr(a, "type", None))
     activity_types = [t for t, _ in type_counts.most_common()]
     return jsonify({"activity_types": activity_types})
@@ -937,7 +942,7 @@ def training_plan_page():
     fitness_update = None
 
     if athlete:
-        activities = get_activities(athlete.id)
+        activities = get_activities(athlete.id, top_n=MAX_ACTIVITIES)
         runs = [a for a in activities if a and getattr(a, "type", None) and a.type.lower() == "run"]
 
         from app.training_plan_algo import (
@@ -1030,7 +1035,7 @@ def generate_plan_api():
 
         athlete = get_user()
         if athlete:
-            activities = get_activities(athlete.id)
+            activities = get_activities(athlete.id, top_n=MAX_ACTIVITIES)
             runs = [a for a in activities if a and getattr(a, "type", None) and a.type.lower() == "run"]
             base_miles = float(data.get("base_miles") or weekly_avg_miles(runs) or 20.0)
             pr = best_pr_vdot(getattr(athlete, "id", None))
