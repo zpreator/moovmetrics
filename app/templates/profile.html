@@ -68,13 +68,19 @@ async function loadStats() {
     const stats = data.stats;
     const sorted = Object.entries(stats).sort((a, b) => b[1].count - a[1].count);
 
+    function formatSport(name) {
+      return name.replace(/([a-z])([A-Z])/g, '$1 $2')
+                 .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+                 .replace(/^./, s => s.toUpperCase());
+    }
+
     const totalActivities = sorted.reduce((s, [, v]) => s + v.count, 0);
     const totalMiles = sorted.reduce((s, [, v]) => s + v.distance, 0);
     const topSport = sorted.length ? sorted[0][0] : '—';
 
     document.getElementById('stat-activities').textContent = totalActivities.toLocaleString();
-    document.getElementById('stat-miles').textContent = totalMiles.toFixed(0).toLocaleString();
-    document.getElementById('stat-top-sport').textContent = topSport.charAt(0).toUpperCase() + topSport.slice(1);
+    document.getElementById('stat-miles').textContent = Math.round(totalMiles).toLocaleString();
+    document.getElementById('stat-top-sport').textContent = formatSport(topSport);
 
     const breakdown = document.getElementById('activity-breakdown');
     breakdown.innerHTML = '';
@@ -82,7 +88,7 @@ async function loadStats() {
       const row = document.createElement('div');
       row.className = 'breakdown-row';
       row.innerHTML = `
-        <span class="breakdown-sport">${sport.charAt(0).toUpperCase() + sport.slice(1)}</span>
+        <span class="breakdown-sport">${formatSport(sport)}</span>
         <span class="breakdown-count">${d.count} activities</span>
         <span class="breakdown-miles">${d.distance.toFixed(0)} mi</span>
       `;

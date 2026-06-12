@@ -78,6 +78,29 @@ def fail():
     )
 
 
+@app.route("/dev-login")
+def dev_login():
+    if FLASK_ENV != "dev":
+        return redirect(url_for("index"))
+    from app.models import User
+    user = User.query.first()
+    if not user:
+        return "No user in DB. Log in via Strava once first.", 404
+    session["token_expires_at"] = user.strava_token_expires_at or (time.time() + 3600)
+    session["access_token"] = user.strava_access_token or "dev_token"
+    session["refresh_token"] = user.strava_refresh_token or "dev_refresh"
+    session["user_id"] = int(user.strava_id)
+    session["strava_athlete"] = {
+        "id": int(user.strava_id),
+        "username": user.username,
+        "firstname": user.username,
+        "lastname": "",
+        "email": user.email,
+    }
+    session["last_activities_fetch"] = int(time.time())
+    return redirect(url_for("profile"))
+
+
 @app.route("/")
 def index():
     try:

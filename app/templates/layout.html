@@ -26,7 +26,10 @@
       <img src="{{ url_for('static', filename='images/cow-head.png') }}" alt="Moov Metrics Logo" height="32">
       <span class="logo-text">Moov Metrics</span>
     </a>
-    <div class="navbar-links">
+    <button class="navbar-hamburger" id="navHamburger" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="navbar-links" id="navLinks">
       {% if session.get('access_token') %}
       <a href="/dashboard" class="btn-nav{% if active_page == 'dashboard' %} active{% endif %}">Dashboard</a>
       <a href="/tools" class="btn-nav{% if active_page == 'tools' %} active{% endif %}">Tools</a>
@@ -95,6 +98,22 @@ particlesJS.load('particles-js', '/static/js/particles.json', function() {});
     if (!ticking) { window.requestAnimationFrame(onScroll); ticking = true; }
   });
   window.addEventListener('resize', onResize);
+
+  var hamburger = document.getElementById('navHamburger');
+  var navLinks = document.getElementById('navLinks');
+  if (hamburger && navLinks) {
+    hamburger.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var open = navLinks.classList.toggle('open');
+      hamburger.classList.toggle('open', open);
+    });
+    document.addEventListener('click', function(e) {
+      if (!navLinks.contains(e.target) && e.target !== hamburger && !hamburger.contains(e.target)) {
+        navLinks.classList.remove('open');
+        hamburger.classList.remove('open');
+      }
+    });
+  }
 
   var loginToggle = document.querySelector('.navbar-login-toggle');
   var loginOptions = document.querySelector('.navbar-login-options');

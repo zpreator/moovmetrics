@@ -365,32 +365,20 @@ async function loadProfileData() {
       const sportsContainer = document.getElementById('sports-container');
       const clubsContainer = document.getElementById('clubs-container');
       const sortedStats = Object.entries(data.stats).sort((a, b) => b[1].count - a[1].count);
+      function formatSportName(name) {
+          return name.replace(/([a-z])([A-Z])/g, '$1 $2')
+                     .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+                     .replace(/^./, s => s.toUpperCase());
+      }
       sortedStats.forEach(([sport, sportData]) => {
-          const wrapper = document.createElement('div');
-          wrapper.className = 'w3-container list-items';
-          const header = document.createElement('h5');
-          header.className = 'w3-opacity';
-          header.style.marginBottom = '5px';
-          header.style.marginTop = '0px';
-          header.innerHTML = `<b>${sport.charAt(0).toUpperCase() + sport.slice(1)}</b>`;
-          wrapper.appendChild(header);
-          const flexContainer = document.createElement('div');
-          flexContainer.style.display = 'flex';
-          flexContainer.style.justifyContent = 'space-between';
-          const activities = document.createElement('p');
-          activities.className = 'small-margin';
-          activities.textContent = `${sportData.count} activities`;
-          flexContainer.appendChild(activities);
-          const distance = document.createElement('p');
-          distance.className = 'small-margin';
-          distance.style.textAlign = 'right';
-          distance.textContent = `${sportData.distance.toFixed(0)} miles`;
-          flexContainer.appendChild(distance);
-          wrapper.appendChild(flexContainer);
-          const hr = document.createElement('hr');
-          hr.className = 'small-margin';
-          wrapper.appendChild(hr);
-          sportsContainer.appendChild(wrapper);
+          const row = document.createElement('div');
+          row.className = 'sport-row';
+          row.innerHTML = `
+            <span class="sport-name">${formatSportName(sport)}</span>
+            <span class="sport-count">${sportData.count} activities</span>
+            <span class="sport-miles">${sportData.distance.toFixed(0)} mi</span>
+          `;
+          sportsContainer.appendChild(row);
       });
       hide_spinner("spinner-sports");
       data.clubs.forEach(club => {

@@ -60,6 +60,60 @@ button { cursor: pointer; }
   position: relative;
 }
 
+/* Hamburger button — hidden on desktop */
+.navbar-hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  z-index: 110;
+}
+.navbar-hamburger span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: rgba(255,255,255,0.85);
+  border-radius: 2px;
+  transition: transform 0.25s, opacity 0.25s;
+}
+.navbar-hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.navbar-hamburger.open span:nth-child(2) { opacity: 0; }
+.navbar-hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+/* Mobile nav drawer */
+@media (max-width: 640px) {
+  .navbar-hamburger { display: flex; }
+
+  .navbar-links {
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.25rem;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: rgba(18, 22, 26, 0.98);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding: 0.75rem 1rem;
+    backdrop-filter: blur(10px);
+  }
+  .navbar-links.open { display: flex; }
+
+  .btn-nav {
+    padding: 0.65rem 1rem;
+    border-radius: 8px;
+    font-size: 1rem;
+  }
+  .btn-nav.active { background: rgba(255,255,255,0.1); }
+}
+
 .btn-nav {
   padding: 0.45rem 1rem;
   border-radius: 8px;
@@ -169,6 +223,9 @@ main { flex: 1; padding: 0 1.2rem; }
   max-width: 700px;
   margin: 0 auto;
 }
+@media (max-width: 480px) {
+  .profile-card { padding: 1.5rem 1rem; border-radius: 12px; }
+}
 
 .profile-header {
   display: flex;
@@ -227,6 +284,12 @@ main { flex: 1; padding: 0 1.2rem; }
   letter-spacing: 0.05em;
 }
 
+@media (max-width: 480px) {
+  .stat-card { padding: 0.75rem 0.5rem; border-radius: 10px; }
+  .stat-value { font-size: 1.3rem; }
+  .stat-label { font-size: 0.7rem; }
+}
+
 /* Activity breakdown */
 .activity-breakdown {
   background: #23272b;
@@ -238,17 +301,18 @@ main { flex: 1; padding: 0 1.2rem; }
 }
 
 .breakdown-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
   align-items: center;
+  gap: 0.5rem;
   padding: 0.45rem 0;
   border-bottom: 1px solid rgba(255,255,255,0.05);
   font-size: 0.9rem;
-  gap: 0.75rem;
 }
 .breakdown-row:last-child { border-bottom: none; }
-.breakdown-sport { font-weight: 600; flex: 1; }
-.breakdown-count { color: rgba(255,255,255,0.55); min-width: 100px; text-align: right; }
-.breakdown-miles { color: #1db954; min-width: 70px; text-align: right; font-weight: 600; }
+.breakdown-sport { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.breakdown-count { color: rgba(255,255,255,0.55); white-space: nowrap; text-align: right; }
+.breakdown-miles { color: #1db954; white-space: nowrap; text-align: right; font-weight: 600; }
 
 /* Profile actions */
 .profile-actions {
@@ -384,6 +448,37 @@ main { flex: 1; padding: 0 1.2rem; }
 /* Clubs / sports lists */
 .list-items { padding: 0.4rem 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
 .list-items:last-child { border-bottom: none; }
+
+.sport-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.sport-row:last-child { border-bottom: none; }
+.sport-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #fff;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sport-count {
+  font-size: 0.82rem;
+  color: rgba(255,255,255,0.45);
+  white-space: nowrap;
+}
+.sport-miles {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1db954;
+  white-space: nowrap;
+  text-align: right;
+}
 .small-margin { margin: 0; }
 
 /* Checkbox (shoe chart) */
@@ -410,7 +505,13 @@ main { flex: 1; padding: 0 1.2rem; }
   display: flex;
   gap: 0.5rem;
   margin-bottom: 1.5rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
 }
+.tools-tabs::-webkit-scrollbar { display: none; }
+.tab-btn { flex-shrink: 0; }
 .tab-btn {
   padding: 0.55rem 1.3rem;
   border-radius: 8px;
@@ -1033,7 +1134,7 @@ select option { background: #23272b; }
 }
 
 @media (max-width: 480px) {
-  .stat-cards    { grid-template-columns: 1fr; }
+  .stat-cards    { grid-template-columns: repeat(3, 1fr); }
   .profile-header { flex-direction: column; text-align: center; }
   .profile-actions { flex-direction: column; }
   .hero-title    { font-size: 1.7rem; }
