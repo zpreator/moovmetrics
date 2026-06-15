@@ -510,6 +510,7 @@ main { flex: 1; padding: 0 1.2rem; }
   margin-bottom: 1.5rem;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
   scrollbar-width: none;
   padding-bottom: 2px;
 }
@@ -1149,15 +1150,17 @@ select option { background: #23272b; }
   .shoe-cards-grid  { grid-template-columns: 1fr; }
 }
 
-@media (max-width: 480px) {
-  .stat-cards    { grid-template-columns: repeat(3, 1fr); }
-  .profile-header { flex-direction: column; text-align: center; }
-  .profile-actions { flex-direction: column; }
-  .hero-title    { font-size: 1.7rem; }
-
+@media (max-width: 640px) {
   /* Performance profile table: hide "Curve predicts" column, tighten padding */
   .profile-table .col-curve { display: none; }
   .profile-table th,
   .profile-table td { padding: 0.45rem 0.35rem; font-size: 0.8rem; }
   .profile-badge { font-size: 0.68rem; padding: 0.12rem 0.4rem; }
+}
+
+@media (max-width: 480px) {
+  .stat-cards    { grid-template-columns: repeat(3, 1fr); }
+  .profile-header { flex-direction: column; text-align: center; }
+  .profile-actions { flex-direction: column; }
+  .hero-title    { font-size: 1.7rem; }
 }

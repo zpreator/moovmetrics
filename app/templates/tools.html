@@ -210,10 +210,12 @@
           </span>
           <button id="profile-toggle" class="profile-toggle-btn" onclick="toggleProfileDistances()">Show all distances</button>
         </div>
+        <div style="width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch;">
         <table class="predictions-table profile-table" style="margin-top:1rem;">
           <thead><tr><th>Distance</th><th>Time</th><th class="col-curve">Curve predicts</th><th>Difference</th><th></th></tr></thead>
           <tbody id="profile-table-body"></tbody>
         </table>
+        </div>
       </div>
     </div>
   </div>
