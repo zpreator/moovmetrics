@@ -3,6 +3,18 @@
    ===================================================== */
 *, *::before, *::after { box-sizing: border-box; }
 
+/* Prevent any horizontal overflow from reaching the document.
+   On iOS Safari, content that escapes a horizontal scroll container
+   (e.g. the Tools tabs) widens the page past the device width, which
+   triggers "shrink-to-fit": the layout viewport grows beyond 640px,
+   so the mobile hamburger media query never fires and the whole page
+   scrolls sideways. Clamping html/body here keeps the layout viewport
+   pinned to device width while inner scroll containers still scroll. */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   display: flex;
   flex-direction: column;
