@@ -68,6 +68,8 @@ def create_db_if_not_exists():
                 "ALTER TABLE user ADD COLUMN strava_token_expires_at FLOAT",
                 # saved_plan: columns added after initial schema
                 "ALTER TABLE saved_plan ADD COLUMN current_vdot FLOAT",
+                # best_effort: pr_rank added after initial schema
+                "ALTER TABLE best_effort ADD COLUMN pr_rank INTEGER",
             ]:
                 try:
                     _conn.execute(text(stmt))
