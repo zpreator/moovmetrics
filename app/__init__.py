@@ -1,5 +1,6 @@
 import logging
 import os
+import subprocess
 
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
@@ -23,7 +24,22 @@ RACES = [
     {'name': 'marathon', 'distance': 21097.5*2}
 ]
 
+def _git_hash():
+    try:
+        return subprocess.check_output(
+            ['git', 'rev-parse', '--short', 'HEAD'],
+            stderr=subprocess.DEVNULL
+        ).decode().strip()
+    except Exception:
+        return '1'
+
+ASSET_VERSION = _git_hash()
+
 app = Flask(__name__)
+
+@app.context_processor
+def inject_asset_version():
+    return {'asset_version': ASSET_VERSION}
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 db_dir = os.path.join(basedir,"db", "site.db")
