@@ -1312,9 +1312,14 @@ def gear():
     )
 
 
+_GEAR_CACHE_TTL_HOURS = 24
+
+
 @app.route("/api/gear")
 def api_gear():
     from stravalib import unithelper as uh
+    from app.models import Gear
+    from app import db
 
     if "access_token" not in session:
         return jsonify({"error": "Not authenticated"}), 401
@@ -1330,22 +1335,46 @@ def api_gear():
 
     activities = get_activities(athlete_id, update_db=should_update_activities())
 
+    # Group activities by gear_id (DB only — no Strava calls yet)
     gear_activities = {}
     for activity in activities:
         if not activity:
             continue
         gear_id = getattr(activity, "gear_id", None)
         if gear_id:
-            if gear_id not in gear_activities:
-                gear_activities[gear_id] = []
-            gear_activities[gear_id].append(activity)
+            gear_activities.setdefault(gear_id, []).append(activity)
+
+    stale_cutoff = datetime.utcnow() - timedelta(hours=_GEAR_CACHE_TTL_HOURS)
 
     result = []
     for gear_id, acts in gear_activities.items():
         try:
-            gear_item = client.get_gear(gear_id)
-            if gear_item.frame_type is not None:
-                continue
+            cached = Gear.query.filter_by(gear_id=gear_id).first()
+
+            # Refresh from Strava API only when missing or stale
+            if cached is None or cached.last_synced_at < stale_cutoff:
+                try:
+                    gear_item = client.get_gear(gear_id)
+                    if gear_item.frame_type is not None:
+                        # It's a bike — skip and don't cache
+                        continue
+                    total_miles = round(float(uh.miles(gear_item.distance)), 1) if gear_item.distance else 0.0
+                    if cached is None:
+                        cached = Gear(gear_id=gear_id, user_id=athlete_id)
+                        db.session.add(cached)
+                    cached.name = gear_item.name or "Unknown"
+                    cached.nickname = getattr(gear_item, "nickname", None) or None
+                    cached.total_miles = total_miles
+                    cached.retired = bool(getattr(gear_item, "retired", False))
+                    cached.last_synced_at = datetime.utcnow()
+                    db.session.commit()
+                except Exception as e:
+                    logger.warning(f"Strava API fetch failed for gear {gear_id}: {e}")
+                    if cached is None:
+                        continue  # No cache and API failed — skip entirely
+            else:
+                # Still need to check frame_type proxy: bikes have no entry (we never cache them)
+                pass
 
             acts_with_date = sorted(
                 [a for a in acts if a.start_date_local],
@@ -1360,23 +1389,18 @@ def api_gear():
             avg_speed_mps = sum(speeds) / len(speeds) if speeds else None
             avg_hr = sum(heart_rates) / len(heart_rates) if heart_rates else None
             avg_pace_mpm = (26.8224 / avg_speed_mps) if avg_speed_mps else None
-
-            total_miles = 0.0
-            if gear_item.distance:
-                total_miles = round(float(uh.miles(gear_item.distance)), 1)  # type: ignore[arg-type]
-
             age_days = (datetime.now() - first_date).days if first_date else None
 
             result.append({
                 "gear_id": gear_id,
-                "name": gear_item.name or "Unknown",
-                "nickname": getattr(gear_item, "nickname", None) or None,
-                "total_miles": total_miles,
+                "name": cached.name or "Unknown",
+                "nickname": cached.nickname,
+                "total_miles": cached.total_miles,
                 "first_activity_date": first_date.strftime("%b %d, %Y") if first_date else None,
                 "age_days": age_days,
                 "avg_pace_mpm": round(avg_pace_mpm, 3) if avg_pace_mpm else None,
                 "avg_hr": round(avg_hr, 1) if avg_hr else None,
-                "retired": bool(getattr(gear_item, "retired", False)),
+                "retired": cached.retired,
                 "activity_count": len(acts),
             })
         except Exception as e:

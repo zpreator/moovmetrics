@@ -137,6 +137,21 @@ class SavedPlan(db.Model):
     current_vdot = db.Column(db.Float)  # smoothed VDOT updated on each visit
 
 
+class Gear(db.Model):
+    """Cache of Strava gear (shoes only) metadata, refreshed every 24 h."""
+    id = db.Column(db.Integer, primary_key=True)
+    gear_id = db.Column(db.String(50), unique=True, nullable=False)
+    user_id = db.Column(db.Integer, nullable=False)
+    name = db.Column(db.String(200))
+    nickname = db.Column(db.String(200))
+    total_miles = db.Column(db.Float, default=0.0)
+    retired = db.Column(db.Boolean, default=False)
+    last_synced_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"Gear('{self.gear_id}', '{self.name}')"
+
+
 class Segment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     activity_id = db.Column(db.Integer, db.ForeignKey('activity.strava_id'), nullable=False)
