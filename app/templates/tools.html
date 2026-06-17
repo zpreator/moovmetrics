@@ -12,11 +12,8 @@
   <!-- Tabs -->
   <div class="tools-tabs">
     <button class="tab-btn active" onclick="showTab('pace',    this)">Pace Calculator</button>
-    <button class="tab-btn"        onclick="showTab('riegel',  this)">Riegel Prediction</button>
-    <button class="tab-btn"        onclick="showTab('daniels', this)">Daniels Prediction</button>
-    {% if is_strava %}
-    <button class="tab-btn"        onclick="showTab('profile', this)">Performance Profile</button>
-    {% endif %}
+    <button class="tab-btn"        onclick="showTab('riegel',  this)">Riegel</button>
+    <button class="tab-btn"        onclick="showTab('daniels', this)">Daniels</button>
   </div>
 
   <!-- ===== TAB 1: PACE CALCULATOR ===== -->
@@ -86,6 +83,14 @@
     <div class="tool-card">
       <h2 class="tool-card-title">Riegel Race Prediction</h2>
       <p class="tool-card-sub">Power-law formula: T₂ = T₁ × (D₂/D₁)<sup>exp</sup>. Enter a known result to project any distance.</p>
+
+      {% if not is_strava %}
+      <div class="strava-cta-banner">
+        <span>Connect Strava to use your personal Riegel exponent — fitted from your actual PR curve instead of a generic constant.</span>
+        <a href="/login/strava" class="btn-strava-cta">Connect Strava</a>
+      </div>
+      {% endif %}
+
       <div class="calc-fields">
         <div class="calc-group">
           <label>Formula</label>
@@ -191,35 +196,6 @@
     </div>
   </div>
 
-  <!-- ===== TAB 4: PERFORMANCE PROFILE (Strava only) ===== -->
-  {% if is_strava %}
-  <div id="tab-profile" class="tab-panel" style="display:none;">
-    <div class="tool-card">
-      <h2 class="tool-card-title">Performance Profile</h2>
-      <p class="tool-card-sub">Fits a personalized Riegel curve through all your PRs. Dots sitting above the curve are distances where your current fitness likely exceeds your old PR.</p>
-      <div id="profile-loading" class="loading-hint">Loading your PRs…</div>
-      <div id="profile-content" style="display:none;">
-        <div id="profile-summary" class="profile-summary-line"></div>
-        <canvas id="profile-chart" height="250" style="width:100%; display:block; margin:1rem 0;"></canvas>
-        <div class="profile-legend">
-          <span class="dist-legend-dot" style="background:rgba(29,185,84,0.9)"></span><span>Recent PR</span>
-          <span class="dist-legend-dot" style="background:rgba(120,130,150,0.7); margin-left:1rem"></span><span>Older PR</span>
-          <span style="display:inline-flex; align-items:center; gap:0.35rem; margin-left:1rem;">
-            <span style="display:inline-block; width:22px; height:2px; background:rgba(29,185,84,0.5); vertical-align:middle;"></span>
-            <span>Your curve</span>
-          </span>
-          <button id="profile-toggle" class="profile-toggle-btn" onclick="toggleProfileDistances()">Show all distances</button>
-        </div>
-        <div style="width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch;">
-        <table class="predictions-table profile-table" style="margin-top:1rem;">
-          <thead><tr><th>Distance</th><th>Time</th><th class="col-curve">Curve predicts</th><th>Difference</th><th></th></tr></thead>
-          <tbody id="profile-table-body"></tbody>
-        </table>
-        </div>
-      </div>
-    </div>
-  </div>
-  {% endif %}
 
 </div>
 
@@ -230,10 +206,8 @@
 let allEstimates  = [];
 let currentVO2max = 50;
 let sliderMin     = 25, sliderMax = 80;
-let profileEfforts    = [];
-let profileRegression = null;
-let profileLoaded     = false;
-let reloadTimer       = null;
+let reloadTimer   = null;
+let personalExponent = null;
 
 // ============================================================
 // Tab switching (single definition)
@@ -244,10 +218,6 @@ function showTab(name, btn) {
   document.getElementById('tab-' + name).style.display = '';
   btn.classList.add('active');
   if (name === 'daniels' && allEstimates.length > 0) setTimeout(renderDistribution, 10);
-  if (name === 'profile') {
-    if (!profileLoaded) { profileLoaded = true; loadProfileData(); }
-    else if (profileEfforts.length > 0) setTimeout(renderProfileChart, 10);
-  }
 }
 
 // ============================================================
@@ -437,146 +407,41 @@ function renderDistribution() {
   ctx.textAlign='left';  ctx.fillText(sliderMin.toFixed(0),0,H-2);
   ctx.textAlign='right'; ctx.fillText(sliderMax.toFixed(0),W,H-2);
 }
-window.addEventListener('DOMContentLoaded', loadStravaData);
+window.addEventListener('DOMContentLoaded', () => { loadStravaData(); loadPersonalExponent(); });
 window.addEventListener('resize', ()=>{if(allEstimates.length)renderDistribution();});
 {% else %}
 window.addEventListener('DOMContentLoaded', updateDanielsPredictions);
 {% endif %}
 
-// ============================================================
-// Performance Profile (Strava only)
-// ============================================================
 {% if is_strava %}
-const MAIN_DISTANCES = new Set([5000, 10000, 21097, 42195]);
-const ALL_XTICKS = [
-  {d:1609,l:'1 mi'},{d:3219,l:'2 mi'},{d:5000,l:'5K'},{d:10000,l:'10K'},
-  {d:15000,l:'15K'},{d:16093,l:'10 mi'},{d:21097,l:'Half'},{d:30000,l:'30K'},{d:42195,l:'Mar'}
-];
-let showAllDistances = false;
-
+// ============================================================
+// Personal Riegel exponent from PR curve
+// ============================================================
 function fitLinearRegression(xs, ys) {
   const n=xs.length, mx=xs.reduce((s,x)=>s+x,0)/n, my=ys.reduce((s,y)=>s+y,0)/n;
   const slope=xs.reduce((s,x,i)=>s+(x-mx)*(ys[i]-my),0)/xs.reduce((s,x)=>s+(x-mx)**2,0);
   return {slope, intercept:my-slope*mx};
 }
-function visibleEfforts() {
-  return showAllDistances ? profileEfforts : profileEfforts.filter(e=>MAIN_DISTANCES.has(e.distance_m));
-}
-function toggleProfileDistances() {
-  showAllDistances = !showAllDistances;
-  const btn = document.getElementById('profile-toggle');
-  btn.textContent = showAllDistances ? 'Show main distances' : 'Show all distances';
-  btn.classList.toggle('active', showAllDistances);
-  renderProfileTable(); setTimeout(renderProfileChart, 10);
-}
-async function loadProfileData() {
+async function loadPersonalExponent() {
   try {
-    const res=await fetch('/api/activity-bests'), data=await res.json();
-    profileEfforts=data.efforts;
-    if (profileEfforts.length<2){document.getElementById('profile-loading').textContent='Need at least 2 PR distances to build a profile.';return;}
-    profileRegression=fitLinearRegression(profileEfforts.map(e=>Math.log(e.distance_m)),profileEfforts.map(e=>Math.log(e.seconds)));
-    document.getElementById('profile-loading').style.display='none';
-    document.getElementById('profile-content').style.display='';
-    renderProfileSummary(); renderProfileTable(); setTimeout(renderProfileChart,10);
-  } catch(e){console.error('Profile:',e); document.getElementById('profile-loading').textContent='Could not load PR data.';}
+    const res = await fetch('/api/activity-bests');
+    const data = await res.json();
+    const efforts = data.efforts || [];
+    if (efforts.length < 2) return;
+    const reg = fitLinearRegression(
+      efforts.map(e => Math.log(e.distance_m)),
+      efforts.map(e => Math.log(e.seconds))
+    );
+    personalExponent = +reg.slope.toFixed(3);
+    const sel = document.getElementById('riegel-formula');
+    const opt = document.createElement('option');
+    opt.value = personalExponent;
+    opt.textContent = `My Curve (exponent ${personalExponent})`;
+    opt.selected = true;
+    sel.insertBefore(opt, sel.firstChild);
+    predict();
+  } catch(e) { console.warn('Personal exponent load:', e); }
 }
-function renderProfileSummary() {
-  const exp=profileRegression.slope;
-  const profile=exp<1.04?'endurance specialist':exp>1.09?'speed specialist':'well-balanced';
-  document.getElementById('profile-summary').innerHTML=
-    `Personal exponent: <strong>${exp.toFixed(3)}</strong> &nbsp;·&nbsp; standard Riegel = 1.06 &nbsp;·&nbsp; ${profile}`;
-}
-function renderProfileTable() {
-  const tbody=document.getElementById('profile-table-body'); tbody.innerHTML='';
-  [...visibleEfforts()].sort((a,b)=>a.distance_m-b.distance_m).forEach(e=>{
-    const predT=Math.exp(profileRegression.intercept+profileRegression.slope*Math.log(e.distance_m));
-    const diff=e.seconds-predT;
-    const diffStr=diff>1?`+${fmtTime(Math.abs(diff))} slower`:diff<-1?`−${fmtTime(Math.abs(diff))} faster`:'on curve';
-    const pct=Math.abs(diff)/predT;
-    const badge=pct>0.005?(diff>0?'<span class="profile-badge opportunity">potential</span>':'<span class="profile-badge strength">strength</span>'):'';
-    const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${e.name}</td><td>${fmtTime(e.seconds)}</td><td class="col-curve">${fmtTime(predT)}</td><td>${diffStr}</td><td>${badge}</td>`;
-    tbody.appendChild(tr);
-  });
-}
-function renderProfileChart() {
-  const canvas=document.getElementById('profile-chart'); if(!canvas)return;
-  const W=canvas.clientWidth; if(!W)return;
-  const H=250; canvas.width=W; canvas.height=H;
-  const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,W,H);
-  const ML=68,MR=18,MT=18,MB=46, cW=W-ML-MR, cH=H-MT-MB;
-
-  const vis = visibleEfforts();
-  const xticks = ALL_XTICKS.filter(t=>vis.some(e=>e.distance_m===t.d));
-  const dists = vis.map(e=>e.distance_m);
-  const ldMin=Math.log(Math.min(...dists)*0.85), ldMax=Math.log(Math.max(...dists)*1.15);
-
-  // Pace range covering dots + curve
-  const predPaces=dists.map(d=>Math.exp(profileRegression.intercept+profileRegression.slope*Math.log(d))/(d/1609.34));
-  const effortPaces=vis.map(e=>e.seconds/(e.distance_m/1609.34));
-  const allPaces=[...predPaces,...effortPaces];
-  const paceMin=Math.min(...allPaces)*0.92, paceMax=Math.max(...allPaces)*1.10;
-
-  const toX=d=>ML+(Math.log(d)-ldMin)/(ldMax-ldMin)*cW;
-  const toY=pace=>MT+(pace-paceMin)/(paceMax-paceMin)*cH;
-
-  // Vertical grid
-  ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=1;
-  xticks.forEach(({d})=>{const x=toX(d); ctx.beginPath(); ctx.moveTo(x,MT); ctx.lineTo(x,MT+cH); ctx.stroke();});
-
-  // Horizontal pace grid
-  ctx.font='10px system-ui,sans-serif';
-  const span=paceMax-paceMin, step=span<120?30:span<300?60:120;
-  for (let p=Math.ceil(paceMin/step)*step; p<=paceMax; p+=step) {
-    const y=toY(p);
-    ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=1;
-    ctx.beginPath(); ctx.moveTo(ML,y); ctx.lineTo(ML+cW,y); ctx.stroke();
-    ctx.fillStyle='rgba(255,255,255,0.28)'; ctx.textAlign='right';
-    ctx.fillText(`${Math.floor(p/60)}:${String(Math.round(p%60)).padStart(2,'0')}`,ML-6,y+3.5);
-  }
-
-  // Axes
-  ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(ML,MT); ctx.lineTo(ML,MT+cH); ctx.lineTo(ML+cW,MT+cH); ctx.stroke();
-
-  // X labels — skip any that would overlap with neighbours
-  ctx.fillStyle='rgba(255,255,255,0.28)'; ctx.textAlign='center';
-  let lastX=-999;
-  xticks.forEach(({d,l})=>{
-    const x=toX(d);
-    if(x-lastX>28){ctx.fillText(l,x,MT+cH+16); lastX=x;}
-  });
-
-  // Y-axis label
-  ctx.save(); ctx.translate(12,MT+cH/2); ctx.rotate(-Math.PI/2);
-  ctx.textAlign='center'; ctx.fillStyle='rgba(255,255,255,0.25)';
-  ctx.fillText('Pace (min/mi)',0,0); ctx.restore();
-
-  // Regression curve
-  ctx.beginPath(); let first=true;
-  for (let i=0;i<=120;i++){
-    const ld=ldMin+(ldMax-ldMin)*i/120, d=Math.exp(ld);
-    const pace=Math.exp(profileRegression.intercept+profileRegression.slope*ld)/(d/1609.34);
-    const x=ML+(ld-ldMin)/(ldMax-ldMin)*cW, y=toY(pace);
-    first?(ctx.moveTo(x,y),first=false):ctx.lineTo(x,y);
-  }
-  ctx.strokeStyle='rgba(29,185,84,0.5)'; ctx.lineWidth=2; ctx.stroke();
-
-  // PR dots
-  vis.forEach(e=>{
-    const x=toX(e.distance_m), y=toY(e.seconds/(e.distance_m/1609.34));
-    let fill='rgba(29,185,84,0.9)';
-    if (e.date){
-      const t=Math.min(1,(Date.now()-new Date(e.date).getTime())/(365.25*864e5));
-      const r=Math.round(29+t*(130-29)), g=Math.round(185+t*(130-185)), b=Math.round(84+t*(150-84));
-      fill=`rgba(${r},${g},${b},${(0.9-t*0.25).toFixed(2)})`;
-    }
-    ctx.beginPath(); ctx.arc(x,y,7,0,Math.PI*2);
-    ctx.fillStyle=fill; ctx.fill();
-    ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.lineWidth=1; ctx.stroke();
-  });
-}
-window.addEventListener('resize',()=>{if(profileEfforts.length)renderProfileChart();});
 {% endif %}
 </script>
 {% endblock %}

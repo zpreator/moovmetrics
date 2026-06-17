@@ -329,6 +329,45 @@ main { flex: 1; padding: 0 1.2rem; }
 .breakdown-count { color: rgba(255,255,255,0.55); white-space: nowrap; text-align: right; }
 .breakdown-miles { color: #1db954; white-space: nowrap; text-align: right; font-weight: 600; }
 
+/* Profile section titles */
+.profile-section-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.4);
+  margin: 1.5rem 0 0.75rem;
+}
+
+/* Gear summary on profile page */
+.gear-summary-item {
+  margin-bottom: 0.9rem;
+}
+.gear-summary-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gear-summary-bar-wrap {
+  height: 6px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 0.2rem;
+}
+.gear-summary-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+.gear-summary-label {
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.4);
+}
+
 /* Profile actions */
 .profile-actions {
   display: flex;
@@ -1155,7 +1194,7 @@ select option { background: #23272b; }
 
 @media (max-width: 768px) {
   .dash-two-col { grid-template-columns: 1fr; }
-  .stat-cards   { grid-template-columns: repeat(2, 1fr); }
+  .stat-cards   { grid-template-columns: repeat(3, 1fr); }
   .image-wrapper { width: calc(50% - 0.25rem); }
   .tools-page   { max-width: 100%; }
   .gear-summary-row { grid-template-columns: repeat(2, 1fr); }

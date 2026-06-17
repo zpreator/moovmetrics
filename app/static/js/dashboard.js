@@ -362,25 +362,7 @@ async function loadProfileData() {
   try {
       const response = await fetch('/get_profile_data');
       const data = await response.json();
-      const sportsContainer = document.getElementById('sports-container');
       const clubsContainer = document.getElementById('clubs-container');
-      const sortedStats = Object.entries(data.stats).sort((a, b) => b[1].count - a[1].count);
-      function formatSportName(name) {
-          return name.replace(/([a-z])([A-Z])/g, '$1 $2')
-                     .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
-                     .replace(/^./, s => s.toUpperCase());
-      }
-      sortedStats.forEach(([sport, sportData]) => {
-          const row = document.createElement('div');
-          row.className = 'sport-row';
-          row.innerHTML = `
-            <span class="sport-name">${formatSportName(sport)}</span>
-            <span class="sport-count">${sportData.count} activities</span>
-            <span class="sport-miles">${sportData.distance.toFixed(0)} mi</span>
-          `;
-          sportsContainer.appendChild(row);
-      });
-      hide_spinner("spinner-sports");
       data.clubs.forEach(club => {
           const wrapper = document.createElement('div');
           wrapper.className = 'w3-container';
@@ -405,7 +387,6 @@ async function loadProfileData() {
       hide_spinner("spinner-clubs");
   } catch (error) {
       console.error('[loadProfileData] error:', error);
-      hide_spinner("spinner-sports");
       hide_spinner("spinner-clubs");
   }
 }
