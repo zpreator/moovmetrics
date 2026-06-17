@@ -12,8 +12,8 @@
   <!-- Tabs -->
   <div class="tools-tabs">
     <button class="tab-btn active" onclick="showTab('pace',    this)">Pace Calculator</button>
-    <button class="tab-btn"        onclick="showTab('riegel',  this)">Riegel</button>
-    <button class="tab-btn"        onclick="showTab('daniels', this)">Daniels</button>
+    <button class="tab-btn"        onclick="showTab('riegel',  this)">Race Predictor</button>
+    <button class="tab-btn"        onclick="showTab('daniels', this)">Fitness Predictor</button>
   </div>
 
   <!-- ===== TAB 1: PACE CALCULATOR ===== -->
@@ -81,23 +81,27 @@
   <!-- ===== TAB 2: RIEGEL PREDICTION ===== -->
   <div id="tab-riegel" class="tab-panel" style="display:none;">
     <div class="tool-card">
-      <h2 class="tool-card-title">Riegel Race Prediction</h2>
-      <p class="tool-card-sub">Power-law formula: T₂ = T₁ × (D₂/D₁)<sup>exp</sup>. Enter a known result to project any distance.</p>
+      <h2 class="tool-card-title">Race Predictor</h2>
+      <p class="tool-card-sub">Enter a race result and project your time at any other distance. Uses the Riegel power-law formula: T₂ = T₁ × (D₂/D₁)<sup>exp</sup>.</p>
 
       {% if not is_strava %}
       <div class="strava-cta-banner">
-        <span>Connect Strava to use your personal Riegel exponent — fitted from your actual PR curve instead of a generic constant.</span>
+        <span>Connect Strava to use your personal curve — fitted from your actual race PRs instead of a generic constant.</span>
         <a href="/login/strava" class="btn-strava-cta">Connect Strava</a>
       </div>
       {% endif %}
 
+      <div id="riegel-strava-row" class="dist-legend" style="display:none; margin-bottom:1rem;">
+        <span class="dist-legend-dot" style="background:#1db954;"></span><span>Personal curve from your Strava PRs</span>
+      </div>
+
       <div class="calc-fields">
         <div class="calc-group">
           <label>Formula</label>
-          <select id="riegel-formula" onchange="predict()">
-            <option value="1.06">Standard (exponent 1.06)</option>
-            <option value="1.08">Conservative (exponent 1.08)</option>
-          </select>
+          <div class="chart-buttons" id="formula-btns" style="flex-wrap:wrap;">
+            <button class="chart-button" onclick="setFormula(1.06, this)">Standard</button>
+            <button class="chart-button" onclick="setFormula(1.08, this)">Conservative</button>
+          </div>
         </div>
         <div class="calc-group">
           <label>Reference Distance</label>
@@ -135,8 +139,8 @@
   <!-- ===== TAB 3: DANIELS PREDICTION ===== -->
   <div id="tab-daniels" class="tab-panel" style="display:none;">
     <div class="tool-card">
-      <h2 class="tool-card-title">Daniels Race Prediction</h2>
-      <p class="tool-card-sub">Uses the Jack Daniels VO2max formula to project race times from a single aerobic capacity estimate. Drag the slider to explore.</p>
+      <h2 class="tool-card-title">Fitness Predictor</h2>
+      <p class="tool-card-sub">Project race times from your aerobic fitness level instead of a specific race result. Based on the Jack Daniels VO2max model — drag the slider to explore different fitness levels.</p>
 
       {% if not is_strava %}
       <div class="strava-cta-banner">
@@ -290,12 +294,23 @@ function calculate() {
 // ============================================================
 // Riegel Prediction
 // ============================================================
+let currentRiegelExp = 1.06;
+function setFormula(exp, btn) {
+  currentRiegelExp = exp;
+  document.querySelectorAll('#formula-btns .chart-button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const isPersonal = btn.dataset.personal === '1';
+  document.getElementById('riegel-strava-row').style.display = isPersonal ? '' : 'none';
+  predict();
+}
 function predict() {
-  const exp=parseFloat(document.getElementById('riegel-formula').value);
+  const exp = currentRiegelExp;
   const d1=parseFloat(document.getElementById('ref-distance').value);
   const t1=(parseInt(document.getElementById('ref-hr').value)||0)*3600+(parseInt(document.getElementById('ref-min').value)||0)*60+(parseInt(document.getElementById('ref-sec').value)||0);
   if (!d1||!t1){document.getElementById('predictions-out').style.display='none';return;}
-  document.getElementById('predictions-formula-label').textContent=`Riegel — ${exp===1.06?'standard':'conservative'} (exponent ${exp})`;
+  const activeBtn = document.querySelector('#formula-btns .chart-button.active');
+  const label = activeBtn ? activeBtn.textContent.replace(/[^\x20-\x7E]/g,'').trim() : `exponent ${exp}`;
+  document.getElementById('predictions-formula-label').textContent=`Race Predictor · ${label} (Riegel exponent ${exp})`;
   const tbody=document.getElementById('predictions-body'); tbody.innerHTML='';
   RACE_TARGETS.forEach(t=>{
     const t2=t1*Math.pow(t.meters/d1,exp), isRef=Math.abs(t.meters-d1)<1;
@@ -433,12 +448,17 @@ async function loadPersonalExponent() {
       efforts.map(e => Math.log(e.seconds))
     );
     personalExponent = +reg.slope.toFixed(3);
-    const sel = document.getElementById('riegel-formula');
-    const opt = document.createElement('option');
-    opt.value = personalExponent;
-    opt.textContent = `My Curve (exponent ${personalExponent})`;
-    opt.selected = true;
-    sel.insertBefore(opt, sel.firstChild);
+    currentRiegelExp = personalExponent;
+
+    const btn = document.createElement('button');
+    btn.className = 'chart-button active';
+    btn.dataset.personal = '1';
+    btn.innerHTML = `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#1db954;margin-right:5px;vertical-align:middle;"></span>My Curve <span class="strava-badge" style="font-size:0.68rem;padding:0.1rem 0.4rem;margin-left:0.3rem;">${personalExponent}</span>`;
+    btn.onclick = function() { setFormula(personalExponent, this); };
+
+    const container = document.getElementById('formula-btns');
+    container.insertBefore(btn, container.firstChild);
+    document.getElementById('riegel-strava-row').style.display = '';
     predict();
   } catch(e) { console.warn('Personal exponent load:', e); }
 }

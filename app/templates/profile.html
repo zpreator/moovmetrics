@@ -55,7 +55,10 @@
 
     <!-- Performance Profile -->
     <div class="profile-section-title">Performance Profile</div>
-    <div id="perf-loading" class="loading-hint">Loading your PRs…</div>
+    <div id="perf-loading">
+      <div class="loading-spinner" id="perf-spinner" style="margin: 1.5rem auto;"></div>
+      <p id="perf-loading-msg" class="loading-hint" style="display:none; text-align:center; margin-top:0.5rem;"></p>
+    </div>
     <div id="perf-content" style="display:none;">
       <p class="tool-card-sub" style="margin:0 0 0.75rem;">Fits a personalized Riegel curve through your PRs. Dots above the curve are distances where your current fitness likely exceeds your old PR.</p>
       <div id="perf-summary" class="profile-summary-line"></div>
@@ -203,7 +206,10 @@ async function loadPerfProfile() {
     const res = await fetch('/api/activity-bests'), data = await res.json();
     perfEfforts = data.efforts;
     if (perfEfforts.length < 2) {
-      document.getElementById('perf-loading').textContent = 'Need at least 2 PR distances to build a profile.';
+      document.getElementById('perf-spinner').style.display = 'none';
+      const msg = document.getElementById('perf-loading-msg');
+      msg.textContent = 'Need at least 2 PR distances to build a profile.';
+      msg.style.display = '';
       return;
     }
     perfRegression = fitLinearRegression(
@@ -215,7 +221,10 @@ async function loadPerfProfile() {
     renderPerfSummary(); renderPerfTable(); setTimeout(renderPerfChart, 10);
   } catch(e) {
     console.error('Profile:', e);
-    document.getElementById('perf-loading').textContent = 'Could not load PR data.';
+    document.getElementById('perf-spinner').style.display = 'none';
+    const msg = document.getElementById('perf-loading-msg');
+    msg.textContent = 'Could not load PR data.';
+    msg.style.display = '';
   }
 }
 function renderPerfSummary() {

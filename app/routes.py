@@ -695,6 +695,13 @@ def activity_bests():
     if not athlete_id:
         return jsonify({"efforts": []})
 
+    # Return session cache if activities haven't been refreshed since we last computed
+    cache_key = f"activity_bests_{athlete_id}"
+    cache_ts_key = f"activity_bests_ts_{athlete_id}"
+    last_fetch = session.get("last_activities_fetch", 0)
+    if cache_key in session and session.get(cache_ts_key, 0) >= last_fetch:
+        return jsonify({"efforts": session[cache_key]})
+
     cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=_BEST_EFFORT_DAYS)
 
     runs = (
@@ -708,6 +715,9 @@ def activity_bests():
 
     if not runs:
         return jsonify({"efforts": []})
+
+    # Build date lookup from the runs we already have in memory
+    act_date_map = {a.strava_id: a.start_date_local for a in runs}
 
     # Seed: fastest activity-level pace across all runs in window
     anchor_dist, anchor_time = min(
@@ -746,11 +756,12 @@ def activity_bests():
         if dist_key is None or dist_key < 1609:  # skip sub-mile distances
             continue
         if dist_key not in best_by_distance or e.elapsed_time < best_by_distance[dist_key]["seconds"]:
+            act_date = act_date_map.get(str(e.activity_id))
             best_by_distance[dist_key] = {
                 "name": _CANONICAL_NAMES[dist_key],
                 "distance_m": dist_key,
                 "seconds": e.elapsed_time,
-                "date": None,
+                "date": act_date.isoformat() if act_date else None,
             }
 
     # Pace consistency filter: shorter distances must be faster pace than longer ones
@@ -763,7 +774,10 @@ def activity_bests():
             fastest_pace = pace
             consistent.append(effort)
 
-    return jsonify({"efforts": list(reversed(consistent))})
+    result = list(reversed(consistent))
+    session[cache_key] = result
+    session[cache_ts_key] = int(time.time())
+    return jsonify({"efforts": result})
 
 
 def get_cached_top_images(user_id, activities):
@@ -790,12 +804,23 @@ def get_profile_data():
     athlete = get_user()
     if not athlete:
         return jsonify({"error": "Not authenticated"}), 401
-    activities = get_activities(athlete.id, update_db=should_update_activities(), top_n=MAX_ACTIVITIES)
+    athlete_id = getattr(athlete, "id", None)
+
+    cache_key = f"profile_data_{athlete_id}"
+    cache_ts_key = f"profile_data_ts_{athlete_id}"
+    last_fetch = session.get("last_activities_fetch", 0)
+    if cache_key in session and session.get(cache_ts_key, 0) >= last_fetch:
+        return jsonify(session[cache_key])
+
+    activities = get_activities(athlete_id, update_db=should_update_activities(), top_n=MAX_ACTIVITIES)
     stats = utils.get_stats(activities)
     gear = utils.get_gear(activities)
     clubs = client.get_athlete_clubs()
     clubs = [{"name": x.name, "member_count": x.member_count} for x in clubs]
-    return jsonify({"stats": stats, "gear": gear, "clubs": clubs})
+    result = {"stats": stats, "gear": gear, "clubs": clubs}
+    session[cache_key] = result
+    session[cache_ts_key] = int(time.time())
+    return jsonify(result)
 
 
 # Patch: cache gear distances per user in session
