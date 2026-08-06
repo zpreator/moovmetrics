@@ -4,6 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Moov Metrics{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}Moov Metrics is a free companion app for Strava athletes — activity heatmaps, personal bests, AI-generated training plans, and race pace calculators.{% endblock %}">
+    <link rel="canonical" href="https://moovmetrics.com{{ request.path }}">
+
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Moov Metrics">
+    <meta property="og:url" content="https://moovmetrics.com{{ request.path }}">
+    <meta property="og:title" content="{% block og_title %}{{ self.title() }}{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}{{ self.meta_description() }}{% endblock %}">
+    <meta property="og:image" content="{% block og_image %}https://moovmetrics.com{{ url_for('static', filename='images/cow-head.png') }}{% endblock %}">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ self.og_title() }}">
+    <meta name="twitter:description" content="{{ self.og_description() }}">
+    <meta name="twitter:image" content="{{ self.og_image() }}">
+
     <link href="https://fonts.googleapis.com/css?family=Montserrat:700,400|Roboto:400,700&display=swap" rel="stylesheet">
     <link rel="icon" href="{{ url_for('static', filename='images/cow-head.ico') }}" type="image/x-icon">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
