@@ -9,7 +9,7 @@ from uuid import uuid4
 
 import stravalib.exc
 from dotenv import load_dotenv
-from flask import g, jsonify, redirect, render_template, request, session, url_for
+from flask import g, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 
 import app.utils as utils
 from app.auth import authenticate
@@ -102,6 +102,11 @@ def dev_login():
     }
     session["last_activities_fetch"] = int(time.time())
     return redirect(url_for("profile"))
+
+
+@app.route("/robots.txt")
+def robots_txt():
+    return send_from_directory(app.static_folder, "robots.txt")
 
 
 @app.route("/")
